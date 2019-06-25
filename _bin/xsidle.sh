@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# Use xset s $time to control the timeout when this will run.
+#
+
+if [ $# -lt 1 ];
+then
+	printf "usage: %s cmd\n" "$(basename $0)" 2>&1
+	exit 1
+fi
+cmd="$@"
+tosleep=300 # time to sleep
+
+while true
+do
+	if [ $(xssstate -s) != "disabled" ];
+	then
+		idlesince=$(($(xssstate -i) / 1000))
+		if [ $idlesince -ge $tosleep ];
+		then
+			$cmd
+		else
+			sleep $tosleep
+		fi
+	else
+		sleep 10
+	fi
+done
+
