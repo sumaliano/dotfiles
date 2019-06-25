@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [  $# != 2 ] 
+then 
+	echo "Usage ex: $0 /path/to/backup.img.gz /dev/sdX"
+	exit 1
+fi 
+
+SIZE=`du -sk $1 | cut -f 1`
+
+# ex: gunzip -c /path/to/backup.img.gz | dd of=/dev/sdX
+gunzip -c $1 | pv -s ${SIZE}k | dd of=$2

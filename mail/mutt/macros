@@ -1,0 +1,116 @@
+
+# Sidebar Navigation ---------------------------------
+bind index,pager <down>   sidebar-next
+bind index,pager <up>     sidebar-prev
+bind index,pager <right>  sidebar-open
+macro index   <left>   "c?"
+
+# b toggles sidebar visibility
+macro index,pager,compose B '<enter-command>toggle sidebar_visible<enter>'
+
+
+# Index Key Bindings ---------------------------------
+bind index gg       first-entry
+bind index G        last-entry
+bind index R        group-reply
+bind index <tab>    sync-mailbox
+bind index -		collapse-thread
+bind index _		collapse-all
+#bind index,pager N	search-opposite
+bind index u        undelete-message
+macro index d "<tag-entry><tag-prefix><clear-flag>N<tag-prefix><delete-message>" "mark read and delete"
+
+# Pager Key Bindings ---------------------------------
+bind pager k	previous-line
+bind pager j	next-line
+bind pager gg	top
+bind pager G	bottom
+bind pager R	group-reply
+bind pager i    exit
+
+# Ctrl-R to mark all as read
+#macro index \Cr "T~U<enter><tag-prefix><clear-flag>N<untag-pattern>.<enter>" "mark all messages as read"
+
+# Sync email
+# macro index ,P "<shell-escape>clear;mbsync --debug estamine<enter>"  "sync estamine mail in debug mode"
+macro index ,p "<shell-escape>clear;mbsync --debug gmail<enter>"  "sync GMail in debug mode"
+macro index P "<shell-escape>clear;mbsync -V gmail<enter>"  "sync all mail in verbose mode"
+macro index p "<shell-escape>clear;mbsync mail_inbox<enter>" "sync inbox"
+
+# Update nottoomuch-addresses
+macro index ,ua "<shell-escape>$HOME/.mutt/nottoomuch-addresses.sh --update<enter>" "update addresses"
+macro index ,un "<shell-escape>notmuch new<enter>" "update notmuch"
+
+macro index,pager ,st <tag-thread><limit>~T<enter><tag-thread> "show only current thread"
+macro index,pager ,sa <limit>all<enter> "show everything"
+
+macro index,pager,compose,attach ,tp "<pipe-message>sed 's/[><#\$%^&*]//g'|trans -no-auto -b :pt|less\n" "Translate into Portuguese"
+macro index,pager,compose,attach ,te "<pipe-message>sed 's/[><#\$%^&*]//g'|trans -no-auto -b :en|less\n" "Translate into English"
+
+# Saner copy/move dialogs
+#macro index C "<copy-message>?<toggle-mailboxes>" "copy a message to a mailbox"
+#macro index M "<save-message>?<toggle-mailboxes>" "move a message to a mailbox"
+
+bind  pager   <space>  view-attachments
+bind  attach  i   exit
+bind  attach  <space> view-attach
+bind  attach  <return> view-mailcap
+
+# View attachments properly.
+macro pager \Cu "|urlscan<enter>" "call urlview to open links"
+# macro pager \Cu "|urlview<enter>" "call urlview to open links"
+macro pager \Cb <pipe-entry>'w3m'<enter> 'Follow links in w3m' 
+
+macro attach O \
+"<enter-command>unset wait_key<enter>\
+<shell-escape>rm -f /tmp/mutt-attach<enter>\
+<save-entry><kill-line>/tmp/mutt-attach<enter>\
+<shell-escape> /tmp/mutt-attach &^A"
+
+# save attatchments
+macro attach E <save-entry><kill-line>~/Downloads/ "Save attachment as"
+macro attach W "<save-entry><bol>~/Downloads/<eol>" "Save to attachments"
+
+
+# 'L' performs a notmuch query, showing only the results
+macro index L "<enter-command>unset wait_key<enter>\
+<shell-escape>read -p 'notmuch query: ' x; echo \$x >~/.cache/mutt_terms<enter>\
+<limit>~i \"\`notmuch search --output=messages \$(cat ~/.cache/mutt_terms) | head -n 600 | perl -le '@a=<>;chomp@a;s/\^id:// for@a;$,=\"|\";print@a'\`\"<enter>" "show only messages matching a notmuch pattern"
+
+# 'a' shows all messages again (supersedes default <alias> binding)
+macro index a "<limit>all\n" "show all messages (undo limit)"
+
+macro index S "<enter-command>unset wait_key<enter>\
+<shell-escape>~/.mutt/mutt-notmuch-py.py ~/MAILDIR/temporary/search<enter>\
+<change-folder-readonly>+temporary/search<enter>" "search mail (using notmuch)"
+
+bind editor <Tab> complete-query
+bind editor ^T    complete
+
+macro index,pager ,b <sync-mailbox><change-folder>?<toggle-mailboxes>
+
+#macro index,pager ,1 '<change-folder>~/mail/estamine/INBOX<enter>'
+#macro index,pager ,2 '<change-folder>~/mail/gmail/Inbox<enter>'
+
+macro index,pager,compose ,1 "<enter-command>source ~/.mutt/accounts/estamine<enter>" \
+"Send EMail from ESTAMINE account"
+macro index,pager,compose ,2 "<enter-command>source ~/.mutt/accounts/gmail<enter>" \
+"Send EMail from GMAIL account"
+
+# labels
+macro index,pager y "<enter-command>set editor=\"~/.mutt/editlabel append\"\n\
+<edit><sync-mailbox><next-undeleted>\
+<enter-command>set editor=vim\n" "Append label"
+macro index,pager Y "<enter-command>set editor=\"~/.mutt/editlabel menu\"\n\
+<edit><sync-mailbox><next-undeleted>\
+<enter-command>set editor=vim\n" "Edit labels"
+macro index \Cy "<limit>~y " "Limit view to label"
+
+
+macro index,pager ,lp "<enter-command>set editor=\"~/.mutt/myeditlabel append pending\"\n\
+<edit><sync-mailbox><next-undeleted>\
+<enter-command>set editor=vim\n" "Append label pending"
+macro index,pager ,lc "<enter-command>set editor=\"~/.mutt/myeditlabel clean all\"\n\
+<edit><sync-mailbox><next-undeleted>\
+<enter-command>set editor=vim\n" "Remove label pending"
+macro index ,sl "<limit>~y pending<enter>" "Limit label pending"

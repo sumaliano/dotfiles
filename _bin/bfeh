@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# Author: Joel Silva
+
+PASSED=$1
+F_PATH=$(readlink -f ${PASSED})
+F_DIR=$(dirname ${PASSED})
+
+if  [[ -d "${PASSED}" ]]; then 
+	feh -g 640x480 -d -S filename ${PASSED}
+elif [[ -f "${PASSED}" ]]; then 
+	feh -g 640x480 -d -S filename --start-at $F_PATH $F_DIR
+else 
+	echo "${PASSED} is not valid";
+	exit 1
+fi
+

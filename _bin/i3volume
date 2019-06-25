@@ -1,0 +1,50 @@
+#!/bin/sh
+# /usr/bin/i3exit
+
+getVolume(){
+	amixer -D pulse get Master | grep -o "\[.*%\]" | head -n1
+}
+
+notifyVolume() {
+    if [ "$(amixer -D pulse get Master | grep -o "\[on\]")" ]; then
+        notify-send -t 1000 "Volume: $(getVolume)"
+    else 
+        notify-send -t 1000 "Mute!" "Volume: $(getVolume)"
+    fi
+}
+
+up() {
+    amixer -q sset Master 2%+
+    notifyVolume
+}
+
+down() {
+    amixer -q sset Master 2%-
+    notifyVolume
+}
+
+mute() {
+    amixer -q sset Master toggle
+    notifyVolume
+}
+
+case "$1" in
+    up)
+        up
+        ;;
+    down)
+        down
+        ;;
+    mute)
+        mute 
+        ;;
+    *)
+        echo "== ! i3volume: missing or wrong argument ! ==
+        Try again with: up | down | mute "
+        exit 2
+esac
+
+exit 0
+
+#!/bin/bash
+

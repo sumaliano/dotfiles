@@ -1,0 +1,10 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Eclipse
+Comment=Eclipse IDE
+#Exec=/home/suma/eclipse-rcp/eclipse -vm /home/ivan/java/jdk1.7.0_25/bin/java
+Exec=/home/suma/eclipse-rcp/eclipse
+Icon=/home/suma/eclipse-rcp/icon.xpm
+Categories=Application;Development;Java;IDE
+Type=Application
+Terminal=0

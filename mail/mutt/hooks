@@ -1,0 +1,17 @@
+
+# In case of different realname for each address
+#send-hook	.								'unset realname'
+#send-hook	'~f ^joel@estamine.net$'		'set realname="Joel Estamine"'
+#send-hook  '~f ^joel42silva@gmail.com$'	'set realname="Joel GMail"'
+#
+# send-hook   .*								"unmy_hdr Bcc:"
+# send-hook	'~f ^joel@estamine.net$'		'my_hdr Bcc: Joel Est <joel@estamine.net>'
+# send-hook	'~f ^joel42silva@gmail.com$'	'my_hdr Bcc: Joel Gma <joel42silva@gmail.com>'
+#
+#send-hook	.						"unmy_hdr From:"
+#send-hook	"^estamine$"		"my_hdr From: Joel E <joel@estamine.net>"
+#send-hook	"^gmail$"			"my_hdr From: Joel G <joel42silva@gmail.com>"
+#
+send2-hook	'~f ^joel@estamine.net$'		source ~/.mutt/accounts/estamine
+send2-hook	'~f ^joel42silva@gmail.com$'	source ~/.mutt/accounts/gmail
+

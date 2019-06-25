@@ -1,0 +1,7 @@
+#!/bin/bash
+
+input=$1
+
+output=$2
+
+gs  -o $output  -sDEVICE=pdfwrite  -sPAPERSIZE=a3  -dFIXEDMEDIA  -dPDFFitPage  -dCompatibilityLevel=1.4 $input

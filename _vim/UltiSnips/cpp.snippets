@@ -1,0 +1,116 @@
+###########################################################################
+#			    Global functions 						  #
+###########################################################################
+
+global !p
+
+def write_docstring_args(arglist, snip):
+	args = str(arglist).split(',')
+
+	if len(args) > 1:
+		c = 0
+		for arg in args:
+			if c == 0:
+				snip.rv += arg
+				c = 1
+			else:
+				snip += '*       : %s' % arg.strip()
+	else:
+		snip.rv = args[0]
+
+
+endglobal
+
+#######################################################################
+#                               Snipets                               #
+#######################################################################
+
+
+snippet sep "Separator with single Title" b
+//______________________________________________________________________________
+//`!p snip.rv = (78-len(t[1]))*' '`${1:Title}
+${0}
+endsnippet
+
+snippet ssep "Separator with double Title" b
+//______________________________________________________________________________
+//`!p snip.rv = (78-len(t[1]))*' '`${1:Title}
+${0}
+endsnippet
+
+
+snippet cl "class .. (class)"
+class ${1:`!p snip.rv = snip.basename or "name"`}
+{
+	public:
+		${1/(\w+).*/$1/} (${2:arguments});
+		virtual ~${1/(\w+).*/$1/} ();
+
+	private:
+		${0:/* data */}
+};
+endsnippet
+
+snippet cla "An entire .h generator" b
+#ifndef ${2:`!v substitute(vim_snippets#Filename('$1_H','ClassName'),'.*','\U&\E','')`}
+#define $2
+
+class ${1:`!v substitute(substitute(vim_snippets#Filename('$1','ClassName'),'^.','\u&',''), '_\(\w\)', '\u\1', 'g')`}
+{
+	private:
+		$3
+
+	public:
+		$1();
+		virtual ~$1();
+};
+
+#endif /* $2 */
+endsnippet
+
+
+snippet fnc "Basic c++ doxygen function template" b
+/**
+* @brief: ${4:brief}
+*
+* @param: `!p write_docstring_args(t[3],snip)`
+*
+* @return: `!p snip.rv = t[1]`
+*/
+${1:ReturnType} ${2:FunctionName}(${3:param})
+{
+  ${0:FunctionBody}
+}
+endsnippet
+
+snippet dox "Basic Doxigen block" b
+/**
+* ${1:Description}
+*/${0:}
+endsnippet
+
+snippet doxl "Basic Doxigen block inline" b
+/** ${1:} */${0:}
+endsnippet
+
+snippet dret "Basic Doxigen return block" b
+/**
+* @return: ${1:Description}
+*/${0:}
+endsnippet
+
+snippet dlret "Basic Doxigen block inline" b
+/** @return ${1:} */${0:}
+endsnippet
+
+snippet dpar "Basic Doxigen paremblock" b
+/**
+* @param: `!p write_docstring_args(t[3],snip)` ${1:Description}
+*/${0:}
+endsnippet
+
+snippet debug "Debug message!" b
+LOG_MESSAGE(LogMessage::DEBUG, ${0}
+endsnippet
+
+# vim:ft=snippets:

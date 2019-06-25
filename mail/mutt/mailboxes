@@ -1,0 +1,20 @@
+
+# Mailboxes to show in the sidebar.
+mailboxes +gmail/inbox\
+		  +gmail/sent\
+		  +gmail/drafts\
+		  +gmail/spam\
+		  +gmail/trash\
+		  +temporary/search
+		  #+estamine/INBOX\
+		  #+estamine/Sent\
+		  #+estamine/Drafts\
+		  #+estamine/Trash\
+		  #+========================\
+
+#mailboxes +gmail/Inbox\
+#		  +gmail/[Gmail]/.Drafts\
+#		  +gmail/[Gmail]/.Sent\ Mail\
+#		  +gmail/[Gmail]/Trash\
+#		  +temporary/search
+#		  #+========================\

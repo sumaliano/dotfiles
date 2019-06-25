@@ -1,0 +1,34 @@
+
+background = default default
+frame = white default bold
+window_title = white default bold
+directory = green default bold
+selected_directory = white green bold
+playlist = white white bold
+selected_playlist = white white
+file = white default bold
+selected_file = green green bold
+marked_file = white default bold
+marked_selected_file = white green bold
+info = cyan default
+status = white default
+title = white default
+state = white default
+current_time = green default reverse
+time_left = white default reverse
+total_time = red default reverse
+time_total_frames = white default
+sound_parameters = white default bold
+legend = white default
+disabled = green default
+enabled = white default
+empty_mixer_bar = white default
+filled_mixer_bar = black white
+empty_time_bar = white default
+filled_time_bar = black blue
+entry = white default
+entry_title = black white
+error = red default
+message = white default
+plist_time = white default
+

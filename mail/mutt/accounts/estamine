@@ -1,0 +1,22 @@
+unset realname
+set realname="Joel Silva"
+unset from
+set from="Joel Silva <joel@estamine.net>"
+
+unmy_hdr Bcc
+my_hdr Bcc: Joel Silva <joel@estamine.net>
+
+set sendmail="msmtp -a estamine"
+set sendmail_wait=0
+
+#	set spoolfile="+estamine/inbox"
+#	set trash="+estamine/trash"
+#	set mbox="+estamine/zOld"
+#	set postponed="+estamine/drafts"
+#	unset record
+#	set record="+estamine/sent"
+
+unset signature;
+set signature=""
+
+color status cyan default

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Check if Time Warrior is tracking 
+# if $(~/.bin/timew | grep -q "Tracking"); then 
+#     status="$( ~/.bin/timew | while read a && read b && read c && read d; \
+#     do echo \
+#         $(echo $a | sed -e 's/ \+/-->/g')\;  \
+#         $(echo $b | sed -e 's/ \+/-->/g')\;  \
+#         $(echo $c | sed -e 's/ \+/-->/g')\;  \
+#         $(echo $d | sed -e 's/ \+/-->/g') ;  \
+#     done)"
+# else 
+#     status=$( ~/.bin/timew )
+# fi
+
+if $(~/.bin/timew | grep -q "Tracking"); then 
+    status="$(~/.bin/timew | head -n1)___This Week $(~/.bin/timew week | grep Tracked)___Today $(~/.bin/timew day | grep Tracked )"
+else 
+    status=$( ~/.bin/timew )
+fi
+
+echo ${status}
+
+
+

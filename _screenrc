@@ -1,0 +1,80 @@
+
+startup_message off
+altscreen on
+defscrollback 100000
+vbell off
+shelltitle "$ |bash"
+bind c screen 1 # Window numbering starts at 1, not 0.
+bind 0 select 10
+
+windowlist string "%4n %h%=%f"
+
+#hardstatus alwayslastline "%{+b kr}[ %H ] %{ky} Load: %l %-=%{kb} %c  %d.%m.%Y"
+#hardstatus alwayslastline '%{= kG}[ %{G}%H %{g}][%= %{= kw}%?%-Lw%?%{r}(%{W}%n*%f%t%?(%u)%?%{r})%{w}%?%+Lw%?%?%= %{g}][%{B} %d/%m %{W}%c %{g}]'
+#hardstatus alwayslastline '%{= 9w}%{+b}[%H] %{-b}%{= 9g}%-Lw%{= 9r}%{+b}%n*%f %t%{-b}%{= 9g}%+Lw%{= 9w}%{+b} %= [%c]'
+
+backtick 1 5 5 true
+termcapinfo rxvt* 'hs:ts=\E]2;:fs=\007:ds=\E]2;\007'
+hardstatus string "screen (%n: %t)"
+caption string "%{= 9w}%{+b}[%H] %{-b}%{= 9g}%-Lw%{= 9r}%{+b}%n*%f %t%{-b}%{= 9g}%+Lw%{= 9w}%{+b} %= [%c]"
+caption always
+
+# Arrow keys to switch terminals (only works with X)
+#bindkey "^[[1;5C" next  # ctrl-left
+#bindkey "^[[1;5D" prev  # ctrl-right
+#bindkey "^[[1;3D" prev  # Alt + left
+#bindkey "^[[1;3C" next  # Alt + right
+bindkey "^[h" prev # Alt + h
+bindkey "^[l" next # Alt + l
+
+# Enable 256 color term
+#term xterm-256color
+term screen-256color
+
+bind = resize =
+bind + resize +1
+bind - resize -1
+bind _ resize max
+
+# navigating regions with Alt-arrows
+bindkey "^[[1;3D" focus left
+bindkey "^[[1;3C" focus right
+bindkey "^[[1;3A" focus up   # alt + up
+bindkey "^[[1;3B" focus down # alt + down
+
+# define layouts
+# layout new 'horizontal'
+# split
+# layout new 'vertical'
+# split -v
+# layout new  'main' 
+
+# bind control sequences for new layouts
+bind V layout select 'vertical'
+bind H layout select 'horizontal'
+bind ' ' layout next # <- actually means Ctrl-a + Space
+
+# F2 puts Screen into resize mode. Resize regions using hjkl keys.
+bindkey "^[OQ" eval "command -c rsz" # enter resize mode
+
+# use hjkl keys to resize regions
+bind -c rsz h eval "resize -h -5" "command -c rsz"
+bind -c rsz j eval "resize -v -5" "command -c rsz"
+bind -c rsz k eval "resize -v +5" "command -c rsz"
+bind -c rsz l eval "resize -h +5" "command -c rsz"
+
+# quickly switch between regions using tab and arrows
+bind -c rsz \t    eval "focus"       "command -c rsz" # Tab
+bind -c rsz -k kl eval "focus left"  "command -c rsz" # Left
+bind -c rsz -k kr eval "focus right" "command -c rsz" # Right
+bind -c rsz -k ku eval "focus up"    "command -c rsz" # Up
+bind -c rsz -k kd eval "focus down" "command -c rsz" # Down
+
+screen -t shell 1 bash
+screen -t shell 2 bash
+screen -t shell 3 bash
+#screen -t root 2 su -
+#screen -t vim 3 bash
+#screen -t doc 4 bash
+#screen -t axel 5 bash
+

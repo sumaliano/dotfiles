@@ -1,0 +1,193 @@
+
+source ~/.vimrc-standalone
+
+nnoremap <C-e> :ProjectTreeToggle<cr>
+
+nnoremap <C-LeftMouse> <LeftMouse>:CSearchContext<CR>
+nnoremap <C-MiddleMouse> <LeftMouse>:CCallHierarchy<CR>
+nnoremap <C-RightMouse> :bdelete<CR>
+
+nnoremap <C-]> :CSearchContext<CR>
+nnoremap <leader>ch :CCallHierarchy<CR>
+
+"VIM PLUG {{{1
+call plug#begin('~/.vim/plugged')
+
+Plug 'tpope/vim-fugitive'
+Plug 'tpope/vim-surround'
+Plug 'tpope/vim-repeat'
+Plug 'tpope/vim-commentary'
+Plug 'scrooloose/nerdtree', { 'on': 'NERDTreeToggle' }
+
+Plug 'SirVer/ultisnips'
+Plug 'honza/vim-snippets'
+
+Plug 'Chiel92/vim-autoformat'
+Plug 'godlygeek/tabular'
+Plug 'majutsushi/tagbar'
+Plug 'vim-scripts/a.vim'
+Plug 'vim-scripts/DoxygenToolkit.vim'
+Plug 'octol/vim-cpp-enhanced-highlight' , {'for' : 'cc,hpp,h,cpp,c'}
+
+Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
+Plug 'junegunn/fzf.vim'
+
+" Plug 'airblade/vim-gitgutter' , {'for' : 'cc,hpp,h,cpp,c'}
+
+call plug#end()
+"}}}
+
+"PLUGIN SPECIFIC {{{1
+" fugitive {{{2
+if !empty(glob("~/.vim/plugged/vim-fugitive/plugin/fugitive.vim"))
+    nnoremap <silent> <leader>gs :Gstatus<cr>
+    nnoremap <silent> <leader>gd :Gdiff<cr>
+    nnoremap <silent> <leader>gc :Gcommit<cr>
+    nnoremap <silent> <leader>gb :Gblame<cr>
+    nnoremap <silent> <leader>gl :Glog<cr>
+    nnoremap <silent> <leader>gp :Git push<cr>
+    nnoremap <silent> <leader>gr :Gread<cr>
+    nnoremap <silent> <leader>gw :Gwrite<cr>
+    nnoremap <silent> <leader>ge :Gedit<cr>
+    nnoremap <silent> <leader>ga :Git add -p %<cr>
+endif
+"}}}
+" ultisnipets {{{
+if !empty(glob("~/.vim/plugged/ultisnips/plugin/UltiSnips.vim"))
+    " trigger configuration. do not use <tab> if you
+    " use https://github.com/valloric/youcompleteme.
+    let g:UltiSnipsExpandTrigger="<c-j>"
+    let g:UltiSnipsListSnippets="<c-b>"
+    let g:UltiSnipsJumpForwardTrigger="<c-j>"
+    let g:UltiSnipsJumpBackwardTrigger="<c-k>"
+    " let g:UltiSnipsexpandTrigger="<nop>"
+    " let g:UltiSnipsJumpForwardTrigger="<nop>"
+    " let g:UltiSnipsJumpBackwardTrigger="<nop>"
+
+    " if you want :UltiSnipsEdit to split your window.
+    let g:UltiSnipsEditSplit="context"
+    " snippets are separated from the engine. add this if you want them:
+    let g:UltiSnipsSnippetsDir = "~/.vim/ultisnips"
+    let g:UltiSnipsSnippetDirectories =
+                \ [$home.'/.vim/plugged/vim-snippets/ultisnips/', $home.'/.vim/ultisnips/']
+endif
+"}}}
+" nerdtree {{{2
+if !empty(glob("~/.vim/plugged/nerdtree/plugin/NERD_tree.vim"))
+    nnoremap <leader>tn :NERDTreeToggle<cr>
+    nnoremap <C-\> :NERDTreeToggle<cr>
+    let g:nerdtreewinpos = "left"
+
+    let nerdspacedelims=1
+    let nerdcompactsexycoms=1
+    let g:nerdcustomdelimiters = { 'racket': { 'left': ';', 'leftalt': '#|', 'rightalt': '|#' } }
+endif
+"}}}
+" autoformat {{{2
+if !empty(glob("~/.vim/plugged/vim-autoformat/plugin/autoformat.vim"))
+    noremap <leader>= :Autoformat <cr>
+    " let b:formatdef_custom_c='"astyle --mode=c --suffix=none --options=/home/user/special_project/astylerc"'
+    " let b:formatdef_custom_c='"clang-format -style=~/.vim/clang_config/clang-format-ascat.yaml"'
+    " let b:formatters_c = ['custom_c']
+endif
+"}}}
+" tagbar {{{2
+if !empty(glob("~/.vim/plugged/tagbar/plugin/tagbar.vim"))
+    nnoremap <leader>tt :TagbarToggle<cr>
+endif
+"}}}
+" tabularize {{{2
+if exists(":Tabularize")
+    nmap <leader>a= :tabularize /=<cr>
+    vmap <leader>a= :tabularize /=<cr>
+    nmap <leader>a: :tabularize /:\zs<cr>
+    vmap <leader>a: :tabularize /:\zs<cr>
+
+    inoremap <silent> <bar>   <bar><esc>:call <sid>align()<cr>a
+
+    function! s:align()
+        let p = '^\s*|\s.*\s|\s*$'
+        if exists(':tabularize') && getline('.') =~# '^\s*|' && (getline(line('.')-1) =~# p || getline(line('.')+1) =~# p)
+            let column = strlen(substitute(getline('.')[0:col('.')],'[^|]','','g'))
+            let position = strlen(matchstr(getline('.')[0:col('.')],'.*|\s*\zs.*'))
+            tabularize/|/l1
+            normal! 0
+            call search(repeat('[^|]*|',column).'\s\{-\}'.repeat('.',position),'ce',line('.'))
+        endif
+    endfunction
+endif
+"}}}
+" a.vim {{{2
+if !empty(glob("~/.vim/plugged/a.vim"))
+    map <f4> :A<cr>
+endif
+"}}}
+" ale {{{2
+if isdirectory(expand("~/.vim/plugged/ale/plugin/ale.vim"))
+    " enable completion where available.
+    let g:ale_completion_enabled = 1
+endif
+"}}}
+" vim-cpp-enhanced-highlight {{{2
+if !empty(glob("~/.vim/plugged/vim-cpp-enhanced-highlight/after/syntax/cpp.vim"))
+    let g:cpp_class_scope_highlight = 1
+    let g:cpp_member_variable_highlight = 1
+    let g:cpp_experimental_simple_template_highlight = 1
+    let g:cpp_class_decl_highlight = 1
+    " let g:cpp_experimental_template_highlight = 1
+    let g:cpp_concepts_highlight = 1
+    " let g:cpp_no_function_highlight = 1
+endif
+"}}}
+" fzf {{{2
+if !empty(glob("~/.vim/plugged/fzf.vim/plugin/fzf.vim"))
+    nnoremap <leader>bb :Buffers<CR>
+    " nnoremap <leader>t :Tags<CR>
+    nnoremap <C-p> :Files<CR>
+    nnoremap <leader>ag :Ag<CR>
+
+
+    " Command for git grep
+    " - fzf#vim#grep(command, with_column, [options], [fullscreen])
+    command! -bang -nargs=* GGrep
+                \ call fzf#vim#grep(
+                \   'git grep --line-number '.shellescape(<q-args>), 0,
+                \   { 'dir': systemlist('git rev-parse --show-toplevel')[0] }, <bang>0)
+
+    " Override Colors command. You can safely do this in your .vimrc as fzf.vim
+    " will not override existing commands.
+    command! -bang Colors
+                \ call fzf#vim#colors({'left': '15%', 'options': '--reverse --margin 30%,0'}, <bang>0)
+
+    " Augmenting Ag command using fzf#vim#with_preview function
+    "   * fzf#vim#with_preview([[options], [preview window], [toggle keys...]])
+    "     * For syntax-highlighting, Ruby and any of the following tools are required:
+    "       - Bat: https://github.com/sharkdp/bat
+    "       - Highlight: http://www.andre-simon.de/doku/highlight/en/highlight.php
+    "       - CodeRay: http://coderay.rubychan.de/
+    "       - Rouge: https://github.com/jneen/rouge
+    "
+    "   :Ag  - Start fzf with hidden preview window that can be enabled with "?" key
+    "   :Ag! - Start fzf in fullscreen and display the preview window above
+    command! -bang -nargs=* Ag
+                \ call fzf#vim#ag(<q-args>,
+                \                 <bang>0 ? fzf#vim#with_preview('up:60%')
+                \                         : fzf#vim#with_preview('right:50%:hidden', '?'),
+                \                 <bang>0)
+
+    " Similarly, we can apply it to fzf#vim#grep. To use ripgrep instead of ag:
+    command! -bang -nargs=* Rg
+                \ call fzf#vim#grep(
+                \   'rg --column --line-number --no-heading --color=always --smart-case '.shellescape(<q-args>), 1,
+                \   <bang>0 ? fzf#vim#with_preview('up:60%')
+                \           : fzf#vim#with_preview('right:50%:hidden', '?'),
+                \   <bang>0)
+
+    " Likewise, Files command with preview window
+    command! -bang -nargs=? -complete=dir Files
+                \ call fzf#vim#files(<q-args>, fzf#vim#with_preview(), <bang>0)
+
+endif
+"}}}
+"}}}
+

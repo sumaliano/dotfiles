@@ -1,0 +1,9 @@
+
+# Mystuff
+
+priority 1
+
+snippet ask "Ask for a dotfile symlink" b
+ask "Install symlink for ${1:path_to_dotfile} ?" Y && ln -sfn ${DOTFILES_DIR}/$1 ${HOME}/$1
+$0
+endsnippet

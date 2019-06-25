@@ -1,0 +1,16 @@
+#!/bin/bash
+FILE=$1
+if [ -f $FILE ] ; then                                                           
+	case $FILE in                                                                  
+		#*.mov | *.MOV)   
+		*.* )   
+			ffmpeg -i $FILE -f webm\
+				-c:v libvpx -qmin 10 -qmax 42 -crf 10 -b:v 1000K \
+				-c:a libvorbis -aq 90 \
+				-vf "scale=640:-1" "${FILE%.*}.webm" ;;
+		*)           
+			echo "'$FILE' cannot be extracted via vid2webm" ;;                  
+	esac                                                                        
+else                                                                          
+	echo "'$FILE' is not a valid file"                                             
+fi 

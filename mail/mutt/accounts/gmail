@@ -1,0 +1,22 @@
+unset realname
+set realname="Joel Silva"
+unset from
+set from="Joel Silva <joel42silva@gmail.com>"
+
+unmy_hdr Bcc
+my_hdr Bcc: Joel Silva<joel42silva@gmail.com>
+
+set sendmail="msmtp -a gmail"
+set sendmail_wait=0
+
+set spoolfile="+gmail/inbox"
+set trash="+gmail/trash"
+set mbox="+gmail/all"
+set postponed="+gmail/drafts"
+unset record
+#set record="+gmail/sent"
+
+unset signature;
+set signature=""
+
+color status red default
