@@ -1,0 +1,15 @@
+_config%ranger/bookmarks
+_config%ranger/history
+_config%ranger/tagged
+_bin/timew
+_vim/.netrwhist
+_vim/autoload/plug.vim.old
+_vim/init.vim
+_vim/plugged/
+_vim/plugin/
+_vim/eclim/
+_vim/tmp/
+_atom/
+tags*
+
+
