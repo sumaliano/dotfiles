@@ -58,8 +58,8 @@ bar {
 #   mode dock|hide|invisible
     mode dock
 #   status_command i3status -c ~/.i3/i3status.conf
-    # status_command $HOME/.conky/start_conky-i3bar.sh
-    status_command $HOME/.conky/start_dwmstatus-i3bar.sh
+    status_command $HOME/.conky/start_conky-i3bar.sh
+    # status_command $HOME/.conky/start_dwmstatus-i3bar.sh
     position bottom
 
     bindsym button4 nop

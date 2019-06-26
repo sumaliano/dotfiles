@@ -38,9 +38,12 @@ case "$1" in
     mute)
         mute 
         ;;
+    show)
+        getVolume 
+        ;;
     *)
         echo "== ! i3volume: missing or wrong argument ! ==
-        Try again with: up | down | mute "
+        Try again with: up | down | mute | show"
         exit 2
 esac
 

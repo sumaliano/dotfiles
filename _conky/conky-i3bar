@@ -50,8 +50,7 @@ TEXT
 #{ "full_text" : "⛁ ~/${fs_free /home/silvaj}" , "color" : "\#ffffff" },
 #{ "full_text" : "⛁ ~/ ${exec du -sh /home/silvaj | awk '{print $1}'}" , "color" : "\#ffffff" },
 #{ "full_text" : "⛁ /${fs_free /}" , "color" : "\#ffffff" },
-#{ "full_text" : "∰  ${exec amixer -c 0 get Master | grep Mono: | cut -d " " -f6}" , "color" : "\#dc8656" },
-{ "full_text" : "∰  ${exec amixer get Master | grep Left: | cut -d " " -f7}" , "color" : "\#dc8656" },
+{ "full_text" : "∰  ${exec ~/.bin/i3volume show}" , "color" : "\#dc8656" },
 #{ "full_text" : "  ${wireless_link_qual wlp5s0}% - ${wireless_essid} - ${gw_iface} ${addr wlp5s0}" , "color" : "\#d19a66" },
 {"full_text": " [${uptime}] ","color": "\#e06c75"},
 { "full_text" : "${time %a %d/%m %R} " , "color" : "\#ffffff" }
