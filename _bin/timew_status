@@ -13,10 +13,10 @@
 #     status=$( ~/.bin/timew )
 # fi
 
-if $(~/.bin/timew | grep -q "Tracking"); then 
-    status="$(~/.bin/timew | head -n1)___This Week $(~/.bin/timew week | grep Tracked)___Today $(~/.bin/timew day | grep Tracked )"
+if $(timew | grep -q "Tracking"); then 
+    status="[$(timew | head -n1)][This Week $(timew week | grep Tracked)][Today $(timew day | grep Tracked )]"
 else 
-    status=$( ~/.bin/timew )
+    status=$(timew)
 fi
 
 echo ${status}

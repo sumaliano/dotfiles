@@ -15,12 +15,12 @@ while true
 do
 	if [ $(xssstate -s) != "disabled" ];
 	then
-		idlesince=$(($(xssstate -i) / 1000))
+		idlesince=$(($(xssstate -i) / 1000 + 1))
 		if [ $idlesince -ge $tosleep ];
 		then
 			$cmd
 		else
-			sleep $tosleep
+			sleep $tosleep 
 		fi
 	else
 		sleep 10

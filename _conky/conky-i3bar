@@ -39,7 +39,7 @@ TEXT
 
 [
 #{ "full_text" : "${exec ~/.bin/getidle}" , "color" : "\#3465a4" },
-{ "full_text" : "${execi 30 ~/.conky/scripts/show-timew-status}" , "color" : "\#56b6c2" },
+{ "full_text" : "${execi 30 ~/.bin/timew_status}" , "color" : "\#56b6c2" },
 #{ "full_text" : "▲${upspeed wlp5s0}/s-${totalup wlp5s0}\t▼${downspeed wlp5s0}/s-${totaldown wlp5s0}" , "color" : "\#ffffff" },
 {"full_text": " ■ [$cpubar] ", "color":"\#61aeee"},
 #{"full_text": " ■ [$loadavg] ", "color":"\#00A9B5"},

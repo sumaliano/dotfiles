@@ -64,6 +64,7 @@ get_session(){
 	echo "dbus-launch ${dbus_args[*]}"
 }
 
+xidle slock &
 dwmstatus 2>&1 >/dev/null &
 exec $SESSION
 
