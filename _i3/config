@@ -87,8 +87,8 @@ bar {
 #####################
 # set $term gnome-terminal
 # set $term st -t "Suckless Terminal" -f "Consolas:style=Regular:size=9" -g "80x24"
-set $term st -t "SucklessTerminal" -f "Fira Mono:style=Regular:size=12"
-set $term_float st -t "SucklessTerminal_Floating" -f "Fira Mono:style=Regular:size=12" -g "80x24"
+set $term st -t "SucklessTerminal" -f "Fira Mono:style=Regular:size=9"
+set $term_float st -t "SucklessTerminal_Floating" -f "Fira Mono:style=Regular:size=9" -g "80x24"
 
 #################
 #  key-bidings  #

@@ -3,8 +3,13 @@
 URL=$1
 
 youtube-dl --download-archive downloaded.txt \
+    -i \
     --no-post-overwrites \
-    -ciwx --extract-audio \
+    -f bestaudio \
+    --audio-quality 0 \
+    -ciwx \
+    --extract-audio \
     --audio-format mp3 \
     -o "%(title)s.%(ext)s" \
+    --embed-thumbnail \
     --add-metadata $URL
