@@ -20,9 +20,3 @@ if [ ! -d ~/.Trash ]; then
         echo ~/.Trash was missing. I created it for you.
     fi
 fi
-
-#  Add to the path
-if [ -d "$HOME/.bin" ] ; then
-    PATH="$HOME/.bin:$PATH"
-fi
-

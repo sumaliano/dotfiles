@@ -2,8 +2,8 @@
 Encoding=UTF-8
 Name=Eclipse
 Comment=Eclipse IDE
-Exec=/lhome/eclipse-rcp/eclipse
-Icon=/lhome/eclipse-rcp/icon.xpm
+Exec=~/eclipse-rcp/eclipse
+Icon=~/eclipse-rcp/icon.xpm
 Categories=Application;Development;Java;IDE
 Type=Application
 Terminal=0

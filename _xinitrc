@@ -9,7 +9,7 @@ usermodmap=$HOME/.Xmodmap
 sysresources=/etc/X11/xinit/.Xresources
 sysmodmap=/etc/X11/xinit/.Xmodmap
 
-SESSION=${1:-dwm}
+SESSION=${1:-i3}
 
 # merge in defaults and keymaps
 
@@ -65,7 +65,7 @@ get_session(){
 }
 
 xidle slock &
-dwmstatus 2>&1 >/dev/null &
+# dwmstatus 2>&1 >/dev/null &
 exec $SESSION
 
 # exec $(get_session)
