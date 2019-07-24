@@ -10,6 +10,10 @@ lock() {
     i3lock -f -i /tmp/screenshotblur.png -t
 }
 
+lock() {
+    slock
+}
+
 stopTimeW(){
     ~/.bin/timew stop
 }
@@ -18,7 +22,8 @@ stopTimeW
 
 case "$1" in
     lock)
-        lock
+        # lock
+        slock
         ;;
     logout)
         i3-msg exit
