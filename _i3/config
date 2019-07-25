@@ -119,7 +119,7 @@ bindsym $mod+Shift+c reload
 # restart i3 inplace (preserves your layout/session, can be used to upgrade i3)
 bindsym $mod+Shift+r restart
 # Lock screen
-bindsym $mod+Ctrl+l exec --no-startup-id ~/.bin/i3exit lock
+bindsym $mod+Ctrl+l --release exec --no-startup-id ~/.bin/i3exit lock
 
 
 # Screen brightness controls
