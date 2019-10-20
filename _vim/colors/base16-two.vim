@@ -1,19 +1,5 @@
 " vi:syntax=vim
 
-" base16-vim (https://github.com/chriskempson/base16-vim)
-" by Chris Kempson (http://chriskempson.com)
-" Default Dark scheme by Chris Kempson (http://chriskempson.com)
-
-" This enables the coresponding base16-shell script to run so that
-" :colorscheme works in terminals supported by base16-shell scripts
-" User must set this variable in .vimrc
-"   let g:base16_shell_path=base16-builder/output/shell/
-" if !has('gui_running')
-"   if exists("g:base16_shell_path")
-"     execute "silent !/bin/sh ".g:base16_shell_path."/base16-default-dark.sh"
-"   endif
-" endif
-
 " GUI color definitions
 let s:gui00 = "181818"
 let s:gui01 = "282828"

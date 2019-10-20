@@ -1,73 +1,49 @@
 " This is Joel Silva's vimrc standalone
-" Thu Oct  5 15:40:44 CEST 2017
+" Sun 20 Oct 2019 09:47:40 PM CEST
 
 " VIM SETTINGS {{{1
-autocmd!
-autocmd! bufwritepost .vimrc-standalone source %
 set nocompatible
-set mouse=a "enable mouse scroll in terminal
-set hidden " allow unsaved background buffers and remember marks/undo for them
+set mouse=a
+" set hidden " allow unsaved background buffers and remember marks/undo for them
 set history=1000
 set expandtab "use spaces instead tabs
-" set noexpandtab
+
 set tabstop=4
 set shiftwidth=4
 set softtabstop=4
 set autoindent
+
 set laststatus=2
 set showmatch " Show matching brackets when text indicator is over them
 set hlsearch " Highlight search results
 set ignorecase smartcase " make searches case-sensitive only if they contain upper-case characters
-set incsearch " Auto copy regex to search-and-replace
-set cursorline " highlight current linePlugin 'chriskempson/base16-vim'
+set incsearch " incremental search highlight
+set cursorline " highlight current line
 set cmdheight=1 " Height of the command bar
 set switchbuf=useopen
 set showtabline=1
-" set winwidth=84 "This is of no use with i3wm
-set shell=bash " This makes RVM work inside Vim. I have no idea why.
-" Prevent Vim from clobbering the scrollback buffer. See http://www.shallowsky.com/linux/noaltscreen.html
-set t_ti= t_te=
+set shell=bash 
 set scrolloff=3 " keep more context when scrolling off the end of a buffer
-set backup " Store temporary files in a central spot
-" set backupdir=~/.vim-tmp,~/.tmp,~/tmp,/var/tmp,/tmp
-" set directory=~/.vim-tmp,~/.tmp,~/tmp,/var/tmp,/tmp
-set backupdir=/tmp
-set directory=/tmp
-set backspace=indent,eol,start " allow backspacing over everything in insert mode
-" set whichwrap+=<,>,h,l
 set showcmd " display incomplete commands
-filetype indent on " Also load indent files, to automatically do language-dependent indenting.
-filetype plugin on
+filetype plugin indent on " Also load indent files, to automatically do language-dependent indenting.
+
 set omnifunc=syntaxcomplete#Complete
 set completefunc=syntaxcomplete#Complete
 set path+=** " Search into subfolders
+
 set timeout timeoutlen=1000 ttimeoutlen=100 " Fix slow O inserts
-" Normally, Vim messes with iskeyword when you open a shell file. This can
-" leak out, polluting other file types even after a 'set ft=' change. This
-" variable prevents the iskeyword change so it can't hurt anyone.
-let g:sh_noisk=1
-" Modelines (comments that set vim options on a per-file basis)
-set modeline
-set modelines=3
 set nojoinspaces " Insert only one space when joining lines that contain sentence-terminating punctuation like `.`.
 set ruler "Always show current position
 set noerrorbells visualbell t_vb= tm=500 " No annoying sound on errors
-autocmd GUIEnter * set visualbell t_vb=
-set comments=sl:/*,mb:\ *,elx:\ */ " intelligent comments
+set backspace=indent,eol,start  " more powerful backspacing
+
 "set autochdir " Automaitcally change to current directory
 set lazyredraw " Don't redraw while executing macros (good performance config)
-" Use the same symbols as TextMate for tabstops and EOLs
 " set listchars=trail:·,tab:▸\ ,eol:¬
 set listchars=trail:▓,tab:▒░,eol:¬
-set clipboard=unnamed
-" Use wrapping
+
 set nowrap
-" set linebreak
-set nolisp
 set colorcolumn=80
-" let &colorcolumn="80,".join(range(100,999),",")
-" set columns=103
-" Show Line Number
 set number relativenumber
 set numberwidth=2
 
@@ -80,8 +56,8 @@ set wildcharm=<C-Z>
 set backupdir=~/.vim/tmp
 set directory=~/.vim/tmp
 set undodir=~/.vim/tmp
-" set tags=~/.vim/tags
-" set tags+=~/.tags " Looks for tags in the current file path.
+
+let mapleader = " "
 
 " The Silver Searcher
 if executable('ag')
@@ -97,29 +73,33 @@ endif
 
 
 " COLOR {{{1
-if !has('gui_running')
-    if $TERM == "st-256color" || "xterm-256color" || $TERM == "screen-256color" || $COLORTERM == "gnome-terminal"
-        set t_Co=256
-    elseif has("terminfo")
-        set t_Co=8
-        set t_Sf=[3%p1%dm
-        set t_Sb=[4%p1%dm
-    else
-        set t_Co=8
-        set t_Sf=[3%dm
-        set t_Sb=[4%dm
-    endif
-endif
+" if !has('gui_running')
+"     if $TERM == "st-256color" || $TERM == "xterm-256color" || $TERM == "screen-256color" || $COLORTERM == "gnome-terminal"
+"         set t_Co=256
+"     elseif has("terminfo")
+"         set t_Co=8
+"         set t_Sf=[3%p1%dm
+"         set t_Sb=[4%p1%dm
+"     else
+"         set t_Co=8
+"         set t_Sf=[3%dm
+"         set t_Sb=[4%dm
+"     endif
+" endif
+
 " switch syntax highlighting on, when the terminal has colors
 if &t_Co > 2 || has("gui_running")
     syntax enable
 endif
+
 if (has("nvim"))
     let $NVIM_TUI_ENABLE_TRUE_COLOR=1
 endif
+
 if (has("termguicolors"))
     set termguicolors
 endif
+
 colorscheme suma
 
 " GUI {{{1
@@ -135,7 +115,7 @@ if has("gui")
     "set guioptions-=T
     "set guioptions+=e
     "set guitablabel=%M\ %t
-    set guifont=Consolas\ 11
+    set guifont=Consolas\ 14
     " set guifont=Fira\ Code\ 10
     " set guifont=Input\ Mono\ Regular\ 10
     " set guifont=Inconsolata\ 11
@@ -279,16 +259,16 @@ endif " has autocmd }}}
 
 " STATUS LINE {{{1
 let g:currentmode={
-            \ 'n'  : 'N ',
+            \ 'n'  : 'Normal ',
             \ 'no' : 'N·Operator Pending ',
-            \ 'v'  : 'V ',
+            \ 'v'  : 'Visual ',
             \ 'V'  : 'V·Line ',
             \ '' : 'V·Block ',
             \ 's'  : 'Select ',
             \ 'S'  : 'S·Line ',
             \ '' : 'S·Block ',
-            \ 'i'  : 'I ',
-            \ 'R'  : 'R ',
+            \ 'i'  : 'Insert ',
+            \ 'R'  : 'Replace ',
             \ 'Rv' : 'V·Replace ',
             \ 'c'  : 'Command ',
             \ 'cv' : 'Vim Ex ',
@@ -361,7 +341,7 @@ au InsertLeave * hi StatusLine ctermbg=234     ctermfg=007  gui=bold
 hi StatusLine ctermbg=234     ctermfg=007  gui=bold
 
 set statusline=
-set statusline+=%0*\ %{toupper(g:currentmode[mode()])}   " Current mode
+" set statusline+=%0*\ %{toupper(g:currentmode[mode()])}   " Current mode
 set statusline+=%1*\ [%n]                              " buffernr
 " set statusline+=%2*%{GitInfo()}\                         " Git Branch name
 set statusline+=%3*\ %<%F\ %{ReadOnly()}\ %m\ %r\ %w\    " File+path
@@ -384,20 +364,17 @@ hi User7 ctermfg=007 ctermbg=238            guifg=#d8d8d8 guibg=#444444
 hi User8 ctermfg=007 ctermbg=236            guifg=#d8d8d8 guibg=#303030
 
 " MAPPINGS {{{1
-let mapleader = " "
-let g:mapleader = " "
-
-if has('nvim')
-else
-    " Alt key  not working in gnome terminal workaround
-    let c='a'
-    while c <= 'z'
-        exec "set <A-".c.">=\e".c
-        exec "imap \e".c." <A-".c.">"
-        let c = nr2char(1+char2nr(c))
-    endw
-    set timeout ttimeoutlen=50
-endif
+" if has('nvim')
+" else
+"     " Alt key  not working in gnome terminal workaround
+"     let c='a'
+"     while c <= 'z'
+"         exec "set <A-".c.">=\e".c
+"         exec "imap \e".c." <A-".c.">"
+"         let c = nr2char(1+char2nr(c))
+"     endw
+"     set timeout ttimeoutlen=50
+" endif
 
 " Move a line of text using ALT+[jk] {{{2
 nnoremap <A-j> :m .+1<CR>==
@@ -508,12 +485,14 @@ map th :tabprevious<cr>
 map te :tabedit <c-r>=expand("%:p:h")<cr>/
 " Opens a new tab with the current buffer
 map tt :tabedit %<cr>
-" edit .vimr
+" edit .vimrc
 nmap tv :tabedit ~/.vimrc<CR>
 nmap ts :tabedit ~/.vimrc-standalone<CR>
 
 " have <esc> remove search highlighting
-nnoremap <silent> <esc> :noh<return><esc>
+" nnoremap <silent> <esc> :noh<return><esc>
+" needed so that vim still understands escape sequences
+" nnoremap <esc>^[ <esc>^[
 
 "   Map escape key to jj -- much faster
 imap jk <esc>
@@ -606,8 +585,8 @@ nnoremap <F12>          :StripTrailingWhitespace<CR>
 command! -range=% FormatHtml <line1>,<line2>:!tidy -q -i --show-errors 0
 command! -range=% FormatXml <line1>,<line2>:!tidy -q -i --show-errors 0 -xml
 command! -range=% FormatPython <line1>,<line2>call YAPF()
-command! -range=% FormatCpp  <line1>,<line2>:pyf /usr/share/clang/clang-format-3.8/clang-format.py
 
+command! -range=% FormatCpp  <line1>,<line2>:pyf /usr/share/clang/clang-format-3.8/clang-format.py
 command! -nargs=0 PreviewMarkDown call Markdown_Preview()
 
 " command! MakeTags !ctags -R .
@@ -650,8 +629,8 @@ command! -nargs=1 Bs :call BufSel("<args>")
 " Populat the quickfix with buffer list!
 command! Qbuffers call setqflist(map(filter(range(1, bufnr('$')), 'buflisted(v:val)'), '{"bufnr":v:val}'))
 
-" FUNCTIONS {{{1
 function! Replace(bang, replace) "{{{2
+" FUNCTIONS {{{1
     " Search for current word and replace with given text for files in arglist.
     let flag = 'ge'
     if !a:bang
@@ -702,8 +681,8 @@ function! ToggleWrap() "{{{2
         setlocal nowrap
         set virtualedit=all
         silent! nunmap <buffer> <Up>
-        silent! nunmap <buffer> <Down>
         silent! nunmap <buffer> <Home>
+        silent! nunmap <buffer> <Down>
         silent! nunmap <buffer> <End>
         silent! iunmap <buffer> <Up>
         silent! iunmap <buffer> <Down>
@@ -1291,7 +1270,9 @@ function! s:MaximazerPlugin() "{{{2
     endif
 
 endfunction
+
 call s:MaximazerPlugin()
+
 " Tweaks for filebrowsing {{{2
 " let g:netrw_banner=0            " disable annoying banner
 " let g:netrw_liststyle=3         " tree view
