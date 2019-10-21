@@ -1,31 +1,15 @@
 #!/bin/bash
 
 # Append to the default bashrc
-append_to_bshrc() {
-    if ! grep -q "This sources my bash stuff" ~/.bashrc; then
+append_to_profile() {
+    if ! grep -q "This sources my bash stuff" ~/.profile; then
         echo "Appending to bash."
-        echo " " >> ~/.bashrc
-        echo "# This sources my bash stuff!!" >> ~/.bashrc
-        echo "if [ -d ~/.bash.d ]; then" >> ~/.bashrc
-        echo "  source ~/.bash.d/mybash.sh" >> ~/.bashrc
-        echo "fi" >> ~/.bashrc
-        echo " " >> ~/.bashrc
-        echo "#General configuration ends" >> ~/.bashrc
-        echo "if [[ -n \$PS1 ]]; then" >> ~/.bashrc
-        echo "    : # These are executed only for interactive shells" >> ~/.bashrc
-        echo "    echo \"interactive\"">> ~/.bashrc
-        echo "else" >> ~/.bashrc
-        echo "    : # Only for NON-interactive shells" >> ~/.bashrc
-        echo "fi" >> ~/.bashrc
-        echo " " >> ~/.bashrc
-        echo "if shopt -q login_shell ; then" >> ~/.bashrc
-        echo "    : # These are executed only when it is a login shell" >> ~/.bashrc
-        echo "    echo \"login\"">> ~/.bashrc
-        echo "else" >> ~/.bashrc
-        echo "    : # Only when it is NOT a login shell" >> ~/.bashrc
-        echo "    echo \"nonlogin\"" >> ~/.bashrc
-        echo "fi" >> ~/.bashrc
-        echo " " >> ~/.bashrc
+        echo " " >> ~/.profile
+        echo "# This sources my bash stuff!!" >> ~/.profile
+        echo "if [ -d ~/.bash.d ]; then" >> ~/.profile
+        echo "  source ~/.bash.d/mybash.sh" >> ~/.profile
+        echo "fi" >> ~/.profile
+        echo " " >> ~/.profile
     fi
 }
 
@@ -87,7 +71,7 @@ main() {
 }
 
 nvim_to_vim
-append_to_bshrc
+append_to_profile
 # install_teensy
 # install_getidle
 install_timew

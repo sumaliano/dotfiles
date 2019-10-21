@@ -55,10 +55,10 @@ alias errors='journalctl -p 3 -xb'
 
 alias gvim="gvim --remote-tab-silent || gvim"
 alias vi="nvim"
-alias vl="nvim -u ~/.vimrc-standalone"
-alias ve="nvim -u ~/.vimrc-eclim"
-alias vimrc="nvim ~/.vimrc"
-# alias feh="bfeh"
+alias vimrc="vi ~/.vimrc"
+
+alias lst='find . -type d | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
+alias lsd='find . | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
 
 alias ff="find . -type f -name "
 alias fd="find . -type d -name "
@@ -135,6 +135,7 @@ alias paclo='pacman -Qdt'    # list orphans
 alias pacro='paclo && sudo pacman -Rns $(pacman -Qtdq)' # remove orphans
 alias pacc='pacman -Scc'    # clean cache
 alias paclf='pacman -Ql'   # list files
+palias() { alias | grep 'pacman' | sed "s/^\([^=]*\)=\(.*\)/\1 => \2/"| sed "s/['|\']//g" | sort; }
 
 ###########
 #  eopkg  #

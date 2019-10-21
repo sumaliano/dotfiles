@@ -1,20 +1,7 @@
 #!/usr/bin/env bash
 
-__powerline() {
-
-    # Unicode symbols
-    readonly PS_SYMBOL_LEFT_LIM='['
-    readonly PS_SYMBOL_RIGHT_LIM=']'
-    readonly PS_SYMBOL_DARWIN=''
-    readonly PS_SYMBOL_LINUX='$'
-    readonly PS_SYMBOL_OTHER='%'
-    readonly GIT_BRANCH_SYMBOL='Ч '
-    readonly GIT_BRANCH_CHANGED_SYMBOL='+'
-    readonly GIT_NEED_PUSH_SYMBOL='↑'
-    readonly GIT_NEED_PULL_SYMBOL='↓'
-
-    _fg () { echo "\[$(tput setaf $1)\]" ; }
-    _bg () { echo "\[$(tput setab $1)\]" ; }
+__powerline() 
+{
 
     # BLACK=1
     # RED=2
@@ -34,24 +21,14 @@ __powerline() {
     # BRIGHT_CYAN=15
     # BRIGHT_WHITE=16
 
-    readonly DIM="\[$(tput dim)\]"
-    readonly REVERSE="\[$(tput rev)\]"
-    readonly RESET="\[$(tput sgr0)\]"
-    readonly BOLD="\[$(tput bold)\]"
 
-    # what OS?
-    case "$(uname)" in
-        Darwin)
-            readonly PS_SYMBOL=$PS_SYMBOL_DARWIN
-            ;;
-        Linux)
-            readonly PS_SYMBOL=$PS_SYMBOL_LINUX
-            ;;
-        *)
-            readonly PS_SYMBOL=$PS_SYMBOL_OTHER
-    esac
+    git_info() 
+    {
+        local GIT_BRANCH_SYMBOL='Ч '
+        local GIT_BRANCH_CHANGED_SYMBOL='+'
+        local GIT_NEED_PUSH_SYMBOL='↑'
+        local GIT_NEED_PULL_SYMBOL='↓'
 
-    __git_info() {
         [ -x "$(which git)" ] || return    # git not found
 
         local git_eng="env LANG=C git"   # force git output in English to make our work easier
@@ -72,15 +49,16 @@ __powerline() {
         [ -n "$behindN" ] && marks+=" $GIT_NEED_PULL_SYMBOL$behindN"
 
         # print the git branch segment without a trailing newline
-        # printf " $GIT_BRANCH_SYMBOL$branch$marks "
-		printf "($branch$marks)"
+        printf " $GIT_BRANCH_SYMBOL$branch$marks "
+		# printf "($branch$marks)"
     }
 
 	# TODO:
 	# __svn_info() {
 	# }
 
-    over_ssh() {
+    over_ssh() 
+    {
         if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
             SESSION_TYPE="SSH "
             # many other tests omitted
@@ -93,7 +71,29 @@ __powerline() {
         printf "$SESSION_TYPE"
     }
 
-    ps1() {
+    _fg () { echo "\[$(tput setaf $1)\]" ; }
+    _bg () { echo "\[$(tput setab $1)\]" ; }
+
+
+    ps1() 
+    {
+        # what OS?
+        case "$(uname)" in
+            Darwin)
+                local PS_SYMBOL=''
+                ;;
+            Linux)
+                local PS_SYMBOL=$'\u03bb'
+                ;;
+            *)
+                local PS_SYMBOL=$'\u03bb'
+        esac
+
+        local DIM="\[$(tput dim)\]"
+        local REVERSE="\[$(tput rev)\]"
+        local RESET="\[$(tput sgr0)\]"
+        local BOLD="\[$(tput bold)\]"
+
         # Check the exit code of the previous command and display different
         # colors in the prompt accordingly.
         if [ $? -eq 0 ]; then
@@ -105,12 +105,13 @@ __powerline() {
         PS1="$BG_EXIT$(_fg 3)[$RESET"
         PS1+="$BG_EXIT$(_fg 4)$(over_ssh)$RESET"
         PS1+="$BG_EXIT$(_fg 6)\w$RESET"
-        PS1+="$BG_EXIT$(_fg 2)$(__git_info)$RESET"
+        PS1+="$BG_EXIT$(_fg 2)$(git_info)$RESET"
         # PS1+="$BG_EXIT$(_fg 10)$(__git_ps1 "(%s)" )$RESET"
         PS1+="$BG_EXIT$(_fg 3)]$RESET"
+        PS1+="$BG_EXIT$(_fg 15)$PS_SYMBOL $RESET"
     }
 
-    PROMPT_COMMAND=ps1
+PROMPT_COMMAND=ps1
 }
 
 __powerline
