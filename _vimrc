@@ -1167,14 +1167,6 @@ call s:ShowTrailingSpacesPlugin()
 
 function! s:BaseSyntaxPlugin() "{{{2
 
-    " hi link baseOperator Operator
-    " hi link baseDelimiter Delimiter
-    " hi link nonAscii Special
-
-    " let w:m1_bs=matchadd('baseOperator', '\(\ +\ \|=\|\ -\ \|\^\|\ \*\ \|-=\|+=\|\*=\|/=\|\ /\ \|\ <\ \|\ >\ \|>=\|<=\|||\|&&\)',-1)
-    " let w:m2_bs=matchadd('basedelimiter', '[(){},]', -1)
-    " let w:m3_bs=matchadd('nonAscii', '[^\x00-\x7f]', -1)
-
     let s:BSenabled = 0
 
     function! s:ToggleHiBaseSyntax()
@@ -1202,87 +1194,114 @@ function! s:BaseSyntaxPlugin() "{{{2
     command! -nargs=0 ToggleHiBaseSyntax call s:ToggleHiBaseSyntax()
 
 endfunction
+
 call s:BaseSyntaxPlugin()
 
-function! s:MaximazerPlugin() "{{{2
-
-    if !exists('g:maximizer_set_default_mapping')
-        let g:maximizer_set_default_mapping = 1
+fu! s:Lineup(re,count,what) range "{{{2
+  " get the longest match
+  let max = -1
+  let i=a:firstline | while i<=a:lastline
+    let idx=-1
+    let j=0
+    while j<a:count
+      if a:re
+	let idx=match(getline(i),a:what,idx+1)
+      else
+	let part=strpart(getline(i),idx+1)
+	let di=stridx(part,a:what)
+	if idx+di==-2
+	  let idx=-1
+	elseif idx==-1
+	  let idx=idx+di+1
+	else
+	  let idx=idx+di
+	end
+      end
+      let j=j+1
+    endw
+    if getline(i) =~ '\t'
+      let j=0
+      let tabs=0
+      while j<=idx
+	if strpart(getline(i),j,1) == "	"
+	  let tabs=tabs+(&tabstop - ((j+tabs) % &tabstop))
+	endif
+	let j = j + 1
+      endwhile
+      let idx=idx+tabs
     endif
+    if idx > max | let max = idx | endif
+    let i = i + 1
+  endw
 
-    if !exists('g:maximizer_set_mapping_with_bang')
-        let g:maximizer_set_mapping_with_bang = 0
+  if max <= 0 | echo 'Nothing to align' | return | endif
+
+  "align other lines
+  let i=a:firstline
+  while i<=a:lastline
+    let idx=-1
+    let curline=getline(i)
+    let j=0
+    while j<a:count
+      if a:re
+	let idx=match(curline,a:what,idx+1)
+      else
+	let part=strpart(curline,idx+1)
+	let di=stridx(part,a:what)
+	if idx+di==-2
+	  let idx=-1
+	elseif idx==-1
+	  let idx=idx+di+1
+	else
+	  let idx=idx+di
+	end
+      end
+      let j=j+1
+    endw
+
+    if idx != -1
+      let res = strpart(curline,0,idx)
+      let j = idx
+      if res =~ '\t'
+	let k=0
+	let tabs=0
+	while k<idx
+	  if strpart(curline,k,1) == "	"
+	    let tabs=tabs+(&tabstop - ((k+tabs) % &tabstop))
+	  endif
+	  let k = k + 1
+	endwhile
+	let j=j+tabs
+      endif
+      while j < max
+	let j = j + 1
+	let res = res .' '
+      endw
+      let res = res . strpart(curline,idx)
+      call setline(i,res)
     endif
+    let i = i + 1
+  endw
+endf
 
-    if !exists('g:maximizer_restore_on_winleave')
-        let g:maximizer_restore_on_winleave = 0
-    endif
+"Damned ranges, we must write functions...
+function! s:LineupPrompt() range
+  echo 'Enter char to align!' | let c= nr2char(getchar())
+  if c!="\<Esc>"
+    exe a:firstline.','.a:lastline.'call <SID>Lineup(0,1,c)'
+    "0.11 bugfix <SID> added
+  en
+endf
 
-    if !exists('g:maximizer_default_mapping_key')
-        let g:maximizer_default_mapping_key = '<F5>'
-    endif
+function! s:LineupREPrompt() range
+  let re=input('Enter RE to lineup!')
+  exec a:firstline.','.a:lastline."call <SID>Lineup(1,1,re)"
+  " another bugfix
+endf
 
-    command! -bang -nargs=0 -range MaximizerToggle :call s:toggle(<bang>0)
+command! -range -nargs=* Lineup    <line1>,<line2>call <SID>Lineup(0,1,<f-args>)
+command! -range -nargs=* LineupN   <line1>,<line2>call <SID>Lineup(0,<f-args>)
+command! -range -nargs=* LineupRE  <line1>,<line2>call <SID>Lineup(1,1,<f-args>)
+command! -range -nargs=* LineupREN <line1>,<line2>call <SID>Lineup(1,<f-args>)
 
-    if g:maximizer_set_default_mapping
-        let command = ':MaximizerToggle'
-
-        if g:maximizer_set_mapping_with_bang
-            let command .= '!'
-        endif
-
-        silent! exe 'nnoremap <silent>' . g:maximizer_default_mapping_key . ' ' . command . '<CR>'
-        silent! exe 'vnoremap <silent>' . g:maximizer_default_mapping_key . ' ' . command . '<CR>gv'
-        silent! exe 'inoremap <silent>' . g:maximizer_default_mapping_key . ' <C-o>' . command . '<CR>'
-    endif
-
-    fun! s:maximize()
-        let t:maximizer_sizes = { 'before': winrestcmd() }
-        vert resize | resize
-        let t:maximizer_sizes.after = winrestcmd()
-        normal! ze
-    endfun
-
-    fun! s:restore()
-        if exists('t:maximizer_sizes')
-            silent! exe t:maximizer_sizes.before
-            if t:maximizer_sizes.before != winrestcmd()
-                wincmd =
-            endif
-            unlet t:maximizer_sizes
-            normal! ze
-        end
-    endfun
-
-    fun! s:toggle(force)
-        if exists('t:maximizer_sizes') && (a:force || (t:maximizer_sizes.after == winrestcmd()))
-            call s:restore()
-        elseif winnr('$') > 1
-            call s:maximize()
-        endif
-    endfun
-
-    if g:maximizer_restore_on_winleave
-        augroup maximizer
-            au!
-            au WinLeave * call s:restore()
-        augroup END
-    endif
-
-endfunction
-
-call s:MaximazerPlugin()
-
-" Tweaks for filebrowsing {{{2
-" let g:netrw_banner=0            " disable annoying banner
-" let g:netrw_liststyle=3         " tree view
-" let g:netrw_browse_split=4      " use the previous window to open file
-" let g:netrw_altv=1              " open splits to the right
-" let g:netrw_winsize = 25        " sets the width to 25% of the page
-" let g:netrw_winsize = -28 " absolute width of netrw window
-let g:netrw_list_hide=netrw_gitignore#Hide()
-let g:netrw_list_hide.=',\(^\|\s\s\)\zs\.\S\+'
-let g:netrw_sort_sequence = '[\/]$,*' " sort is affecting only: directories on the top, files below
-
-autocmd FileType netrw set nolist
 
