@@ -73,19 +73,19 @@ endif
 
 
 " COLOR {{{1
-" if !has('gui_running')
-"     if $TERM == "st-256color" || $TERM == "xterm-256color" || $TERM == "screen-256color" || $COLORTERM == "gnome-terminal"
-"         set t_Co=256
-"     elseif has("terminfo")
-"         set t_Co=8
-"         set t_Sf=[3%p1%dm
-"         set t_Sb=[4%p1%dm
-"     else
-"         set t_Co=8
-"         set t_Sf=[3%dm
-"         set t_Sb=[4%dm
-"     endif
-" endif
+if !has('gui_running')
+    if $TERM == "st-256color" || $TERM == "xterm-256color" || $TERM == "screen-256color" || $COLORTERM == "gnome-terminal"
+        set t_Co=256
+    elseif has("terminfo")
+        set t_Co=8
+        set t_Sf=[3%p1%dm
+        set t_Sb=[4%p1%dm
+    else
+        set t_Co=8
+        set t_Sf=[3%dm
+        set t_Sb=[4%dm
+    endif
+endif
 
 " switch syntax highlighting on, when the terminal has colors
 if &t_Co > 2 || has("gui_running")
@@ -100,7 +100,7 @@ if (has("termguicolors"))
     set termguicolors
 endif
 
-colorscheme suma
+colorscheme desert
 
 " GUI {{{1
 if has("gui")
@@ -1196,112 +1196,4 @@ function! s:BaseSyntaxPlugin() "{{{2
 endfunction
 
 call s:BaseSyntaxPlugin()
-
-fu! s:Lineup(re,count,what) range "{{{2
-  " get the longest match
-  let max = -1
-  let i=a:firstline | while i<=a:lastline
-    let idx=-1
-    let j=0
-    while j<a:count
-      if a:re
-	let idx=match(getline(i),a:what,idx+1)
-      else
-	let part=strpart(getline(i),idx+1)
-	let di=stridx(part,a:what)
-	if idx+di==-2
-	  let idx=-1
-	elseif idx==-1
-	  let idx=idx+di+1
-	else
-	  let idx=idx+di
-	end
-      end
-      let j=j+1
-    endw
-    if getline(i) =~ '\t'
-      let j=0
-      let tabs=0
-      while j<=idx
-	if strpart(getline(i),j,1) == "	"
-	  let tabs=tabs+(&tabstop - ((j+tabs) % &tabstop))
-	endif
-	let j = j + 1
-      endwhile
-      let idx=idx+tabs
-    endif
-    if idx > max | let max = idx | endif
-    let i = i + 1
-  endw
-
-  if max <= 0 | echo 'Nothing to align' | return | endif
-
-  "align other lines
-  let i=a:firstline
-  while i<=a:lastline
-    let idx=-1
-    let curline=getline(i)
-    let j=0
-    while j<a:count
-      if a:re
-	let idx=match(curline,a:what,idx+1)
-      else
-	let part=strpart(curline,idx+1)
-	let di=stridx(part,a:what)
-	if idx+di==-2
-	  let idx=-1
-	elseif idx==-1
-	  let idx=idx+di+1
-	else
-	  let idx=idx+di
-	end
-      end
-      let j=j+1
-    endw
-
-    if idx != -1
-      let res = strpart(curline,0,idx)
-      let j = idx
-      if res =~ '\t'
-	let k=0
-	let tabs=0
-	while k<idx
-	  if strpart(curline,k,1) == "	"
-	    let tabs=tabs+(&tabstop - ((k+tabs) % &tabstop))
-	  endif
-	  let k = k + 1
-	endwhile
-	let j=j+tabs
-      endif
-      while j < max
-	let j = j + 1
-	let res = res .' '
-      endw
-      let res = res . strpart(curline,idx)
-      call setline(i,res)
-    endif
-    let i = i + 1
-  endw
-endf
-
-"Damned ranges, we must write functions...
-function! s:LineupPrompt() range
-  echo 'Enter char to align!' | let c= nr2char(getchar())
-  if c!="\<Esc>"
-    exe a:firstline.','.a:lastline.'call <SID>Lineup(0,1,c)'
-    "0.11 bugfix <SID> added
-  en
-endf
-
-function! s:LineupREPrompt() range
-  let re=input('Enter RE to lineup!')
-  exec a:firstline.','.a:lastline."call <SID>Lineup(1,1,re)"
-  " another bugfix
-endf
-
-command! -range -nargs=* Lineup    <line1>,<line2>call <SID>Lineup(0,1,<f-args>)
-command! -range -nargs=* LineupN   <line1>,<line2>call <SID>Lineup(0,<f-args>)
-command! -range -nargs=* LineupRE  <line1>,<line2>call <SID>Lineup(1,1,<f-args>)
-command! -range -nargs=* LineupREN <line1>,<line2>call <SID>Lineup(1,<f-args>)
-
 

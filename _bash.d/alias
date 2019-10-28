@@ -47,15 +47,15 @@ alias emptybin='/bin/rm -rf ~/.Trash/*'
 alias srm='sudo	/bin/rm -rf'
 alias compact='_compactize'
 
-alias i3config='nvim  $HOME/.i3/config'
-alias printer='system-config-printer'
-alias bacon='nvim -u ~/.vimrc-standalone ~/.bash.d/'
-
-alias errors='journalctl -p 3 -xb'
-
 alias gvim="gvim --remote-tab-silent || gvim"
 alias vi="nvim"
 alias vimrc="vi ~/.vimrc"
+
+alias i3config='vi  $HOME/.i3/config'
+alias printer='system-config-printer'
+alias bacon='vi -u ~/.vimrc-standalone ~/.bash.d/'
+
+alias errors='journalctl -p 3 -xb'
 
 alias lst='find . -type d | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
 alias lsd='find . | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
