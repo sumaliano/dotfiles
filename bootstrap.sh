@@ -56,7 +56,7 @@ main() {
     cd ${PWD}
 
     # srcfiles=( _* )
-    srcfiles=( _bash.d _inputrc _screenrc _bin _fonts _vim _vimrc _vimrc_plug )
+    srcfiles=( _bash.d _inputrc _screenrc _bin _fonts _vim _vimrc _vimrc_plug _vimrc_standalone)
 
     mkdir -p ~/.dotfiles_bkp
 
