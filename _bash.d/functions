@@ -60,9 +60,9 @@ function colors() { # {{{1
 	done
 } #}}}
 
-meteo() { [ $# -eq 0 ] && curl -4 "wttr.in/Darmstadt" ||  curl -4 "wttr.in/$1"; } 
+function meteo() { [ $# -eq 0 ] && curl -4 "wttr.in/Darmstadt" ||  curl -4 "wttr.in/$1"; } 
 
-md() { mkdir -p "$@" && cd "$1"; }
+function md() { mkdir -p "$@" && cd "$1"; }
 
 extract() { # {{{1 # extract file(s) from compressed status
     local opt

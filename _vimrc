@@ -18,6 +18,7 @@ set visualbell          " blink cursor on error, instead of beeping
 nmap j gj
 nmap k gk
 
+inoremap jk <esc>
 
 """" Vim Appearance
 
