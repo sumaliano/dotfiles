@@ -47,13 +47,17 @@ alias emptybin='/bin/rm -rf ~/.Trash/*'
 alias srm='sudo	/bin/rm -rf'
 alias compact='_compactize'
 
+# alias vim="nvim"
+alias vl="vim"
+alias vi="vim -u ~/.vimrc_standalone"
+alias vp="vim -u ~/.vimrc_plug"
+
 alias gvim="gvim --remote-tab-silent || gvim"
-alias vi="nvim"
 alias vimrc="vi ~/.vimrc"
 
 alias i3config='vi  $HOME/.i3/config'
 alias printer='system-config-printer'
-alias bacon='vi -u ~/.vimrc-standalone ~/.bash.d/'
+alias bacon='vi ~/.bash.d/'
 
 alias errors='journalctl -p 3 -xb'
 

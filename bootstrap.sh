@@ -55,7 +55,8 @@ main() {
 
     cd ${PWD}
 
-    srcfiles=( _* )
+    # srcfiles=( _* )
+    srcfiles=( _bash.d _inputrc _screenrc _bin _fonts _vim _vimrc _vimrc_plug _vimrc_standalone)
 
     mkdir -p ~/.dotfiles_bkp
 
@@ -74,7 +75,7 @@ nvim_to_vim
 append_to_profile
 # install_teensy
 # install_getidle
-install_timew
+# install_timew
 main
 
 
