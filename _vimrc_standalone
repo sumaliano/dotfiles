@@ -3,7 +3,7 @@
 
 " VIM SETTINGS {{{1
 set nocompatible
-set mouse=a
+" set mouse=a
 " set hidden " allow unsaved background buffers and remember marks/undo for them
 set history=1000
 set expandtab "use spaces instead tabs
@@ -22,7 +22,7 @@ set cursorline " highlight current line
 set cmdheight=1 " Height of the command bar
 set switchbuf=useopen
 set showtabline=1
-set shell=bash 
+set shell=bash
 set scrolloff=3 " keep more context when scrolling off the end of a buffer
 set showcmd " display incomplete commands
 filetype plugin indent on " Also load indent files, to automatically do language-dependent indenting.
@@ -44,7 +44,7 @@ set listchars=trail:▓,tab:▒░,eol:¬
 
 set nowrap
 set colorcolumn=80
-set number relativenumber
+set number "relativenumber
 set numberwidth=2
 
 set wildmenu " make tab completion for files/buffers act like bash
@@ -58,49 +58,12 @@ set directory=~/.vim/tmp
 set undodir=~/.vim/tmp
 
 let mapleader = " "
-
-" The Silver Searcher
-if executable('ag')
-    " Use ag over grep
-    set grepprg=ag\ --nogroup\ --nocolor
-
-    " Use ag in CtrlP for listing files. Lightning fast and respects .gitignore
-    let g:ctrlp_user_command = 'ag %s -l --nocolor -g ""'
-
-    " ag is fast enough that CtrlP doesn't need to cache
-    let g:ctrlp_use_caching = 0
-endif
-
+"}}}
 
 " COLOR {{{1
-if !has('gui_running')
-    if $TERM == "st-256color" || $TERM == "xterm-256color" || $TERM == "screen-256color" || $COLORTERM == "gnome-terminal"
-        set t_Co=256
-    elseif has("terminfo")
-        set t_Co=8
-        set t_Sf=[3%p1%dm
-        set t_Sb=[4%p1%dm
-    else
-        set t_Co=8
-        set t_Sf=[3%dm
-        set t_Sb=[4%dm
-    endif
-endif
-
-" switch syntax highlighting on, when the terminal has colors
-if &t_Co > 2 || has("gui_running")
-    syntax enable
-endif
-
-if (has("nvim"))
-    let $NVIM_TUI_ENABLE_TRUE_COLOR=1
-endif
-
-if (has("termguicolors"))
-    set termguicolors
-endif
-
 colorscheme badwolf
+syntax enable
+"}}}
 
 " GUI {{{1
 if has("gui")
@@ -115,7 +78,7 @@ if has("gui")
     "set guioptions-=T
     "set guioptions+=e
     "set guitablabel=%M\ %t
-    set guifont=Consolas\ 14
+    " set guifont=Consolas\ 14
     " set guifont=Fira\ Code\ 10
     " set guifont=Input\ Mono\ Regular\ 10
     " set guifont=Inconsolata\ 11
@@ -124,11 +87,11 @@ if has("gui")
     nnoremap <leader>st :if &go=~#'T'<Bar>set go-=T<Bar>else<Bar>set go+=T<Bar>endif<CR>
     nnoremap <leader>sr :if &go=~#'r'<Bar>set go-=r<Bar>else<Bar>set go+=r<Bar>endif<CR>
 endif
+"}}}
 
 " AUTOCMDS {{{1
 if has ('autocmd') " Remain compatible with earlier versions
     augroup vimrcEx
-        "Clear all autocmds in the group
         autocmd!
 
         autocmd BufRead,BufNewFile *.gle set filetype=gle
@@ -164,17 +127,7 @@ if has ('autocmd') " Remain compatible with earlier versions
         autocmd Syntax cpp set syntax=cpp.doxygen
         autocmd FileType c set makeprg=gcc\ -o\ %<\ %
         autocmd FileType cpp set makeprg=g++\ -std=c++11\ -o\ %<\ %
-
-
-        "   Leave the return key alone when in command line windows, since it's
-        "   used to run commands there.
-        autocmd! CmdwinEnter * :unmap <cr>
-        autocmd! CmdwinLeave * :call MapCR()
-        "   Automaitcally change to current directory
-        " autocmd BufEnter * silent! lcd %:p:h
         autocmd Filetype vim setlocal foldmethod=marker
-
-        " autocmd BufWritePre *.cpp,*.hpp,*.c,*.h,*.cc,*.hh :RemoveTrailingSpaces " remore trailling spaces
     augroup END
 
     " augroup autoformat
@@ -195,67 +148,8 @@ if has ('autocmd') " Remain compatible with earlier versions
         autocmd InsertLeave * set relativenumber
         autocmd InsertEnter   * set norelativenumber
     augroup END
-
-    " Transparent editing of GnuPG-encrypted files
-    " Based on a solution by Wouter Hanegraaff
-    augroup encrypted
-        autocmd!
-        " First make sure nothing is written to ~/.viminfo while editing
-        " an encrypted file.
-        autocmd BufReadPre,FileReadPre *.gpg,*.asc set viminfo=
-        " We don't want a swap file, as it writes unencrypted data to disk.
-        autocmd BufReadPre,FileReadPre *.gpg,*.asc set noswapfile
-        " Switch to binary mode to read the encrypted file.
-        autocmd BufReadPre,FileReadPre *.gpg set bin
-        autocmd BufReadPre,FileReadPre *.gpg,*.asc let ch_save = &ch|set ch=2
-        autocmd BufReadPost,FileReadPost *.gpg,*.asc
-                    \ '[,']!gpg --decrypt 2>/dev/null
-        " Switch to normal mode for editing
-        autocmd BufReadPost,FileReadPost *.gpg set nobin
-        autocmd BufReadPost,FileReadPost *.gpg,*.asc let &ch = ch_save|unlet ch_save
-        autocmd BufReadPost,FileReadPost *.gpg,*.asc
-                    \ execute ":doautocmd BufReadPost " . expand("%:r")
-
-        " Convert all text to encrypted text before writing
-        autocmd BufWritePre,FileWritePre *.gpg set bin
-        autocmd BufWritePre,FileWritePre *.gpg
-                    \ '[,']!gpg --default-recipient-self -e 2>/dev/null
-        autocmd BufWritePre,FileWritePre *.asc
-                    \ '[,']!gpg --default-recipient-self -e -a 2>/dev/null
-        " Undo the encryption so we are back in the normal text, directly
-        " after the file has been written.
-        autocmd BufWritePost,FileWritePost *.gpg,*.asc u
-    augroup END
-
-    augroup quickfix
-        autocmd!
-        " Automatically open, but do not go to (if there are errors) the quickfix /
-        " location list window, or close it when is has become empty.
-        "
-        " Note: Must allow nesting of autocmds to enable any customizations for quickfix
-        " buffers.
-        " Note: Normally, :cwindow jumps to the quickfix window if the command opens it
-        " (but not if it's already open). However, as part of the autocmd, this doesn't
-        " seem to happen.
-        autocmd QuickFixCmdPost [^l]* nested cwindow
-        autocmd QuickFixCmdPost    l* nested lwindow
-
-        autocmd FileType qf call AdjustWindowHeight(3, 10)
-        function! AdjustWindowHeight(minheight, maxheight)
-            let l = 1
-            let n_lines = 0
-            let w_width = winwidth(0)
-            while l <= line('$')
-                " number to float for division
-                let l_len = strlen(getline(l)) + 0.0
-                let line_width = l_len/w_width
-                let n_lines += float2nr(ceil(line_width))
-                let l += 1
-            endw
-            exe max([min([n_lines, a:maxheight]), a:minheight]) . "wincmd _"
-        endfunction
-    augroup END
-endif " has autocmd }}}
+endif " has autocmd
+"}}}
 
 " STATUS LINE {{{1
 let g:currentmode={
@@ -346,7 +240,6 @@ set statusline+=%1*\ [%n]                              " buffernr
 " set statusline+=%2*%{GitInfo()}\                         " Git Branch name
 set statusline+=%3*\ %<%F\ %{ReadOnly()}\ %m\ %r\ %w\    " File+path
 "set statusline+=%4*\ %#warningmsg#
-"set statusline+=%4*\ %{SyntasticStatuslineFlag()}       " Syntastic errors
 "set statusline+=%4*\ %*
 set statusline+=%5*\ %=                                  " Space
 set statusline+=%6*\ %y\                                 " FileType
@@ -362,59 +255,30 @@ hi User5 ctermfg=214 ctermbg=238            guifg=#ffaf00 guibg=#444444
 hi User6 ctermfg=007 ctermbg=238            guifg=#d8d8d8 guibg=#444444
 hi User7 ctermfg=007 ctermbg=238            guifg=#d8d8d8 guibg=#444444
 hi User8 ctermfg=007 ctermbg=236            guifg=#d8d8d8 guibg=#303030
+"}}}
 
 " MAPPINGS {{{1
-" if has('nvim')
-" else
-"     " Alt key  not working in gnome terminal workaround
-"     let c='a'
-"     while c <= 'z'
-"         exec "set <A-".c.">=\e".c
-"         exec "imap \e".c." <A-".c.">"
-"         let c = nr2char(1+char2nr(c))
-"     endw
-"     set timeout ttimeoutlen=50
-" endif
+imap jk <esc>
 
-" Move a line of text using ALT+[jk] {{{2
+" turn off search highlighting with <CR> (carriage-return)
+nnoremap <CR> :nohlsearch<CR><CR>
+
+" Move a line of text using ALT+[jk]
 nnoremap <A-j> :m .+1<CR>==
 nnoremap <A-k> :m .-2<CR>==
-nnoremap <A-h> <<
-nnoremap <A-l> >>
 inoremap <A-j> <Esc>:m .+1<CR>==gi
 inoremap <A-k> <Esc>:m .-2<CR>==gi
-inoremap <A-h> <Esc><<`]a
-inoremap <A-l> <Esc>>>`]a
 vnoremap <A-j> :m '>+1<CR>gv=gv
 vnoremap <A-k> :m '<-2<CR>gv=gv
-vnoremap <A-h> <gv
-vnoremap <A-l> >gv
-if has("mac") || has("macunix")
-    nmap <D-j> <A-j>
-    nmap <D-k> <A-k>
-    nmap <D-h> <A-h>
-    nmap <D-l> <A-l>
-    imap <D-j> <A-j>
-    imap <D-k> <A-k>
-    imap <D-h> <A-h>
-    imap <D-l> <A-l>
-    vmap <D-j> <A-j>
-    vmap <D-k> <A-k>
-    vmap <D-h> <A-h>
-    vmap <D-l> <A-l>
-endif
-" }}}
 
-"Copy, Cut, Paste {{{2
+"Copy, Cut, Paste
 map <A-c> "+yy
 map <A-x> "+dd
 map <A-v> "+p
 imap <A-c> <ESC>"+yy gi
 imap <A-x> <ESC>"+dd gi
 imap <A-v> <ESC>"+p gi
-" }}}
 
-" Folding {{{2
 " Turn folding off for real, hopefully
 " set nofoldenable
 " set foldmethod=manual
@@ -437,15 +301,14 @@ nmap <silent> z6 :set foldlevel=6<cr>
 nmap <silent> z7 :set foldlevel=7<cr>
 nmap <silent> z8 :set foldlevel=8<cr>
 nmap <silent> z9 :set foldlevel=9<cr>
-"}}}
 
 " Map <c-s> to write current buffer.
 nmap <c-s> :w<cr>
 imap <c-s> <c-o><c-s>
-cmap: WQ wq
-cmap: Wq wq
-cmap: W w
-cmap: Q q
+cmap WQ wq
+cmap Wq wq
+cmap W w
+cmap Q q
 
 " Undo in insert mode.
 imap <c-z> <c-o>u
@@ -454,20 +317,12 @@ nmap <c-z> u
 " Buffer naviation
 nnoremap <leader>bp :bprevious<CR>
 nnoremap <leader>bn :bnext<CR>
-" nnoremap <C-b> :bprevious<CR>
-" nnoremap <C-f> :bnext<CR>
-nnoremap  <silent>   <tab>  :if &modifiable && !&readonly && &modified <CR> :write<CR> :endif<CR>:bnext<CR>
-nnoremap  <silent> <s-tab>  :if &modifiable && !&readonly && &modified <CR> :write<CR> :endif<CR>:bprevious<CR>
-" Close all the buffers
-" nnoremap <leader>bo :BufOnly<cr>
+nnoremap <silent>   <tab>  :if &modifiable && !&readonly && &modified <CR> :write<CR> :endif<CR>:bnext<CR>
+nnoremap <silent> <s-tab>  :if &modifiable && !&readonly && &modified <CR> :write<CR> :endif<CR>:bprevious<CR>
 nnoremap <leader>bo :Only<cr>
-" clode this buffer
 nnoremap <leader>bd :bdelete<cr>
-" create a buffer menu
 nnoremap <leader>bm :b <C-Z>
-" create a buffer list
-nnoremap <leader>bl :buffers<CR>:buffer<Space>
-nnoremap <leader>bb :Buffers<CR>
+nnoremap <leader>bb :buffers<CR>:buffer<Space>
 
 " open Explorer
 nnoremap <leader>e :edit .<cr>
@@ -475,47 +330,28 @@ nnoremap <leader>E :Explore<cr>
 nnoremap <C-\> :Sexplore<cr>
 
 " Useful mappings for managing tabs
-map tn :tabnew<cr>
-map to :tabonly<cr>
-map tc :tabclose<cr>
-map tm :tabmove
-map tl :tabnext<cr>
-map th :tabprevious<cr>
-" Opens a new tab with the current buffer's path
-map te :tabedit <c-r>=expand("%:p:h")<cr>/
-" Opens a new tab with the current buffer
-map tt :tabedit %<cr>
-" edit .vimrc
-nmap tv :tabedit ~/.vimrc<CR>
-nmap ts :tabedit ~/.vimrc-standalone<CR>
-
-" have <esc> remove search highlighting
-" nnoremap <silent> <esc> :noh<return><esc>
-" needed so that vim still understands escape sequences
-" nnoremap <esc>^[ <esc>^[
-
-"   Map escape key to jj -- much faster
-imap jk <esc>
-
-"   Join line above after current line.
-nmap K :move-2<bar>:join<cr>
-" nmap -K :move+<bar>:normal -J<cr>
+nnoremap tn :tabnew<cr>
+nnoremap to :tabonly<cr>
+nnoremap tc :tabclose<cr>
+nnoremap tm :tabmove
+nnoremap tl :tabnext<cr>
+nnoremap th :tabprevious<cr>
+nnoremap te :tabedit <c-r>=expand("%:p:h")<cr>/
+nnoremap tt :tabedit %<cr>
+nnoremap tv :tabedit ~/.vimrc<CR>
 
 "   SpellCheck with the first entry
-nmap ss 1z=
-nmap sp :set spell spelllang=pt_pt<CR>
-nmap se :set spell spelllang=en_us<CR>
-nmap sn :set nospell<CR>
-
-" Use Alt-Mouse to select blockwise
-noremap <M-LeftMouse> <LeftMouse><Esc><C-V>
-noremap <M-LeftDrag> <LeftDrag>
+nnoremap ss 1z=
+nnoremap sp :set spell spelllang=pt_pt<CR>
+nnoremap se :set spell spelllang=en_us<CR>
+nnoremap sn :set nospell<CR>
 
 " To search for visually selected text:
 vmap // y/<C-R>"<CR>
 
 " Shortcut to rapidly toggle `set list`
 nmap <leader>sl :set list!<CR>
+
 " Change path to current file directory
 nnoremap <leader>cd :lcd %:p:h<CR>
 
@@ -523,7 +359,6 @@ nnoremap <Leader>w :call ToggleWrap()<CR>
 
 " grep word under cursor
 nnoremap <leader>gg :grep! "<C-R><C-W>"<CR>:cw<CR>
-nnoremap <leader>gG :Ggrep "<C-R><C-W>"<CR>:cw<CR>
 nnoremap <leader>gv :vimgrep! /<C-R><C-W>/j ./**<CR>:cw<CR>
 
 " For local replace
@@ -532,8 +367,6 @@ nnoremap gr gd[{V%::s/<C-R>///gc<left><left><left>
 " For global replace
 nnoremap gR gD:%s/<C-R>///gc<left><left><left>
 
-" 'p' to paste, 'gv' to re-select what was originally selected. 'y' to copy it again.
-xnoremap p pgvy
 " delete in insert mode
 inoremap <c-l> <Del>
 
@@ -543,13 +376,6 @@ while c <= 99
     execute "nnoremap " . c . "gb :" . c . "b\<CR>"
     let c += 1
 endwhile
-
-" Keep window beffur delete
-nnoremap <c-w>! <Plug>Kwbd
-
-if has("nvim")
-    tnoremap <Esc> <C-\><C-n>
-endif
 
 " Run line in shell and paste back the output
 noremap Q !!$SHELL<CR>
@@ -564,40 +390,28 @@ inoremap <expr> <Down>     pumvisible() ? "\<C-n>" : "\<Down>"
 
 map <F3> :ToggleNumber<CR>
 nnoremap <F4> :e %:p:s,.hpp$,.X123X,:s,.cpp$,.hpp,:s,.X123X$,.cpp,<CR>
-" recreate tags file with F6
-map <F6> :MakeTags<CR>
-map <F7> :PreviewMarkDown<CR>
 
 " Call MAKE
 map <F8> :w <CR> <bar> :call Clevermake() <CR> <bar> :!./%< <CR>
-
-" Toggle Type Completion
-nnoremap <F9>           :ToggleTypeComplete<CR>
-nnoremap <F10>          :ToggleShowTrailingSpaces<CR>
-nnoremap <F12>          :StripTrailingWhitespace<CR>
-
-"ECLIM
-" nnoremap <C-LeftMouse> :CSearchContext<CR>
-" nnoremap <C-RightMouse> :bdeleteq<CR>
-
+"}}}
 
 " COMMANDS {{{1
 command! -range=% FormatHtml <line1>,<line2>:!tidy -q -i --show-errors 0
 command! -range=% FormatXml <line1>,<line2>:!tidy -q -i --show-errors 0 -xml
 command! -range=% FormatPython <line1>,<line2>call YAPF()
-
 command! -range=% FormatCpp  <line1>,<line2>:pyf /usr/share/clang/clang-format-3.8/clang-format.py
+
 command! -nargs=0 PreviewMarkDown call Markdown_Preview()
 
 " command! MakeTags !ctags -R .
 command! MakeTags !ctags -R --sort=yes --c++-kinds=+p --fields=+iaS --extra=+q --exclude='.git' --exclude='log' .
 
 "   Set a better wrapping comand
-command! -nargs=0 WrapDefault set formatoptions=tcqj textwidth=80
-command! -nargs=0 WrapAutoHard set formatoptions=tcqjanwr textwidth=80
-command! -nargs=0 WrapHard set formatoptions=tcqjwr textwidth=80
+command! -nargs=0 WrapDefault set formatoptions=tcqj textwidth=100
+command! -nargs=0 WrapAutoHard set formatoptions=tcqjanwr textwidth=100
+command! -nargs=0 WrapHard set formatoptions=tcqjwr textwidth=100
 command! -nargs=0 WrapUndoHard set formatoptions=tcqjwr textwidth=5000
-command! -nargs=0 WrapSoftAt80 autocmd VimResized * let &columns=80
+command! -nargs=0 WrapSoftAt100 autocmd VimResized * let &columns=100
 
 " Insert the current time
 command! InsertTime :normal a<c-r>=strftime('%F %H:%M:%S.0 %z') <cr>
@@ -614,24 +428,18 @@ command! -nargs=0 ToggleNumber call ToggleNumber()
 
 command! -nargs=0 StripTrailingWhitespace call StripTrailingWhitespace()
 
-"delete the current file
-command! DeleteFile call DeleteFile()
-command! Rm call DeleteFile()
-"delete the file and quit the buffer (quits vim if this was the last file)
-command! RM call DeleteFile() <Bar> q!
-
+"delete the current file and quit the buffer (quits vim if this was the last file)
+command! DeleteFile call DeleteFile() <Bar> q!
 
 command! -nargs=* Only call CloseHiddenBuffers()
 
-"Bind the BufSel() function to a user-command
-command! -nargs=1 Bs :call BufSel("<args>")
-
-" Populat the quickfix with buffer list!
+" Populate the quickfix with buffer list!
 command! Qbuffers call setqflist(map(filter(range(1, bufnr('$')), 'buflisted(v:val)'), '{"bufnr":v:val}'))
+"}}}
 
-function! Replace(bang, replace) "{{{2
 " FUNCTIONS {{{1
-    " Search for current word and replace with given text for files in arglist.
+" Search for current word and replace with given text for files in arglist.
+function! Replace(bang, replace) "{{{2
     let flag = 'ge'
     if !a:bang
         let flag .= 'c'
@@ -643,6 +451,7 @@ function! Replace(bang, replace) "{{{2
 endfunction
 command! -nargs=1 -bang Replace :call Replace(<bang>0, <q-args>)
 nnoremap <Leader>r :call Replace(1, input('Replace '.expand('<cword>').' with: '))<CR>
+"}}}
 
 function! StripTrailingWhitespace() "{{{2
     if !&binary && &filetype != 'diff'
@@ -657,6 +466,7 @@ function! StripTrailingWhitespace() "{{{2
         call cursor(l, c)
     endif
 endfunction
+"}}}
 
 function! ToggleWrap() "{{{2
     if &linebreak
@@ -668,26 +478,10 @@ function! ToggleWrap() "{{{2
         "noremap  <buffer> <silent> j gj
         "noremap  <buffer> <silent> 0 g0
         "noremap  <buffer> <silent> $ g$
-        noremap  <buffer> <silent> <Up>   gk
-        noremap  <buffer> <silent> <Down> gj
-        noremap  <buffer> <silent> <Home> g<Home>
-        noremap  <buffer> <silent> <End>  g<End>
-        inoremap <buffer> <silent> <Up>   <C-o>gk
-        inoremap <buffer> <silent> <Down> <C-o>gj
-        inoremap <buffer> <silent> <Home> <C-o>g<Home>
-        inoremap <buffer> <silent> <End>  <C-o>g<End>
     elseif &wrap
         echo "Wrap OFF"
         setlocal nowrap
         set virtualedit=all
-        silent! nunmap <buffer> <Up>
-        silent! nunmap <buffer> <Home>
-        silent! nunmap <buffer> <Down>
-        silent! nunmap <buffer> <End>
-        silent! iunmap <buffer> <Up>
-        silent! iunmap <buffer> <Down>
-        silent! iunmap <buffer> <Home>
-        silent! iunmap <buffer> <End>
     else
         echo "Wrap ON With LineBreak"
         setlocal wrap linebreak
@@ -697,16 +491,9 @@ function! ToggleWrap() "{{{2
         "noremap  <buffer> <silent> j gj
         "noremap  <buffer> <silent> 0 g0
         "noremap  <buffer> <silent> $ g$
-        noremap  <buffer> <silent> <Up>   gk
-        noremap  <buffer> <silent> <Down> gj
-        noremap  <buffer> <silent> <Home> g<Home>
-        noremap  <buffer> <silent> <End>  g<End>
-        inoremap <buffer> <silent> <Up>   <C-o>gk
-        inoremap <buffer> <silent> <Down> <C-o>gj
-        inoremap <buffer> <silent> <Home> <C-o>g<Home>
-        inoremap <buffer> <silent> <End>  <C-o>g<End>
     endif
 endfunction
+"}}}
 
 function! ToggleNumber() "{{{2
     let currentnumberwidth=strlen(line('$'))
@@ -729,6 +516,7 @@ function! ToggleNumber() "{{{2
         " let &columns=&columns+&numberwidth+1
     endif
 endfunction
+"}}}
 
 function! Clevermake() "{{{2
     if !exists("g:make_command")
@@ -738,6 +526,7 @@ function! Clevermake() "{{{2
         exec g:make_command
     endif
 endfunction
+"}}}
 
 function! SetTab() "{{{2
     let l:tabstop = 1 * input('set tabstop = softtabstop = shiftwidth = ')
@@ -748,7 +537,9 @@ function! SetTab() "{{{2
     endif
     call SummarizeTabs()
 endfunction
-function! SummarizeTabs()
+"}}}
+
+function! SummarizeTabs() "{{{2
     try
         echohl ModeMsg
         echon 'tabstop='.&l:ts
@@ -763,34 +554,7 @@ function! SummarizeTabs()
         echohl None
     endtry
 endfunction
-
-function! BufSel(pattern) "{{{2
-    let bufcount = bufnr("$")
-    let currbufnr = 1
-    let nummatches = 0
-    let firstmatchingbufnr = 0
-    while currbufnr <= bufcount
-        if(bufexists(currbufnr))
-            let currbufname = bufname(currbufnr)
-            if(match(currbufname, a:pattern) > -1)
-                echo currbufnr . ": ". bufname(currbufnr)
-                let nummatches += 1
-                let firstmatchingbufnr = currbufnr
-            endif
-        endif
-        let currbufnr = currbufnr + 1
-    endwhile
-    if(nummatches == 1)
-        execute ":buffer ". firstmatchingbufnr
-    elseif(nummatches > 1)
-        let desiredbufnr = input("Enter buffer number: ")
-        if(strlen(desiredbufnr) != 0)
-            execute ":buffer ". desiredbufnr
-        endif
-    else
-        echo "No matching buffers"
-    endif
-endfunction
+"}}}
 
 function! CloseHiddenBuffers() " {{{2
     " figure out which buffers are visible in any tab
@@ -810,7 +574,7 @@ function! CloseHiddenBuffers() " {{{2
     endfor
     echon "Deleted " . l:tally . " buffers"
 endfun
-
+"}}}
 
 function! DeleteFile(...) "{{{2
     if(exists('a:1'))
@@ -833,6 +597,7 @@ function! DeleteFile(...) "{{{2
     endif
     return delStatus
 endfunction
+"}}}
 
 function! YAPF() range "{{{2
     " Determine range to format.
@@ -861,6 +626,7 @@ function! YAPF() range "{{{2
     " Reset cursor to first line of the formatted range.
     call cursor(a:firstline, 1)
 endfunction
+"}}}
 
 function! Markdown_Preview() "{{{2
     let b:curr_file = expand('%:p')
@@ -893,8 +659,10 @@ function! Markdown_Preview() "{{{2
         call system('xdotool windowactivate ' . curr_wid)
     endif
 endfunction
+"}}}
+"1}}}
 
-"SIMPLE PLUGINS{{{1
+"SIMPLE PLUGINS {{{1
 function! s:CommentaryPlugin() "{{{2
     function! s:surroundings() abort
         return split(get(b:, 'commentary_format', substitute(substitute(
@@ -990,9 +758,12 @@ function! s:CommentaryPlugin() "{{{2
         endif
     endif
 endfunction
-
-autocmd FileType c,cpp,java setlocal commentstring=//\ %s
+augroup Commentary
+    autocmd!
+    autocmd FileType c,cpp,java setlocal commentstring=//\ %s
+augroup END
 call s:CommentaryPlugin()
+"}}}
 
 function! s:TabCompletePlugin() "{{{2
     let g:vcm_s_tab_behavior = 0
@@ -1007,7 +778,6 @@ function! s:TabCompletePlugin() "{{{2
         let vcm_map = exists('b:vcm_tab_complete') ? b:vcm_tab_complete : ''
 
         if pumvisible()
-            " return a:shift_tab ? dirs[!dir] : dirs[dir]
             return dir_cmd
         endif
 
@@ -1031,7 +801,6 @@ function! s:TabCompletePlugin() "{{{2
         if is_omni_pattern && (!empty(&omnifunc))
             " Check position so that we can fallback if at the same pos.
             if get(b:, 'tab_complete_pos', []) == pos && b:completion_tried
-                " let exp = "\<C-x>" . dirs[!dir]
                 let exp = "\<C-x>" . dir_cmd
             else
                 echo "Looking for members..."
@@ -1061,7 +830,6 @@ function! s:TabCompletePlugin() "{{{2
         elseif vcm_map ==? "vim"
             return "\<C-x>\<C-v>"
         else
-            " return dirs[!dir]
             return dir_cmd
         endif
     endfunction
@@ -1069,11 +837,11 @@ function! s:TabCompletePlugin() "{{{2
     inoremap <expr> <plug>vim_completes_me_forward  <sid>vim_completes_me(0)
     inoremap <expr> <plug>vim_completes_me_backward <sid>vim_completes_me(1)
 
-    " Maps: {{{3
+    " Maps:
     imap <Tab>   <plug>vim_completes_me_forward
     imap <S-Tab> <plug>vim_completes_me_backward
 
-    augroup VCM "{{{3
+    augroup VCM
         autocmd!
         autocmd InsertEnter * let b:completion_tried = 0
         if v:version > 703 || v:version == 703 && has('patch598')
@@ -1083,11 +851,10 @@ function! s:TabCompletePlugin() "{{{2
         autocmd FileType c,cpp let b:vcm_tab_complete = 'user'
     augroup END
 endfunction
-
 call s:TabCompletePlugin()
+"}}}
 
 function! s:TypeCompletePlugin() "{{{2
-
     set completeopt+=menu
     set completeopt+=menuone
     " set completeopt+=noinsert
@@ -1116,17 +883,13 @@ function! s:TypeCompletePlugin() "{{{2
             echo "TypeComplete OFF"
         endif
     endfunction
-
     command! -nargs=0 ToggleTypeComplete call s:ToggleTypeComplete()
-
 endfunction
-
 call s:TypeCompletePlugin()
+"}}}
 
 function! s:ShowTrailingSpacesPlugin() "{{{2
-
     highlight HighlightExtraWhitespace ctermbg=red guibg=red
-
     function! s:SetWhitespaceMatch(mode)
         let pattern = (a:mode == 'i') ? '\s\+\%#\@<!$' : '\s\+$'
         if exists('w:whitespace_match_number')
@@ -1158,17 +921,14 @@ function! s:ShowTrailingSpacesPlugin() "{{{2
             echo "Show trailing whitespaces"
         endif
     endfunction
-
     command! -nargs=0 ToggleShowTrailingSpaces call s:ToggleShowTrailingSpaces()
-
 endfunction
-
 call s:ShowTrailingSpacesPlugin()
+call s:ToggleShowTrailingSpaces()
+"}}}
 
 function! s:BaseSyntaxPlugin() "{{{2
-
     let s:BSenabled = 0
-
     function! s:ToggleHiBaseSyntax()
         if s:BSenabled == 1
             hi link baseOperator none
@@ -1190,10 +950,11 @@ function! s:BaseSyntaxPlugin() "{{{2
             echo "HighlightBaseSyntax ON"
         endif
     endfunction
-
     command! -nargs=0 ToggleHiBaseSyntax call s:ToggleHiBaseSyntax()
-
 endfunction
-
 call s:BaseSyntaxPlugin()
+"}}}
+
+"1}}}
+
 
