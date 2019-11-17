@@ -11,7 +11,7 @@ alias _="sudo"
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
     test -r ~/.bash.d/dircolors && eval "$(dircolors -b ~/.bash.d/dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto --time-style=+"%d.%m.%Y %H:%M" -h -F'
+    alias ls='ls --color=auto --time-style=+"%d.%m.%Y %H:%M" -F'
     alias dir='dir --color=auto'
 
     alias grep='grep --color=auto'
@@ -20,11 +20,11 @@ if [ -x /usr/bin/dircolors ]; then
 fi
 
 alias l1='ls -1'
-alias la='ls -A   --group-directories-first'
-alias ll='ls -la  --group-directories-first'
-alias  l='ls -l   --group-directories-first'
-alias li='ls -ld  --group-directories-first .?*'
-alias lt='ls -ltr'
+alias la='ls -h -A   --group-directories-first'
+alias lla='ls -h -la  --group-directories-first'
+alias ll='ls -h -l   --group-directories-first'
+alias li='ls -h -ld  --group-directories-first .?*'
+alias lt='ls -h -ltr'
 # alias lz='du -a -h -d1 | sort -hr'
 alias lz='du -a -h -d1 | sort -h'
 
@@ -57,8 +57,8 @@ alias bacon='vi -u ~/.vimrc-standalone ~/.bash.d/'
 
 alias errors='journalctl -p 3 -xb'
 
-alias lst='find . -type d | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
-alias lsd='find . | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
+alias lsd='find . -type d | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
+alias lst='find . | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
 
 alias ff="find . -type f -name "
 alias fd="find . -type d -name "
