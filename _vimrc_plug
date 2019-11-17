@@ -3,10 +3,8 @@
 
 autocmd! bufwritepost .vimrc source %
 
-source ~/.vimrc
+source ~/.vimrc_standalone
 
-let g:python_host_prog='/usr/bin/python'
-" let g:python3_host_prog=
 "VIM PLUG {{{1
 
 call plug#begin('~/.vim/plugged')
@@ -31,7 +29,6 @@ Plug 'vim-scripts/DoxygenToolkit.vim'
 
 Plug 'Chiel92/vim-autoformat'
 
-Plug 'python-mode/python-mode', {'for': 'python', 'branch': 'develop'}
 " Plug 'ervandew/supertab' "included in ycm
 
 " Sintax plugins
@@ -39,6 +36,7 @@ Plug 'martinda/Jenkinsfile-vim-syntax'
 Plug 'octol/vim-cpp-enhanced-highlight' , {'for' : 'cc,hpp,h,cpp,c'}
 Plug 'sirtaj/vim-openscad', {'for': 'scad'}
 Plug 'Glench/Vim-Jinja2-Syntax'
+Plug 'morhetz/gruvbox'
 
 Plug 'prabirshrestha/async.vim'
 Plug 'prabirshrestha/vim-lsp'
@@ -48,11 +46,13 @@ Plug 'prabirshrestha/vim-lsp'
 " Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 " Plug 'w0rp/ale'
 " else
-" Plug 'Valloric/YouCompleteMe' , { 'dir': '~/.vim/plugged/YouCompleteMe', 'do': 'python3 install.py --clang-completer' }
+Plug 'Valloric/YouCompleteMe' , { 'dir': '~/.vim/plugged/YouCompleteMe', 'do': 'python3 install.py --clang-completer' }
 " endif
 
 call plug#end()
 "}}}
+
+colorscheme gruvbox
 
 "PLUGIN SPECIFIC {{{1
 " ultisnipets {{{
