@@ -1,0 +1,8 @@
+[Desktop Entry]
+NoDisplay=true
+Type=Application
+Version=2.20191217.0
+Name=Kite Copilot
+Exec=/home/suma/.local/share/kite/current/linux-unpacked/kite %u
+Icon=/home/suma/.local/share/icons/hicolor/128x128/apps/kite.png
+MimeType=application/x-kite;x-scheme-handler/kite;
