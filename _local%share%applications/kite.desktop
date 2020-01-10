@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Version=2.20191217.0
-Name=Kite
-Comment=Kite - ML powered code completions
-Exec=/home/suma/.local/share/kite/kited
-Icon=/home/suma/.local/share/icons/hicolor/128x128/apps/kite.png
-Categories=Development;IDE;
