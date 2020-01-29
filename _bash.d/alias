@@ -20,11 +20,13 @@ if [ -x /usr/bin/dircolors ]; then
 fi
 
 alias l1='ls -1'
-alias la='ls -h -A   --group-directories-first'
-alias lla='ls -h -la  --group-directories-first'
-alias ll='ls -h -l   --group-directories-first'
-alias li='ls -h -ld  --group-directories-first .?*'
-alias lt='ls -h -ltr'
+alias la='ls -A   --group-directories-first'
+alias ll='ls -la  --group-directories-first'
+alias l='ls -l   --group-directories-first'
+alias llh='ls -h -la  --group-directories-first'
+alias lh='ls -h -l   --group-directories-first'
+alias l.='ls -ld  --group-directories-first .?*'
+alias lt='ls -ltr'
 # alias lz='du -a -h -d1 | sort -hr'
 alias lz='du -a -h -d1 | sort -h'
 
