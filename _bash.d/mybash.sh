@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-for DOTFILE in ~/.bash.d/{env,options,alias,functions,prompt,completion,z.sh}; do
+# for DOTFILE in ~/.bash.d/{env,options,alias,functions,prompt,completion,z.sh}; do
+for DOTFILE in ~/.bash.d/{env,options,alias,functions,prompt,completion}; do
 	[ -f "$DOTFILE" ] && . "$DOTFILE"
 done
 

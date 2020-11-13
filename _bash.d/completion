@@ -5,11 +5,3 @@
 complete -cf sudo
 
 complete -d cd
-
-
-###############################################################################
-## Load bash-it completions:
-
-for COMP_BASH in ~/.bash.d/bash-it/completion/available/*; do
-	source $COMP_BASH >/dev/null 2>&1
-done

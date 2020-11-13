@@ -27,7 +27,6 @@ alias llh='ls -h -la  --group-directories-first'
 alias lh='ls -h -l   --group-directories-first'
 alias l.='ls -ld  --group-directories-first .?*'
 alias lt='ls -ltr'
-# alias lz='du -a -h -d1 | sort -hr'
 alias lz='du -a -h -d1 | sort -h'
 
 
@@ -49,15 +48,11 @@ alias emptybin='/bin/rm -rf ~/.Trash/*'
 alias srm='sudo	/bin/rm -rf'
 alias compact='_compactize'
 
-# alias vim="nvim"
+alias vim="nvim"
 alias vl="vim"
 alias vi="vim -u ~/.vimrc_standalone"
 alias vp="vim -u ~/.vimrc_plug"
 
-alias gvim="gvim --remote-tab-silent || gvim"
-alias vimrc="vi ~/.vimrc"
-
-alias i3config='vi  $HOME/.i3/config'
 alias printer='system-config-printer'
 alias bacon='vi ~/.bash.d/'
 
@@ -68,16 +63,6 @@ alias lst='find . | sed -e "s/[^-][^\/]*\//  |/g" -e "s/|\([^ ]\)/|-\1/"'
 
 alias ff="find . -type f -name "
 alias fd="find . -type d -name "
-
-alias rsync-copy="rsync -avz -h --info=progress2"
-alias rsync-move="rsync-copy --remove-source-files"
-alias rsync-update="rsync-copy --update"
-alias rsync-synchronize="rsync-update --delete"
-
-alias sync-copy="rsync -av -h --info=progress2"
-alias sync-move="rsync-copy --remove-source-files"
-alias sync-update="rsync-copy --update"
-alias sync-synchronize="rsync-update --delete"
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
@@ -159,24 +144,12 @@ alias solsr="eopkg search"
 alias solli="eopkg list-installed"
 salias() { alias | grep 'eopkg' | sed "s/^\([^=]*\)=\(.*\)/\1 => \2/"| sed "s/['|\']//g" | sort; }
 
-##########
-#  pip   #
-##########
-alias pipup="_pip_upgrade_all"
-
-# xdg-utils alias  #
-alias mtype='xdg-mime query filetype'
-alias mdefault='xdg-mime query default'
-alias msetdefault='xdg-mime default'
-# alias open='mimeopen'
 alias open='xdg-open'
 
 # IP addresses
-# alias ip="dig +short myip.opendns.com @resolver1.opendns.com"
 alias myip='curl ifconfig.me'
 
 # List declared aliases, functions
-alias listaliases="alias | sed 's/=.*//'"
 alias listfunctions="declare -f | grep '^[a-z].* ()' | sed 's/{$//'" # show non _prefixed functions
 
 #########

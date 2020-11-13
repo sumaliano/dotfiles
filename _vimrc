@@ -25,6 +25,7 @@ vmap // y/<C-R>"<CR>
 """" Vim Appearance
 
 " put colorscheme files in ~/.vim/colors/
+set t_Co=256
 " colorscheme minimalist
 colorscheme goodwolf
 

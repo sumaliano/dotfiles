@@ -1,7 +1,0 @@
-
-# set pgp_autosign=yes
-#set pgp_sign_as=0xDD59F559
-# Encrypt replies to PGP mails by default
-#set pgp_replyencrypt=yes
-# Set this to something comfortable
-#set pgp_timeout=1800

@@ -1,7 +1,5 @@
-" This is Joel Silva's .vimrc file
-" 2019-11-15 01:09:03.0 +0100
 
-autocmd! bufwritepost .vimrc source %
+autocmd! bufwritepost .vimrc_plug source %
 
 source ~/.vimrc_standalone
 
@@ -12,7 +10,6 @@ call plug#begin('~/.vim/plugged')
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-surround'
 Plug 'tpope/vim-repeat'
-" Plug 'tpope/vim-commentary'
 Plug 'scrooloose/nerdtree', { 'on': 'NERDTreeToggle' }
 
 Plug 'SirVer/ultisnips'
@@ -23,9 +20,8 @@ Plug 'junegunn/fzf.vim'
 
 Plug 'godlygeek/tabular'
 Plug 'majutsushi/tagbar'
-Plug 'vim-scripts/a.vim'
-
-Plug 'vim-scripts/DoxygenToolkit.vim'
+Plug 'vim-scripts/a.vim' , {'for' : 'cc,hpp,h,cpp,c'}
+Plug 'vim-scripts/DoxygenToolkit.vim' , {'for' : 'cc,hpp,h,cpp,c'}
 
 Plug 'Chiel92/vim-autoformat'
 
@@ -33,13 +29,13 @@ Plug 'Chiel92/vim-autoformat'
 
 " Sintax plugins
 Plug 'martinda/Jenkinsfile-vim-syntax'
-Plug 'octol/vim-cpp-enhanced-highlight' , {'for' : 'cc,hpp,h,cpp,c'}
 Plug 'sirtaj/vim-openscad', {'for': 'scad'}
+Plug 'octol/vim-cpp-enhanced-highlight' , {'for' : 'cc,hpp,h,cpp,c'}
 Plug 'Glench/Vim-Jinja2-Syntax'
 Plug 'morhetz/gruvbox'
+Plug 'rust-lang/rust.vim', {'for' : 'rust'}
 
-Plug 'prabirshrestha/async.vim'
-Plug 'prabirshrestha/vim-lsp'
+Plug 'vim-syntastic/syntastic'
 
 " NEOVIM Only
 " if has('nvim')
@@ -259,6 +255,17 @@ endif
 if !empty(glob("~/.vim/plugged/DoxygenToolkit.vim"))
     " let g:DoxygenToolkit_commentType = "C++"
 endif
+"}}}
+" Syntatic {{{2
+if !empty(glob("~/.vim/plugged/syntastic/plugin/syntastic.vim"))
+    set statusline+=%#warningmsg#
+    set statusline+=%{SyntasticStatuslineFlag()}
+    set statusline+=%*
 
+    let g:syntastic_always_populate_loc_list = 1
+    let g:syntastic_auto_loc_list = 1
+    let g:syntastic_check_on_open = 1
+    let g:syntastic_check_on_wq = 0
+endif
 "}}}
 

@@ -53,10 +53,6 @@ __powerline()
 		# printf "($branch$marks)"
     }
 
-	# TODO:
-	# __svn_info() {
-	# }
-
     over_ssh() 
     {
         if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
