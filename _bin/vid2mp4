@@ -1,0 +1,17 @@
+#!/bin/bash
+FILE=$1
+if [ -f $FILE ] ; then                                                           
+	case $FILE in                                                                  
+		#*.mov | *.MOV)   
+		*.* )   
+			#ffmpeg -i $FILE -vcodec libx264 "${FILE%.*}.mp4" ;;
+			#ffmpeg -i $FILE -vcodec libx264 -crf 24 "${FILE%.*}.mp4" ;;
+			ffmpeg -i $FILE \
+				-vcodec libx264 \
+				-vf "scale=640:-1" "${FILE%.*}.mp4" ;;
+		*)           
+			echo "'$FILE' cannot be extracted via vid2mp4" ;;                  
+	esac                                                                        
+else                                                                          
+	echo "'$FILE' is not a valid file"                                             
+fi 

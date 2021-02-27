@@ -1,0 +1,15 @@
+#!/bin/bash
+FILE=$1
+if [ -f $FILE ] ; then                                                           
+	case $FILE in                                                                  
+		*.mov | *.MOV)   
+			#ffmpeg -i $FILE \
+			#	-acodec libvorbis -ac 2 -ab 96k -ar 44100 \
+			#	-b 345k -s 640x360 "${FILE%.*}.ogv" ;;
+			ffmpeg2theora $FILE -o "${FILE%.*}.ogv" -x 640 -y 360 --videoquality 5 --audioquality 0  --frontend ;;
+		*)           
+			echo "'$FILE' cannot be extracted via vid2ogv" ;;                  
+	esac                                                                        
+else                                                                          
+	echo "'$FILE' is not a valid file"                                             
+fi 

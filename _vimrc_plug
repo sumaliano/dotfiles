@@ -1,0 +1,271 @@
+
+autocmd! bufwritepost .vimrc_plug source %
+
+source ~/.vimrc_standalone
+
+"VIM PLUG {{{1
+
+call plug#begin('~/.vim/plugged')
+
+Plug 'tpope/vim-fugitive'
+Plug 'tpope/vim-surround'
+Plug 'tpope/vim-repeat'
+Plug 'scrooloose/nerdtree', { 'on': 'NERDTreeToggle' }
+
+Plug 'SirVer/ultisnips'
+Plug 'honza/vim-snippets'
+
+Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
+Plug 'junegunn/fzf.vim'
+
+Plug 'godlygeek/tabular'
+Plug 'majutsushi/tagbar'
+Plug 'vim-scripts/a.vim' , {'for' : 'cc,hpp,h,cpp,c'}
+Plug 'vim-scripts/DoxygenToolkit.vim' , {'for' : 'cc,hpp,h,cpp,c'}
+
+Plug 'Chiel92/vim-autoformat'
+
+" Plug 'ervandew/supertab' "included in ycm
+
+" Sintax plugins
+Plug 'martinda/Jenkinsfile-vim-syntax'
+Plug 'sirtaj/vim-openscad', {'for': 'scad'}
+Plug 'octol/vim-cpp-enhanced-highlight' , {'for' : 'cc,hpp,h,cpp,c'}
+Plug 'Glench/Vim-Jinja2-Syntax'
+Plug 'morhetz/gruvbox'
+Plug 'rust-lang/rust.vim', {'for' : 'rust'}
+
+Plug 'vim-syntastic/syntastic'
+
+" NEOVIM Only
+" if has('nvim')
+" Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+" Plug 'w0rp/ale'
+" else
+Plug 'Valloric/YouCompleteMe' , { 'dir': '~/.vim/plugged/YouCompleteMe', 'do': 'python3 install.py --clang-completer' }
+" endif
+
+call plug#end()
+"}}}
+
+colorscheme gruvbox
+
+"PLUGIN SPECIFIC {{{1
+" ultisnipets {{{
+if !empty(glob("~/.vim/plugged/ultisnips/plugin/UltiSnips.vim"))
+    " trigger configuration. do not use <tab> if you
+    " use https://github.com/valloric/youcompleteme.
+    let g:UltiSnipsExpandTrigger="<c-j>"
+    let g:UltiSnipsListSnippets="<c-b>"
+    let g:UltiSnipsJumpForwardTrigger="<c-j>"
+    let g:UltiSnipsJumpBackwardTrigger="<c-k>"
+    " let g:UltiSnipsexpandTrigger="<nop>"
+    " let g:UltiSnipsJumpForwardTrigger="<nop>"
+    " let g:UltiSnipsJumpBackwardTrigger="<nop>"
+
+    " if you want :UltiSnipsEdit to split your window.
+    let g:UltiSnipsEditSplit="context"
+    " snippets are separated from the engine. add this if you want them:
+    let g:UltiSnipsSnippetsDir = "~/.vim/ultisnips"
+    let g:UltiSnipsSnippetDirectories =
+                \ [$home.'/.vim/plugged/vim-snippets/ultisnips/', $home.'/.vim/ultisnips/']
+endif
+"}}}
+" nerdtree {{{2
+if !empty(glob("~/.vim/plugged/nerdtree/plugin/NERD_tree.vim"))
+    nnoremap <leader>nt :NERDTreeToggle<cr>
+    nnoremap <C-\> :NERDTreeToggle<cr>
+    nnoremap <leader>nm :NERDTreeMirror<cr>
+    nnoremap <leader>nf :NERDTreeFind<cr>
+
+
+    let g:nerdtreewinpos = "left"
+
+    let nerdspacedelims=1
+    let nerdcompactsexycoms=1
+    let g:nerdcustomdelimiters = { 'racket': { 'left': ';', 'leftalt': '#|', 'rightalt': '|#' } }
+endif
+"}}}
+" fzf {{{2
+if !empty(glob("~/.vim/plugged/fzf.vim/plugin/fzf.vim"))
+    nnoremap <leader>bb :Buffers<CR>
+    " nnoremap <leader>t :Tags<CR>
+    nnoremap <C-p> :Files<CR>
+
+
+    " Command for git grep
+    " - fzf#vim#grep(command, with_column, [options], [fullscreen])
+    command! -bang -nargs=* GGrep
+                \ call fzf#vim#grep(
+                \   'git grep --line-number '.shellescape(<q-args>), 0,
+                \   { 'dir': systemlist('git rev-parse --show-toplevel')[0] }, <bang>0)
+
+    " Override Colors command. You can safely do this in your .vimrc as fzf.vim
+    " will not override existing commands.
+    command! -bang Colors
+                \ call fzf#vim#colors({'left': '15%', 'options': '--reverse --margin 30%,0'}, <bang>0)
+
+    " Similarly, we can apply it to fzf#vim#grep. To use ripgrep instead of ag:
+    command! -bang -nargs=* Rg
+                \ call fzf#vim#grep(
+                \   'rg --column --line-number --no-heading --color=always --smart-case '.shellescape(<q-args>), 1,
+                \   <bang>0 ? fzf#vim#with_preview('up:60%')
+                \           : fzf#vim#with_preview('right:50%:hidden', '?'),
+                \   <bang>0)
+
+    " Likewise, Files command with preview window
+    command! -bang -nargs=? -complete=dir Files
+                \ call fzf#vim#files(<q-args>, fzf#vim#with_preview(), <bang>0)
+endif
+"}}}
+" autoformat {{{2
+if !empty(glob("~/.vim/plugged/vim-autoformat/plugin/autoformat.vim"))
+    noremap <leader>= :Autoformat<cr>
+endif
+"}}}
+" tabularize {{{2
+if exists(":Tabularize")
+    nmap <leader>a= :tabularize /=<cr>
+    vmap <leader>a= :tabularize /=<cr>
+    nmap <leader>a: :tabularize /:\zs<cr>
+    vmap <leader>a: :tabularize /:\zs<cr>
+
+    inoremap <silent> <bar>   <bar><esc>:call <sid>align()<cr>a
+
+    function! s:align()
+        let p = '^\s*|\s.*\s|\s*$'
+        if exists(':tabularize') && getline('.') =~# '^\s*|' && (getline(line('.')-1) =~# p || getline(line('.')+1) =~# p)
+            let column = strlen(substitute(getline('.')[0:col('.')],'[^|]','','g'))
+            let position = strlen(matchstr(getline('.')[0:col('.')],'.*|\s*\zs.*'))
+            tabularize/|/l1
+            normal! 0
+            call search(repeat('[^|]*|',column).'\s\{-\}'.repeat('.',position),'ce',line('.'))
+        endif
+    endfunction
+endif
+"}}}
+" a.vim {{{2
+if !empty(glob("~/.vim/plugged/a.vim"))
+    map <A-tab> :A<cr>
+endif
+"}}}
+" ale {{{2
+if isdirectory(expand("~/.vim/plugged/ale/plugin/ale.vim"))
+    " enable completion where available.
+    let g:ale_completion_enabled = 1
+endif
+"}}}
+" vim-cpp-enhanced-highlight {{{2
+if !empty(glob("~/.vim/plugged/vim-cpp-enhanced-highlight/after/syntax/cpp.vim"))
+    let g:cpp_class_scope_highlight = 1
+    let g:cpp_member_variable_highlight = 1
+    " let g:cpp_experimental_simple_template_highlight = 1
+    let g:cpp_class_decl_highlight = 1
+    " let g:cpp_experimental_template_highlight = 1
+    let g:cpp_concepts_highlight = 1
+    " let g:cpp_no_function_highlight = 1
+endif
+"}}}
+" Supertab {{{2
+if !empty(glob("~/.vim/plugged/supertab/plugin/supertab.vim"))
+    let g:SuperTabDefaultCompletionType = "context"
+
+    autocmd FileType cpp let g:SuperTabDefaultCompletionType = "<c-n>"
+    let g:SuperTabContextDefaultCompletionType  = "<c-p>"
+    let g:SuperTabNoCompleteBefore = []
+    let g:SuperTabNoCompleteAfter = ['^', '\s']
+endif
+"}}}
+" vim-commentary {{{2
+if !empty(glob("~/.vim/plugged/vim-commentary/plugin/commentary.vim"))
+    autocmd FileType c,cpp,java setlocal commentstring=//\ %s
+endif
+"}}}
+" VimWiki {{{2
+if !empty(glob("~/.vim/plugged/vimwiki/plugin/vimwiki.vim"))
+    let g:vimwiki_list = [{'path': '~/.vimwiki/md/',
+                \ 'syntax': 'markdown', 'ext': '.md'}]
+
+    let g:vimwiki_ext2syntax = {'.md': 'markdown',
+                \ '.mkd': 'markdown',
+                \ '.wiki': 'media'}
+endif
+"}}}
+" vimtex {{{2
+if !empty(glob("~/.vim/plugged/vimtex/autoload/vimtex.vim"))
+    nmap  <leader>li  <plug>(vimtex-info)
+    nmap  <leader>lI  <plug>(vimtex-info-full)
+    nmap  <leader>lt  <plug>(vimtex-toc-open)
+    nmap  <leader>lT  <plug>(vimtex-toc-toggle)
+    nmap  <leader>lq  <plug>(vimtex-log)
+    nmap  <leader>lv  <plug>(vimtex-view)
+    nmap  <leader>lr  <plug>(vimtex-reverse-search)
+    nmap  <leader>ll  <plug>(vimtex-compile)
+    nmap  <leader>lL  <plug>(vimtex-compile-selected)
+    nmap  <leader>lk  <plug>(vimtex-stop)
+    nmap  <leader>lK  <plug>(vimtex-stop-all)
+    nmap  <leader>le  <plug>(vimtex-errors)
+    nmap  <leader>lo  <plug>(vimtex-compile-output)
+    nmap  <leader>lg  <plug>(vimtex-status)
+    nmap  <leader>lG  <plug>(vimtex-status-all)
+    nmap  <leader>lc  <plug>(vimtex-clean)
+    nmap  <leader>lC  <plug>(vimtex-clean-full)
+    nmap  <leader>lm  <plug>(vimtex-imaps-list)
+    nmap  <leader>lx  <plug>(vimtex-reload)
+    nmap  <leader>lX  <plug>(vimtex-reload-state)
+    nmap  <leader>ls  <plug>(vimtex-toggle-main)
+endif
+"}}}
+"Jedi {{{2
+if !empty(glob("~/.vim/plugged/jedi-vim/ftplugin/python/jedi.vim"))
+    let g:jedi#goto_command = "<leader>c"
+    let g:jedi#goto_assignments_command = "<leader>pg"
+    let g:jedi#goto_definitions_command = "<leader>pd"
+    let g:jedi#documentation_command = "K"
+    let g:jedi#usages_command = "<leader>pu"
+    let g:jedi#completions_command = "<C-Space>"
+    let g:jedi#rename_command = "<leader>pr"
+    let g:jedi#force_py_version = "2.7"
+endif
+"}}}
+" YCM {{{2
+if !empty(glob("~/.vim/plugged/YouCompleteMe/plugin/youcompleteme.vim"))
+    let g:ycm_global_ycm_extra_conf = "~/.vim/ycm_extra_conf.py"
+    let g:ycm_filetype_blacklist = {
+                \ 'tagbar' : 1,
+                \ 'qf' : 1,
+                \ 'notes' : 1,
+                \ 'markdown' : 1,
+                \ 'unite' : 1,
+                \ 'text' : 1,
+                \ 'vimwiki' : 1,
+                \ 'pandoc' : 1,
+                \ 'infolog' : 1,
+                \ 'mail' : 1
+                \}
+    let g:ycm_auto_trigger = 1
+    let g:ycm_min_num_of_chars_for_completion = 2
+    let g:ycm_autoclose_preview_window_after_completion=1
+
+    " nnoremap <C-LeftMouse> <LeftMouse>:YcmCompleter GoToDefinitionElseDeclaration<CR>
+    " nnoremap <C-]> :YcmCompleter GoToDefinitionElseDeclaration<CR>
+endif
+"}}}
+" DoxygenToolkit {{{2
+if !empty(glob("~/.vim/plugged/DoxygenToolkit.vim"))
+    " let g:DoxygenToolkit_commentType = "C++"
+endif
+"}}}
+" Syntatic {{{2
+if !empty(glob("~/.vim/plugged/syntastic/plugin/syntastic.vim"))
+    set statusline+=%#warningmsg#
+    set statusline+=%{SyntasticStatuslineFlag()}
+    set statusline+=%*
+
+    let g:syntastic_always_populate_loc_list = 1
+    let g:syntastic_auto_loc_list = 1
+    let g:syntastic_check_on_open = 1
+    let g:syntastic_check_on_wq = 0
+endif
+"}}}
+

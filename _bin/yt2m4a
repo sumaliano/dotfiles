@@ -1,0 +1,10 @@
+#!/bin/bash
+
+URL=$1
+
+youtube-dl --download-archive downloaded.txt \
+    -i \
+    -f bestaudio[ext=m4a]  \
+    --embed-thumbnail \
+    -o "%(title)s.%(ext)s" \
+    --add-metadata $URL

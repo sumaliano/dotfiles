@@ -1,0 +1,941 @@
+" This is Joel Silva's vimrc standalone
+" Sun 20 Oct 2019 09:47:40 PM CEST
+
+" VIM SETTINGS {{{1
+set nocompatible
+set mouse=a
+set history=1000
+" set hidden " allow unsaved background buffers and remember marks/undo for them
+
+set tabstop=4
+set shiftwidth=4
+set softtabstop=4
+set smarttab
+set expandtab "use spaces instead tabs
+
+set autoindent
+set backspace=indent,eol,start  " more powerful backspacing
+set complete-=i
+
+set nrformats-=octal
+
+set laststatus=2
+set ruler "Always show current position
+set showmatch " Show matching brackets when text indicator is over them
+set hlsearch " Highlight search results
+set ignorecase smartcase " make searches case-sensitive only if they contain upper-case characters
+set incsearch " incremental search highlight
+set cursorline " highlight current line
+set cmdheight=1 " Height of the command bar
+set switchbuf=useopen
+set showtabline=1
+set shell=bash
+set scrolloff=3 " keep more context when scrolling off the end of a buffer
+set showcmd " display incomplete commands
+set autoread
+set lazyredraw " Don't redraw while executing macros (good performance config)
+
+set timeout timeoutlen=1000 ttimeoutlen=100 " Fix slow O inserts
+set nojoinspaces " Insert only one space when joining lines that contain sentence-terminating punctuation like `.`.
+set noerrorbells visualbell t_vb= tm=500 " No annoying sound on errors
+
+set nowrap
+set colorcolumn=80
+set number "relativenumber
+set numberwidth=2
+
+set wildmenu " make tab completion for files/buffers act like bash
+set wildmode=longest:full,full " use emacs-style tab completion when selecting files, etc
+set wildchar=<Tab>
+set wildcharm=<C-Z>
+
+set omnifunc=syntaxcomplete#Complete
+set completefunc=syntaxcomplete#Complete
+set path+=** " Search into subfolders
+
+" set undofile
+set backupdir=~/.vim/tmp
+set directory=~/.vim/tmp
+set undodir=~/.vim/tmp
+
+" set listchars=trail:·,tab:▸\ ,eol:¬
+" set listchars=trail:▓,tab:▒░,eol:¬
+if &listchars ==# 'eol:$'
+  set listchars=tab:>\ ,trail:-,extends:>,precedes:<,nbsp:+
+endif
+
+let mapleader = " "
+"}}}
+
+" COLOR {{{1
+set t_Co=256
+colorscheme badwolf
+syntax enable
+"}}}
+
+" GUI {{{1
+if has("gui")
+    " set the gui options to:
+    "   g: grey inactive menu items
+    "   m: display menu bar
+    "   r: display scrollbar on right side of window
+    "   b: display scrollbar at bottom of window
+    "   t: enable tearoff menus on Win32
+    "   T: enable toolbar on Win32
+    set guioptions=g
+    "set guioptions-=T
+    "set guioptions+=e
+    "set guitablabel=%M\ %t
+    " set guifont=Consolas\ 14
+    nnoremap <leader>sm :if &go=~#'m'<Bar>set go-=m<Bar>else<Bar>set go+=m<Bar>endif<CR>
+    nnoremap <leader>st :if &go=~#'T'<Bar>set go-=T<Bar>else<Bar>set go+=T<Bar>endif<CR>
+    nnoremap <leader>sr :if &go=~#'r'<Bar>set go-=r<Bar>else<Bar>set go+=r<Bar>endif<CR>
+endif
+"}}}
+
+" AUTOCMDS {{{1
+if has ('autocmd') " Remain compatible with earlier versions
+    augroup vimrcEx
+        autocmd!
+
+        autocmd BufRead,BufNewFile *.gle set filetype=gle
+        autocmd BufRead,BufNewFile *.m,*.oct set filetype=octave
+        autocmd BufRead,BufNewFile *.sage,*.spyx,*.pyx setfiletype=python
+        autocmd BufRead,BufNewFile *.tex set filetype=tex
+        autocmd BufRead,BufNewFile *.ino set filetype=arduino
+        autocmd BufRead,BufNewFile *.md set filetype=markdown
+        autocmd BufRead,BufNewFile *.jira set filetype=confluencewiki
+
+        autocmd Filetype tex setlocal colorcolumn=0
+        autocmd Filetype tex setlocal makeprg='make'
+        autocmd Filetype tex syntax spell toplevel
+
+        " For ruby, autoindent with two spaces, always expand tabs
+        autocmd FileType tex,ruby,haml,eruby,yaml,html,sass,cucumber
+                    \ set ai sw=2 sts=2 ts=2 et
+        autocmd FileType python,javascript set sw=4 sts=4 ts=4 et
+        autocmd FileType python set smartindent
+
+        autocmd Filetype c,cpp set colorcolumn=100
+        autocmd FileType c set makeprg=gcc\ -o\ %<\ %
+        autocmd FileType cpp set makeprg=g++\ -std=c++11\ -o\ %<\ %
+        autocmd Filetype vim setlocal foldmethod=marker
+
+        " This closed the quickfix after selection using <cr>
+        autocmd FileType qf nnoremap <buffer> <cr> <cr>:cclose<cr>
+
+        autocmd BufWinEnter quickfix nnoremap <silent> <buffer> q :cclose<cr>:lclose<cr>
+        autocmd BufEnter * if (winnr('$') == 1 && &buftype ==# 'quickfix' ) | bd|  q | endif
+    augroup END
+
+    augroup vimrc     " Source vim configuration upon save
+        autocmd!
+        autocmd! BufWritePost ~/.vimrc-standalone source %
+    augroup END
+
+    augroup numbertoggle
+        autocmd!
+        autocmd InsertLeave * set relativenumber
+        autocmd InsertEnter * set norelativenumber
+    augroup END
+endif " has autocmd
+"}}}
+
+" STATUS LINE {{{1
+let g:currentmode={
+            \ 'n'  : 'Normal ',
+            \ 'no' : 'N·Operator Pending ',
+            \ 'v'  : 'Visual ',
+            \ 'V'  : 'V·Line ',
+            \ '' : 'V·Block ',
+            \ 's'  : 'Select ',
+            \ 'S'  : 'S·Line ',
+            \ '' : 'S·Block ',
+            \ 'i'  : 'Insert ',
+            \ 'R'  : 'Replace ',
+            \ 'Rv' : 'V·Replace ',
+            \ 'c'  : 'Command ',
+            \ 'cv' : 'Vim Ex ',
+            \ 'ce' : 'Ex ',
+            \ 'r'  : 'Prompt ',
+            \ 'rm' : 'More ',
+            \ 'r?' : 'Confirm ',
+            \ '!'  : 'Shell ',
+            \ 't'  : 'Terminal '
+            \}
+
+" Find out current buffer's size and output it.
+function! FileSize()
+    let bytes = getfsize(expand('%:p'))
+    if (bytes >= 1024)
+        let kbytes = bytes / 1024
+    endif
+    if (exists('kbytes') && kbytes >= 1024)
+        let mbytes = kbytes / 1024
+    endif
+
+    if bytes <= 0
+        return '0'
+    endif
+
+    if (exists('mbytes'))
+        return mbytes . '_MB '
+    elseif (exists('kbytes'))
+        return kbytes . '_KB '
+    else
+        return bytes . '_B '
+    end
+endfunction
+
+function! ReadOnly()
+    if &readonly || !&modifiable
+        return 'RO'
+    else
+        return ''
+    endif
+endfunction
+
+au InsertEnter * hi StatusLine ctermbg=178  ctermfg=16
+au InsertLeave * hi StatusLine ctermbg=39   ctermfg=16
+
+" default the statusline to green when entering Vim
+hi StatusLine ctermbg=39      ctermfg=16
+hi User1      ctermbg=234     ctermfg=255
+
+set statusline=
+set statusline+=%0*\ %{toupper(g:currentmode[mode()])}   " Current mode
+set statusline+=%1*\ [%n]                                " buffernr
+set statusline+=%1*\ %<%F\ %{ReadOnly()}\ %m\ %r\ %w\    " File+path
+set statusline+=%1*\ %=                                  " Space
+set statusline+=%1*\ %y\                                 " FileType
+set statusline+=%1*\ %{(&fenc!=''?&fenc:&enc)}\[%{&ff}]\ " Encoding and Fileformat
+set statusline+=%1*\ %-3(%{FileSize()}%)                 " File size
+set statusline+=%0*\ %3p%%\ \ %l:%2c\                    " Rownumber/total (%)
+"}}}
+
+" MAPPINGS {{{1
+imap jk <esc>
+
+" turn off search highlighting with <CR> (carriage-return)
+nnoremap <CR> :nohlsearch<CR><CR>
+
+" Move a line of text using ALT+[jk]
+nnoremap <A-j> :m .+1<CR>==
+nnoremap <A-k> :m .-2<CR>==
+inoremap <A-j> <Esc>:m .+1<CR>==gi
+inoremap <A-k> <Esc>:m .-2<CR>==gi
+vnoremap <A-j> :m '>+1<CR>gv=gv
+vnoremap <A-k> :m '<-2<CR>gv=gv
+
+"Copy, Cut, Paste
+map <A-c> "+yy
+map <A-x> "+dd
+map <A-v> "+p
+imap <A-c> <ESC>"+yy gi
+imap <A-x> <ESC>"+dd gi
+imap <A-v> <ESC>"+p gi
+
+" Buffer naviation
+nnoremap <leader>bp :bprevious<CR>
+nnoremap <leader>bn :bnext<CR>
+nnoremap <silent>   <tab>  :if &modifiable && !&readonly && &modified <CR> :write<CR> :endif<CR>:bnext<CR>
+nnoremap <silent> <s-tab>  :if &modifiable && !&readonly && &modified <CR> :write<CR> :endif<CR>:bprevious<CR>
+nnoremap <leader>bo :Only<cr>
+nnoremap <leader>bd :bdelete<cr>
+nnoremap <leader>bm :buffers<CR>:buffer<Space>
+nnoremap <leader>bb :Qbuffers<cr>
+
+" open Explorer
+nnoremap <leader>e :edit .<cr>
+nnoremap <leader>E :Explore<cr>
+nnoremap <C-\> :Sexplore<cr>
+
+" Useful mappings for managing tabs
+nnoremap tn :tabnew<cr>
+nnoremap to :tabonly<cr>
+nnoremap tq :tabclose<cr>
+nnoremap tm :tabmove
+nnoremap tl :tabnext<cr>
+nnoremap th :tabprevious<cr>
+nnoremap te :tabedit <c-r>=expand("%:p:h")<cr>/
+nnoremap tt :tabedit %<cr>
+nnoremap tv :tabedit ~/.vimrc<CR>
+
+"   SpellCheck with the first entry
+nnoremap ss 1z=
+nnoremap sp :set spell spelllang=pt_pt<CR>
+nnoremap se :set spell spelllang=en_us<CR>
+nnoremap sn :set nospell<CR>
+
+" To search for visually selected text:
+vmap // y/<C-R>"<CR>
+
+" Shortcut to rapidly toggle `set list`
+nmap <leader>sl :set list!<CR>
+
+" Change path to current file directory
+nnoremap <leader>cd :lcd %:p:h<CR>
+
+nnoremap <Leader>w :call ToggleWrap()<CR>
+
+" grep word under cursor
+nnoremap <leader>gg :grep! "<C-R><C-W>"<CR>:cw<CR>
+nnoremap <leader>gv :vimgrep! /<C-R><C-W>/j ./**<CR>:cw<CR>
+
+" For local replace
+nnoremap gr gd[{V%::s/<C-R>///gc<left><left><left>
+
+" For global replace
+nnoremap gR gD:%s/<C-R>///gc<left><left><left>
+
+" delete in insert mode
+inoremap <c-l> <Del>
+
+" Run line in shell and paste back the output
+noremap Q !!$SHELL<CR>
+" Breack line in normal mode Ctrl-j
+nnoremap <NL> i<CR><esc>
+
+" Improve" the menu behavior
+" inoremap <expr> <Esc>      pumvisible() ? "\<C-e>" : "\<Esc>" "comflicts with ycm
+" inoremap <expr> <CR>       pumvisible() ? "\<C-y>" : "\<CR>"
+" inoremap <expr> <Up>       pumvisible() ? "\<C-p>" : "\<Up>"
+" inoremap <expr> <Down>     pumvisible() ? "\<C-n>" : "\<Down>"
+
+map <F3> :ToggleNumber<CR>
+nnoremap <F4> :e %:p:s,.hpp$,.X123X,:s,.cpp$,.hpp,:s,.X123X$,.cpp,<CR>
+
+" Call MAKE
+map <F8> :w <CR> <bar> :call Clevermake() <CR> <bar> :!./%< <CR>
+"}}}
+
+" COMMANDS {{{1
+
+"   Set a better wrapping comand
+command! -nargs=0 WrapDefault set formatoptions=tcqj textwidth=100
+command! -nargs=0 WrapAutoHard set formatoptions=tcqjanwr textwidth=100
+command! -nargs=0 WrapHard set formatoptions=tcqjwr textwidth=100
+command! -nargs=0 WrapUndoHard set formatoptions=tcqjwr textwidth=5000
+command! -nargs=0 WrapSoftAt100 autocmd VimResized * let &columns=100
+
+" Insert the current time
+command! InsertTime :normal a<c-r>=strftime('%F %H:%M:%S.0 %z') <cr>
+
+" Set tabstop, softtabstop and shiftwidth to the same value
+command! -nargs=* SetTab call SetTab()
+
+" Calls function ToggleNumber();
+command! -nargs=0 ToggleNumber call ToggleNumber()
+
+command! -nargs=0 StripTrailingWhitespace call StripTrailingWhitespace()
+
+"delete the current file and quit the buffer (quits vim if this was the last file)
+command! DeleteFile call DeleteFile() <Bar> q!
+
+command! -nargs=* Only call CloseHiddenBuffers()
+
+" Populate the quickfix with buffer list!
+command! Qbuffers call setqflist(map(filter(range(1, bufnr('$')), 'buflisted(v:val)'), '{"bufnr":v:val}')) <Bar> :copen
+"}}}
+
+" FUNCTIONS {{{1
+" Search for current word and replace with given text for files in arglist.
+function! Replace(bang, replace) "{{{2
+    let flag = 'ge'
+    if !a:bang
+        let flag .= 'c'
+    endif
+    let search = '\<' . escape(expand('<cword>'), '/\.*$^~[') . '\>'
+    let replace = escape(a:replace, '/\&~')
+    " execute 'argdo %s/' . search . '/' . replace . '/' . flag
+    execute 'bufdo %s/' . search . '/' . replace . '/' . flag
+endfunction
+command! -nargs=1 -bang Replace :call Replace(<bang>0, <q-args>)
+nnoremap <Leader>r :call Replace(1, input('Replace '.expand('<cword>').' with: '))<CR>
+"}}}
+
+function! StripTrailingWhitespace() "{{{2
+    if !&binary && &filetype != 'diff'
+        " Preparation: save last search, and cursor position.
+        let _s=@/
+        let l = line(".")
+        let c = col(".")
+        " Do the business:
+        %s/\s\+$//e
+        " Clean up: restore previous search history, and cursor position
+        let @/=_s
+        call cursor(l, c)
+    endif
+endfunction
+"}}}
+
+function! ToggleWrap() "{{{2
+    if &linebreak
+        echo "Wrap ON WithOut LineBrak"
+        setlocal wrap nolinebreak
+        set virtualedit=
+        setlocal display+=lastline
+    elseif &wrap
+        echo "Wrap OFF"
+        setlocal nowrap
+        set virtualedit=all
+    else
+        echo "Wrap ON With LineBreak"
+        setlocal wrap linebreak
+        set virtualedit=
+        setlocal display+=lastline
+    endif
+endfunction
+"}}}
+
+function! ToggleNumber() "{{{2
+    let currentnumberwidth=strlen(line('$'))
+    if &relativenumber
+        echo "Number ON"
+        setlocal nonumber norelativenumber
+        setlocal number
+        setlocal showbreak=
+        " let &columns=&columns-&numberwidth+currentnumberwidth
+    elseif &number
+        echo "Number OFF"
+        setlocal nonumber norelativenumber
+        setlocal showbreak=+++
+        " let &columns=&columns-currentnumberwidth-1
+    else
+        echo "Number ON Relative (hybrid)"
+        setlocal number relativenumber
+        setlocal showbreak=
+        setlocal numberwidth=2
+        " let &columns=&columns+&numberwidth+1
+    endif
+endfunction
+"}}}
+
+function! Clevermake() "{{{2
+    if !exists("g:make_command")
+        echo "Compiling using makeprg ..."
+        :make
+    else
+        exec g:make_command
+    endif
+endfunction
+"}}}
+
+function! SetTab() "{{{2
+    let l:tabstop = 1 * input('set tabstop = softtabstop = shiftwidth = ')
+    if l:tabstop > 0
+        let &l:sts = l:tabstop
+        let &l:ts = l:tabstop
+        let &l:sw = l:tabstop
+    endif
+    call SummarizeTabs()
+endfunction
+"}}}
+
+function! SummarizeTabs() "{{{2
+    try
+        echohl ModeMsg
+        echon 'tabstop='.&l:ts
+        echon ' shiftwidth='.&l:sw
+        echon ' softtabstop='.&l:sts
+        if &l:et
+            echon ' expandtab'
+        else
+            echon ' noexpandtab'
+        endif
+    finally
+        echohl None
+    endtry
+endfunction
+"}}}
+
+function! CloseHiddenBuffers() " {{{2
+    " figure out which buffers are visible in any tab
+    let visible = {}
+    for t in range(1, tabpagenr('$'))
+        for b in tabpagebuflist(t)
+            let visible[b] = 1
+        endfor
+    endfor
+    " close any buffer that are loaded and not visible
+    let l:tally = 0
+    for b in range(1, bufnr('$'))
+        if bufloaded(b) && !has_key(visible, b)
+            let l:tally += 1
+            exe 'bw ' . b
+        endif
+    endfor
+    echon "Deleted " . l:tally . " buffers"
+endfun
+"}}}
+
+function! DeleteFile(...) "{{{2
+    if(exists('a:1'))
+        let theFile=a:1
+    elseif ( &ft == 'help' )
+        echohl Error
+        echo "Cannot delete a help buffer!"
+        echohl None
+        return -1
+    else
+        let theFile=expand('%:p')
+    endif
+    let delStatus=delete(theFile)
+    if(delStatus == 0)
+        echo "Deleted " . theFile
+    else
+        echohl WarningMsg
+        echo "Failed to delete " . theFile
+        echohl None
+    endif
+    return delStatus
+endfunction
+"}}}
+
+"1}}}
+
+"SIMPLE PLUGINS {{{1
+function! s:CommentaryPlugin() "{{{2
+    function! s:surroundings() abort
+        return split(get(b:, 'commentary_format', substitute(substitute(substitute(
+                    \ &commentstring, '^$', '%s', ''), '\S\zs%s',' %s', '') ,'%s\ze\S', '%s ', '')), '%s', 1)
+    endfunction
+
+    function! s:strip_white_space(l,r,line) abort
+        let [l, r] = [a:l, a:r]
+        if l[-1:] ==# ' ' && stridx(a:line,l) == -1 && stridx(a:line,l[0:-2]) == 0
+            let l = l[:-2]
+        endif
+        if r[0] ==# ' ' && a:line[-strlen(r):] != r && a:line[1-strlen(r):] == r[1:]
+            let r = r[1:]
+        endif
+        return [l, r]
+    endfunction
+
+    function! s:go(...) abort
+        if !a:0
+            let &operatorfunc = matchstr(expand('<sfile>'), '[^. ]*$')
+            return 'g@'
+        elseif a:0 > 1
+            let [lnum1, lnum2] = [a:1, a:2]
+        else
+            let [lnum1, lnum2] = [line("'["), line("']")]
+        endif
+
+        let [l, r] = s:surroundings()
+        let uncomment = 2
+        for lnum in range(lnum1,lnum2)
+            let line = matchstr(getline(lnum),'\S.*\s\@<!')
+            let [l, r] = s:strip_white_space(l,r,line)
+            if len(line) && (stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
+                let uncomment = 0
+            endif
+        endfor
+
+        if get(b:, 'commentary_startofline')
+            let indent = '^'
+        else
+            let indent = '^\s*'
+        endif
+
+        for lnum in range(lnum1,lnum2)
+            let line = getline(lnum)
+            if strlen(r) > 2 && l.r !~# '\\'
+                let line = substitute(line,
+                            \'\M' . substitute(l, '\ze\S\s*$', '\\zs\\d\\*\\ze', '') . '\|' . substitute(r, '\S\zs', '\\zs\\d\\*\\ze', ''),
+                            \'\=substitute(submatch(0)+1-uncomment,"^0$\\|^-\\d*$","","")','g')
+            endif
+            if uncomment
+                let line = substitute(line,'\S.*\s\@<!','\=submatch(0)[strlen(l):-strlen(r)-1]','')
+            else
+                let line = substitute(line,'^\%('.matchstr(getline(lnum1),indent).'\|\s*\)\zs.*\S\@<=','\=l.submatch(0).r','')
+            endif
+            call setline(lnum,line)
+        endfor
+        let modelines = &modelines
+        try
+            set modelines=0
+            silent doautocmd User CommentaryPost
+        finally
+            let &modelines = modelines
+        endtry
+        return ''
+    endfunction
+
+    function! s:textobject(inner) abort
+        let [l, r] = s:surroundings()
+        let lnums = [line('.')+1, line('.')-2]
+        for [index, dir, bound, line] in [[0, -1, 1, ''], [1, 1, line('$'), '']]
+            while lnums[index] != bound && line ==# '' || !(stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
+                let lnums[index] += dir
+                let line = matchstr(getline(lnums[index]+dir),'\S.*\s\@<!')
+                let [l, r] = s:strip_white_space(l,r,line)
+            endwhile
+        endfor
+        while (a:inner || lnums[1] != line('$')) && empty(getline(lnums[0]))
+            let lnums[0] += 1
+        endwhile
+        while a:inner && empty(getline(lnums[1]))
+            let lnums[1] -= 1
+        endwhile
+        if lnums[0] <= lnums[1]
+            execute 'normal! 'lnums[0].'GV'.lnums[1].'G'
+        endif
+    endfunction
+
+    command! -range -bar Commentary call s:go(<line1>,<line2>)
+    xnoremap <expr>   <Plug>Commentary     <SID>go()
+    nnoremap <expr>   <Plug>Commentary     <SID>go()
+    nnoremap <expr>   <Plug>CommentaryLine <SID>go() . '_'
+    onoremap <silent> <Plug>Commentary        :<C-U>call <SID>textobject(get(v:, 'operator', '') ==# 'c')<CR>
+    nnoremap <silent> <Plug>ChangeCommentary c:<C-U>call <SID>textobject(1)<CR>
+    nmap <silent> <Plug>CommentaryUndo :echoerr "Change your <Plug>CommentaryUndo map to <Plug>Commentary<Plug>Commentary"<CR>
+
+    if !hasmapto('<Plug>Commentary') || maparg('gc','n') ==# ''
+        xmap <c-_>  <Plug>Commentary
+        nmap gc  <Plug>Commentary
+        omap gc  <Plug>Commentary
+        nmap <c-_> <Plug>CommentaryLine
+        if maparg('c','n') ==# '' && !exists('v:operator')
+            nmap cgc <Plug>ChangeCommentary
+        endif
+        nmap gcu <Plug>Commentary<Plug>Commentary
+    endif
+endfunction
+
+augroup Commentary
+    autocmd!
+    autocmd FileType c,cpp,java setlocal commentstring=//\ %s
+    autocmd FileType python, bash setlocal commentstring=#\ %s
+augroup END
+
+let b:commentary_startofline = 1
+call s:CommentaryPlugin()
+"}}}
+
+function! s:TabCompletePlugin() "{{{2
+    let g:vcm_s_tab_behavior = 0
+    let g:vcm_direction = 'n'
+    let g:vcm_omni_pattern = '\k\+\(\.\|->\|::\)\k*$'
+    " let g:vcm_s_tab_mapping = ''
+
+    function! s:vim_completes_me(shift_tab)
+        let dirs = ["\<c-p>", "\<c-n>"]
+        let dir = g:vcm_direction =~? '[nf]'
+        let dir_cmd = a:shift_tab ? dirs[!dir] : dirs[dir]
+        let vcm_map = exists('b:vcm_tab_complete') ? b:vcm_tab_complete : ''
+
+        if pumvisible()
+            return dir_cmd
+        endif
+
+        " Figure out whether we should indent/de-indent.
+        let pos = getpos('.')
+        let substr = matchstr(strpart(getline(pos[1]), 0, pos[2]-1), "[^ \t]*$")
+        if empty(substr)
+            let s_tab_deindent = pos[2] > 1 ? "\<C-h>" : ""
+            return (a:shift_tab && !g:vcm_s_tab_behavior) ? l:s_tab_deindent : "\<Tab>"
+        endif
+
+        if a:shift_tab && exists('g:vcm_s_tab_mapping')
+            return g:vcm_s_tab_mapping
+        endif
+
+        let omni_pattern = get(b:, 'vcm_omni_pattern', get(g:, 'vcm_omni_pattern'))
+        let is_omni_pattern = match(substr, omni_pattern) != -1
+        let file_pattern = (has('win32') || has('win64')) ? '\\\|\/' : '\/'
+        let is_file_pattern = match(substr, file_pattern) != -1
+
+        if is_omni_pattern && (!empty(&omnifunc))
+            " Check position so that we can fallback if at the same pos.
+            if get(b:, 'tab_complete_pos', []) == pos && b:completion_tried
+                let exp = "\<C-x>" . dir_cmd
+            else
+                echo "Looking for members..."
+                let exp = (!empty(&completefunc) && vcm_map ==? "user") ? "\<C-x>\<C-u>" : "\<C-x>\<C-o>"
+                let b:completion_tried = 1
+            endif
+            let b:tab_complete_pos = pos
+            return exp
+        elseif is_file_pattern
+            return "\<C-x>\<C-f>"
+        endif
+
+        " First fallback to keyword completion if special completion was already tried.
+        if exists('b:completion_tried') && b:completion_tried
+            let b:completion_tried = 0
+            " return "\<C-e>" . dirs[!dir]
+            return "\<C-e>" . dir_cmd
+        endif
+
+        " Fallback
+        let b:completion_tried = 1
+        if vcm_map ==? "user"
+            return "\<C-x>\<C-u>"
+        elseif vcm_map ==? "omni"
+            echo "Looking for members..."
+            return "\<C-x>\<C-o>"
+        elseif vcm_map ==? "vim"
+            return "\<C-x>\<C-v>"
+        else
+            return dir_cmd
+        endif
+    endfunction
+
+    inoremap <expr> <plug>vim_completes_me_forward  <sid>vim_completes_me(0)
+    inoremap <expr> <plug>vim_completes_me_backward <sid>vim_completes_me(1)
+
+    " Maps:
+    imap <Tab>   <plug>vim_completes_me_forward
+    imap <S-Tab> <plug>vim_completes_me_backward
+
+    augroup VCM
+        autocmd!
+        autocmd InsertEnter * let b:completion_tried = 0
+        if v:version > 703 || v:version == 703 && has('patch598')
+            autocmd CompleteDone * let b:completion_tried = 0
+        endif
+        autocmd FileType text,markdown let b:vcm_tab_complete = 'dict'
+        autocmd FileType c,cpp let b:vcm_tab_complete = 'user'
+    augroup END
+endfunction
+call s:TabCompletePlugin()
+"}}}
+
+function! s:TypeCompletePlugin() "{{{2
+    set completeopt+=menu
+    set completeopt+=menuone
+    " set completeopt+=noinsert
+
+    function! s:TypeComplete(char)
+        if !pumvisible() &&
+                    \ !exists('s:completed') &&
+                    \ getline('.')[col('.')-3:col('.')-2].a:char =~# '\k\k\k'
+            let s:completed = 1
+            noautocmd call feedkeys("\<C-n>\<C-p>", "nt")
+        endif
+    endfunction
+
+    function! s:ToggleTypeComplete()
+        if !exists('#TypeCompleteAutoGroup#InsertCharPre')
+            augroup TypeCompleteAutoGroup
+                autocmd!
+                autocmd InsertCharPre * call <SID>TypeComplete(v:char)
+                autocmd CompleteDone * if exists('s:completed') | unlet s:completed | endif
+            augroup END
+            echo "TypeComplete ON"
+        else
+            augroup TypeCompleteAutoGroup
+                autocmd!
+            augroup END
+            echo "TypeComplete OFF"
+        endif
+    endfunction
+    command! -nargs=0 ToggleTypeComplete call s:ToggleTypeComplete()
+endfunction
+call s:TypeCompletePlugin()
+"}}}
+
+function! s:ShowTrailingSpacesPlugin() "{{{2
+    highlight HighlightExtraWhitespace ctermbg=red guibg=red
+    function! s:SetWhitespaceMatch(mode)
+        let pattern = (a:mode == 'i') ? '\s\+\%#\@<!$' : '\s\+$'
+        if exists('w:whitespace_match_number')
+            call matchdelete(w:whitespace_match_number)
+            call matchadd('ExtraWhitespace', pattern, 10, w:whitespace_match_number)
+        else
+            " Something went wrong, try to be graceful.
+            let w:whitespace_match_number =  matchadd('ExtraWhitespace', pattern)
+        endif
+    endfunction
+
+    augroup WhitespaceMatch
+        " Remove ALL autocommands for the WhitespaceMatch group.
+        autocmd!
+        autocmd BufWinEnter * let w:whitespace_match_number =
+                    \ matchadd('ExtraWhitespace', '\s\+$')
+        autocmd InsertEnter * call s:SetWhitespaceMatch('i')
+        autocmd InsertLeave * call s:SetWhitespaceMatch('n')
+    augroup END
+    highlight link ExtraWhitespace HighlightExtraWhitespace
+
+    function! s:ToggleShowTrailingSpaces()
+        if exists('#WhitespaceMatch#InsertEnter')
+            augroup WhitespaceMatch
+                autocmd!
+            augroup END
+            highlight link ExtraWhitespace none
+            echo "Hide trailing whitespaces"
+        else
+            augroup WhitespaceMatch
+                " Remove ALL autocommands for the WhitespaceMatch group.
+                autocmd!
+                autocmd BufWinEnter * let w:whitespace_match_number =
+                            \ matchadd('ExtraWhitespace', '\s\+$')
+                autocmd InsertEnter * call s:SetWhitespaceMatch('i')
+                autocmd InsertLeave * call s:SetWhitespaceMatch('n')
+            augroup END
+            highlight link ExtraWhitespace HighlightExtraWhitespace
+            echo "Show trailing whitespaces"
+        endif
+    endfunction
+    command! -nargs=0 ToggleShowTrailingSpaces call s:ToggleShowTrailingSpaces()
+endfunction
+call s:ShowTrailingSpacesPlugin()
+"}}}
+
+function! s:BaseSyntaxPlugin() "{{{2
+    let s:BSenabled = 0
+    function! s:ToggleHiBaseSyntax()
+        if s:BSenabled == 1
+            hi link baseOperator none
+            " hi link baseDelimiter none
+            hi link nonAscii none
+            call matchdelete(w:m1_bs)
+            " call matchdelete(w:m2_bs)
+            call matchdelete(w:m3_bs)
+            let s:BSenabled = 0
+            echo "HighlightBaseSyntax OFF"
+        else
+            hi link baseOperator Operator
+            " hi link baseDelimiter Delimiter
+            hi link nonAscii Special
+            let w:m1_bs=matchadd('baseOperator', '\(\ +\ \|=\|\ -\ \|\^\|\ \*\ \|-=\|+=\|\*=\|/=\|\ /\ \|\ <\ \|\ >\ \|>=\|<=\|||\|&&\)',-1)
+            " let w:m2_bs=matchadd('basedelimiter', '[(){},]', -1)
+            let w:m3_bs=matchadd('nonAscii', '[^\x00-\x7f]', -1)
+            let s:BSenabled = 1
+            echo "HighlightBaseSyntax ON"
+        endif
+    endfunction
+    command! -nargs=0 ToggleHiBaseSyntax call s:ToggleHiBaseSyntax()
+endfunction
+call s:BaseSyntaxPlugin()
+"}}}
+
+function! s:VinegarPlugin() "{{{2
+    function! s:fnameescape(file) abort
+        if exists('*fnameescape')
+            return fnameescape(a:file)
+        else
+            return escape(a:file," \t\n*?[{`$\\%#'\"|!<")
+        endif
+    endfunction
+
+    let s:dotfiles = '\(^\|\s\s\)\zs\.\S\+'
+
+    let s:escape = 'substitute(escape(v:val, ".$~"), "*", ".*", "g")'
+    let g:netrw_list_hide =
+                \ join(map(split(&wildignore, ','), '"^".' . s:escape . '. "/\\=$"'), ',') . ',^\.\.\=/\=$' .
+                \ (get(g:, 'netrw_list_hide', '')[-strlen(s:dotfiles)-1:-1] ==# s:dotfiles ? ','.s:dotfiles : '')
+    if !exists("g:netrw_banner")
+        let g:netrw_banner = 0
+    endif
+    unlet! s:netrw_up
+
+    nnoremap <silent> <Plug>VinegarUp :call <SID>opendir('edit')<CR>
+    if empty(maparg('-', 'n'))
+        nmap - <Plug>VinegarUp
+    endif
+
+    nnoremap <silent> <Plug>VinegarTabUp :call <SID>opendir('tabedit')<CR>
+    nnoremap <silent> <Plug>VinegarSplitUp :call <SID>opendir('split')<CR>
+    nnoremap <silent> <Plug>VinegarVerticalSplitUp :call <SID>opendir('vsplit')<CR>
+
+    function! s:opendir(cmd) abort
+        let df = ','.s:dotfiles
+        if expand('%:t')[0] ==# '.' && g:netrw_list_hide[-strlen(df):-1] ==# df
+            let g:netrw_list_hide = g:netrw_list_hide[0 : -strlen(df)-1]
+        endif
+        if &filetype ==# 'netrw' && len(s:netrw_up)
+            let basename = fnamemodify(b:netrw_curdir, ':t')
+            execute s:netrw_up
+            call s:seek(basename)
+        elseif expand('%') =~# '^$\|^term:[\/][\/]'
+            execute a:cmd '.'
+        else
+            execute a:cmd '%:h' . s:slash()
+            call s:seek(expand('#:t'))
+        endif
+    endfunction
+
+    function! s:seek(file) abort
+        if get(b:, 'netrw_liststyle') == 2
+            let pattern = '\%(^\|\s\+\)\zs'.escape(a:file, '.*[]~\').'[/*|@=]\=\%($\|\s\+\)'
+        else
+            let pattern = '^\%(| \)*'.escape(a:file, '.*[]~\').'[/*|@=]\=\%($\|\t\)'
+        endif
+        call search(pattern, 'wc')
+        return pattern
+    endfunction
+
+    augroup vinegar
+        autocmd!
+        autocmd FileType netrw call s:setup_vinegar()
+    augroup END
+
+    function! s:slash() abort
+        return !exists("+shellslash") || &shellslash ? '/' : '\'
+    endfunction
+
+    function! s:absolutes(first, ...) abort
+        let files = getline(a:first, a:0 ? a:1 : a:first)
+        call filter(files, 'v:val !~# "^\" "')
+        call map(files, "substitute(v:val, '^\\(| \\)*', '', '')")
+        call map(files, 'b:netrw_curdir . s:slash() . substitute(v:val, "[/*|@=]\\=\\%(\\t.*\\)\\=$", "", "")')
+        return files
+    endfunction
+
+    function! s:relatives(first, ...) abort
+        let files = s:absolutes(a:first, a:0 ? a:1 : a:first)
+        call filter(files, 'v:val !~# "^\" "')
+        for i in range(len(files))
+            let relative = fnamemodify(files[i], ':.')
+            if relative !=# files[i]
+                let files[i] = '.' . s:slash() . relative
+            endif
+        endfor
+        return files
+    endfunction
+
+    function! s:escaped(first, last) abort
+        let files = s:relatives(a:first, a:last)
+        return join(map(files, 's:fnameescape(v:val)'), ' ')
+    endfunction
+
+    function! s:setup_vinegar() abort
+        if !exists('s:netrw_up')
+            let orig = maparg('-', 'n')
+            if orig =~? '^<plug>'
+                let s:netrw_up = 'execute "normal \'.substitute(orig, ' *$', '', '').'"'
+            elseif orig =~# '^:'
+                " :exe "norm! 0"|call netrw#LocalBrowseCheck(<SNR>123_NetrwBrowseChgDir(1,'../'))<CR>
+                let s:netrw_up = substitute(orig, '\c^:\%(<c-u>\)\=\|<cr>$', '', 'g')
+            else
+                let s:netrw_up = ''
+            endif
+        endif
+        nmap <buffer> - <Plug>VinegarUp
+        cnoremap <buffer><expr> <Plug><cfile> get(<SID>relatives('.'),0,"\022\006")
+        if empty(maparg('<C-R><C-F>', 'c'))
+            cmap <buffer> <C-R><C-F> <Plug><cfile>
+        endif
+        nnoremap <buffer> ~ :edit ~/<CR>
+        nnoremap <buffer> . :<C-U> <C-R>=<SID>escaped(line('.'), line('.') - 1 + v:count1)<CR><Home>
+        xnoremap <buffer> . <Esc>: <C-R>=<SID>escaped(line("'<"), line("'>"))<CR><Home>
+        if empty(mapcheck('y.', 'n'))
+            nnoremap <silent><buffer> y. :<C-U>call setreg(v:register, join(<SID>absolutes(line('.'), line('.') - 1 + v:count1), "\n")."\n")<CR>
+        endif
+        nmap <buffer> ! .!
+        xmap <buffer> ! .!
+        let g:netrw_sort_sequence = '[\/]$,*' . (empty(&suffixes) ? '' : ',\%(' .
+                    \ join(map(split(&suffixes, ','), 'escape(v:val, ".*$~")'), '\|') . '\)[*@]\=$')
+        exe 'syn match netrwSuffixes =\%(\S\+ \)*\S\+\%('.join(map(split(&suffixes, ','), s:escape), '\|') . '\)[*@]\=\S\@!='
+        hi def link netrwSuffixes SpecialKey
+    endfunction
+endfunction
+call s:VinegarPlugin()
+"}}}
+
+"1}}}
+
+

@@ -1,0 +1,160 @@
+#!/bin/bash
+
+#  Add to the path
+function apend_path () { # {{{1
+	if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
+		PATH="${PATH:+"$PATH:"}$1"
+	fi
+} #}}}
+
+function prepend_path() { # {{{1
+	if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
+		PATH="$1:$PATH"
+	fi
+} #}}}
+
+function targz() { # {{{1
+	SIZE=`du -sk $1 | cut -f 1`
+	tar -c $1 | pv -s ${SIZE}k | gzip > $1.tar.gz
+} #}}}
+
+function tarbz2() { # {{{1
+	SIZE=`du -sk $1 | cut -f 1`
+	tar -c $1 | pv -s ${SIZE}k | bzip2 > $1.tar.bz2
+} #}}}
+
+function tarit() { # {{{1
+	SIZE=`du -sk $1 | cut -f 1`
+	tar -c $1 | pv -s ${SIZE}k > $1.tar
+} #}}}
+
+function trashit () { # {{{1
+	if [ $# -eq 0 ]; then
+		echo "usage: trashit <files...>" >&2
+		exit 2;
+	fi
+	for file in "$@"; do
+		# get just file name
+        destfile=$(basename $file)
+		suffix='';
+		i=0;
+		# If that file already exists, change the name
+		while [ -e "$HOME/.Trash/${destfile}${suffix}" ]; do
+			suffix="-copy_$i";
+            i=$(expr $i + 1)
+		done
+		mv -vi "$file" "$HOME/.Trash/${destfile}${suffix}"
+	done
+} #}}}
+
+function o() { [ $# -eq 0 ] && open . || open "$@"; }
+
+function tre() { tree -aC -I '.git|node_modules|bower_components' --dirsfirst "$@" | less -FRNX; } 
+
+function colors() { # {{{1
+	local X=$(tput op)
+	local Y=$(printf %$((COLUMNS-6))s)
+	for i in {0..256}; do
+		o=00$i;
+		echo -e ${o:${#o}-3:3} $(tput setaf $i;tput setab $i)${Y// /=}$X;
+	done
+} #}}}
+
+function meteo() { [ $# -eq 0 ] && curl -4 "wttr.in/Darmstadt" ||  curl -4 "wttr.in/$1"; } 
+
+function md() { mkdir -p "$@" && cd "$1"; }
+
+extract() { # {{{1 # extract file(s) from compressed status
+    local opt
+    local OPTIND=1
+    while getopts "hv" opt; do
+        case "$opt" in
+            h)
+                cat <<End-Of-Usage
+Usage: ${FUNCNAME[0]} [option] <archives>
+    options:
+        -h  show this message and exit
+        -v  verbosely list files processed
+End-Of-Usage
+                return
+                ;;
+            v)
+                local -r verbose='v'
+                ;;
+            ?)
+                extract -h >&2
+                return 1
+                ;;
+        esac
+    done
+    shift $((OPTIND-1))
+    [ $# -eq 0 ] && extract -h && return 1
+    while [ $# -gt 0 ]; do
+	    if [ -f "$1" ]; then
+		    case "$1" in
+                *.tar.bz2|*.tbz|*.tbz2) tar "x${verbose}jf" "$1" ;;
+                *.tar.gz|*.tgz) tar "x${verbose}zf" "$1" ;;
+                *.tar.xz) xz --decompress "$1"; set -- "$@" "${1:0:-3}" ;;
+                *.tar.Z) uncompress "$1"; set -- "$@" "${1:0:-2}" ;;
+                *.bz2) bunzip2 "$1" ;;
+                *.deb) dpkg-deb -x${verbose} "$1" "${1:0:-4}" ;;
+                *.pax.gz) gunzip "$1"; set -- "$@" "${1:0:-3}" ;;
+                *.gz) gunzip "$1" ;;
+                *.pax) pax -r -f "$1" ;;
+                *.pkg) pkgutil --expand "$1" "${1:0:-4}" ;;
+                *.rar) unrar x "$1" ;;
+                *.rpm) rpm2cpio "$1" | cpio -idm${verbose} ;;
+                *.tar) tar "x${verbose}f" "$1" ;;
+                *.txz) mv "$1" "${1:0:-4}.tar.xz"; set -- "$@" "${1:0:-4}.tar.xz" ;;
+                *.xz) xz --decompress "$1" ;;
+                *.zip|*.war|*.jar) unzip "$1" ;;
+                *.Z) uncompress "$1" ;;
+                *.7z) 7za x "$1" ;;
+                *) echo "'$1' cannot be extracted via extract" >&2;;
+		    esac
+        else
+		    echo "extract: '$1' is not a valid file" >&2
+	    fi
+        shift
+    done
+} #}}}
+# turn that video into webm.
+webmify(){ ffmpeg -i "$1" -vcodec libvpx -acodec libvorbis -isync -copyts -aq 80 -threads 3 -qmax 30 -y "$2" "$1.webm"; } 
+
+pip_upgrade_all() { sudo pip3 freeze --local | grep -v '^\-e' | cut -d = -f 1  | xargs -n1 sudo pip3 install -U; }
+
+
+finder () {
+	find . -type f -print0 | xargs -0 grep $1
+}
+
+killer () {
+	ps ax | grep "$1" | awk '{print $1}' | xargs kill
+}
+
+ix() {
+    local opts
+    local OPTIND
+    [ -f "$HOME/.netrc" ] && opts='-n'
+    while getopts ":hd:i:n:" x; do
+        case $x in
+            h) echo "ix [-d ID] [-i ID] [-n N] [opts]"; return;;
+            d) $echo curl $opts -X DELETE ix.io/$OPTARG; return;;
+            i) opts="$opts -X PUT"; local id="$OPTARG";;
+            n) opts="$opts -F read:1=$OPTARG";;
+        esac
+    done
+    shift $(($OPTIND - 1))
+    [ -t 0 ] && {
+        local filename="$1"
+        shift
+        [ "$filename" ] && {
+            curl $opts -F f:1=@"$filename" $* ix.io/$id
+            return
+        }
+        echo "^C to cancel, ^D to send."
+    }
+    curl $opts -F f:1='<-' $* ix.io/$id
+}
+
+# vim: foldmethod=marker  foldlevelstart=0
