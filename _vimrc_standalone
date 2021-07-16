@@ -130,7 +130,8 @@ if has ('autocmd') " Remain compatible with earlier versions
 
     augroup vimrc     " Source vim configuration upon save
         autocmd!
-        autocmd! BufWritePost ~/.vimrc-standalone source %
+        autocmd! BufWritePost ~/.vimrc_standalone source %
+        autocmd! BufWritePost ~/.vimrc_plug source %
     augroup END
 
     augroup numbertoggle
@@ -259,7 +260,7 @@ nnoremap tl :tabnext<cr>
 nnoremap th :tabprevious<cr>
 nnoremap te :tabedit <c-r>=expand("%:p:h")<cr>/
 nnoremap tt :tabedit %<cr>
-nnoremap tv :tabedit ~/.vimrc<CR>
+nnoremap tv :tabedit ~/.vimrc_standalone<CR>
 
 "   SpellCheck with the first entry
 nnoremap ss 1z=

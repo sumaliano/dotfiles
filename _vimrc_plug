@@ -31,22 +31,16 @@ Plug 'Chiel92/vim-autoformat'
 Plug 'martinda/Jenkinsfile-vim-syntax'
 Plug 'sirtaj/vim-openscad', {'for': 'scad'}
 Plug 'octol/vim-cpp-enhanced-highlight' , {'for' : 'cc,hpp,h,cpp,c'}
-Plug 'Glench/Vim-Jinja2-Syntax'
 Plug 'morhetz/gruvbox'
 Plug 'rust-lang/rust.vim', {'for' : 'rust'}
 
 Plug 'vim-syntastic/syntastic'
-
-" NEOVIM Only
-" if has('nvim')
-" Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-" Plug 'w0rp/ale'
-" else
-Plug 'Valloric/YouCompleteMe' , { 'dir': '~/.vim/plugged/YouCompleteMe', 'do': 'python3 install.py --clang-completer' }
-" endif
+Plug 'Valloric/YouCompleteMe' , { 'dir': '~/.vim/plugged/YouCompleteMe', 'do': 'python3 install.py --all' }
 
 call plug#end()
 "}}}
+
+nnoremap tv :tabedit ~/.vimrc_plug<CR>
 
 colorscheme gruvbox
 
@@ -246,6 +240,20 @@ if !empty(glob("~/.vim/plugged/YouCompleteMe/plugin/youcompleteme.vim"))
     let g:ycm_auto_trigger = 1
     let g:ycm_min_num_of_chars_for_completion = 2
     let g:ycm_autoclose_preview_window_after_completion=1
+
+    let g:ycm_confirm_extra_conf = 0                 " Don't confirm python conf
+    let g:ycm_always_populate_location_list = 1      " Always populae diagnostics list
+    let g:ycm_enable_diagnostic_signs = 1            " Enable line highligting diagnostics
+    let g:ycm_open_loclist_on_ycm_diags = 1          " Open location list to view diagnostics
+
+    let g:ycm_max_num_candidates = 20                " Max number of completion suggestions 
+    let g:ycm_max_num_identifier_candidates = 10     " Max number of identifier-based suggestions
+    let g:ycm_auto_trigger = 1                       " Enable completion menu
+    let g:ycm_show_diagnostic_ui = 1                 " Show diagnostic display features
+    let g:ycm_error_symbol = '>>'                    " The error symbol in Vim gutter
+    let g:ycm_enable_diagnostic_signs = 1            " Display icons in Vim's gutter, error, warnings
+    let g:ycm_enable_diagnostic_highlighting = 1     " Highlight regions of diagnostic text
+    let g:ycm_echo_current_diagnostic = 1            " Echo line's diagnostic that cursor is on
 
     " nnoremap <C-LeftMouse> <LeftMouse>:YcmCompleter GoToDefinitionElseDeclaration<CR>
     " nnoremap <C-]> :YcmCompleter GoToDefinitionElseDeclaration<CR>
