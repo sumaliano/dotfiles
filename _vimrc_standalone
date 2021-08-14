@@ -607,7 +607,7 @@ endfunction
 augroup Commentary
     autocmd!
     autocmd FileType c,cpp,java setlocal commentstring=//\ %s
-    autocmd FileType python, bash setlocal commentstring=#\ %s
+    autocmd FileType python,bash setlocal commentstring=#\ %s
 augroup END
 
 let b:commentary_startofline = 1
