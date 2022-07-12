@@ -4,12 +4,12 @@
 append_to_profile() {
     if ! grep -q "This sources my bash stuff" ~/.profile; then
         echo "Appending to bash."
-        echo " " >> ~/.profile
+        echo >> ~/.profile
         echo "# This sources my bash stuff!!" >> ~/.profile
         echo "if [ -d ~/.bash.d ]; then" >> ~/.profile
         echo "  source ~/.bash.d/mybash.sh" >> ~/.profile
         echo "fi" >> ~/.profile
-        echo " " >> ~/.profile
+        echo >> ~/.profile
     fi
 }
 

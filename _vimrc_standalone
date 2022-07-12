@@ -86,7 +86,7 @@ if has("gui")
     "set guioptions-=T
     "set guioptions+=e
     "set guitablabel=%M\ %t
-    " set guifont=Consolas\ 14
+    set guifont=Consolas\ 14
     nnoremap <leader>sm :if &go=~#'m'<Bar>set go-=m<Bar>else<Bar>set go+=m<Bar>endif<CR>
     nnoremap <leader>st :if &go=~#'T'<Bar>set go-=T<Bar>else<Bar>set go+=T<Bar>endif<CR>
     nnoremap <leader>sr :if &go=~#'r'<Bar>set go-=r<Bar>else<Bar>set go+=r<Bar>endif<CR>

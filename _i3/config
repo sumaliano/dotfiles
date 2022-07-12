@@ -136,7 +136,7 @@ bindsym XF86AudioMute exec --no-startup-id "~/.bin/i3volume mute"
 # Start Applications
 bindsym $mod+Ctrl+f exec firefox
 bindsym $mod+Ctrl+g exec gvim
-bindsym $mod+Ctrl+v exec $term -e 'nvim'
+bindsym $mod+Ctrl+v exec $term -e 'vim'
 bindsym $mod+Ctrl+e exec $term -e 'ranger'
 bindsym $mod+Ctrl+t exec thunar
 bindsym $mod+Ctrl+Shift+t exec gksu thunar
