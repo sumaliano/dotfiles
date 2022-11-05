@@ -2,7 +2,8 @@
 
 # Append to the default bashrc
 append_to_profile() {
-    if ! grep -q "This sources my bash stuff" ~/.profile; then
+    if ! grep -q "This sources my bash stuff" ~/.profile
+    then
         echo "Appending to bash."
         echo >> ~/.profile
         echo "# This sources my bash stuff!!" >> ~/.profile
@@ -49,6 +50,13 @@ install_teensy() {
     fi
 }
 
+install_vimplug() {
+    if [ ! -f /etc/udev/rules.d/49-teensy.rules ]; then
+        echo "Intalling vim-plug"
+	curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+    fi
+}
+
 # Main method, backup existing dotfiles and symlink the ones started with _*.
 main() {
     echo "Symlinking  dotfiles"
@@ -71,11 +79,12 @@ main() {
     done
 }
 
+main
 nvim_to_vim
 append_to_profile
+install_vimplug
 # install_teensy
 # install_getidle
 # install_timew
-main
 
 

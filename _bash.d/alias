@@ -48,7 +48,7 @@ alias emptybin='/bin/rm -rf ~/.Trash/*'
 alias srm='sudo	/bin/rm -rf'
 alias compact='_compactize'
 
-alias vim="vim"
+alias vim="nvim"
 alias vi="vim -u ~/.vimrc_standalone"
 alias vp="vim -u ~/.vimrc_plug"
 
