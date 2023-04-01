@@ -7,9 +7,7 @@ append_to_profile() {
         echo "Appending to ~/.bashrc"
         echo >> ~/.bashrc
         echo "# Bash dotfiles" >> ~/.bashrc
-        echo "if [ -d ~/.bash.d ]; then" >> ~/.bashrc
-        echo "  source ~/.bash.d/shell.sh" >> ~/.bashrc
-        echo "fi" >> ~/.bashrc
+        echo "[ -d ~/.bash.d ] && source ~/.bash.d/shell.sh" >> ~/.bashrc
         echo >> ~/.bashrc
     fi
 }
@@ -64,7 +62,7 @@ main() {
     cd ${PWD}
 
     # srcfiles=( _* )
-    srcfiles=( _bash.d _inputrc _screenrc _bin _fonts _vim _vimrc _vimrc_plug _vimrc_standalone)
+    srcfiles=( _bash.d _inputrc _screenrc _dir_colors _bin _fonts _vim _vimrc _vimrc_plug _vimrc_standalone)
 
     mkdir -p ~/.dotfiles_bkp
 
