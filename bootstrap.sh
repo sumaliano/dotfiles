@@ -2,15 +2,15 @@
 
 # Append to the default bashrc
 append_to_profile() {
-    if ! grep -q "This sources my bash stuff" ~/.profile
-    then
+    if ! grep -q "This sources my bash stuff" ~/.bashrc; 
+	then
         echo "Appending to bash."
-        echo >> ~/.profile
-        echo "# This sources my bash stuff!!" >> ~/.profile
-        echo "if [ -d ~/.bash.d ]; then" >> ~/.profile
-        echo "  source ~/.bash.d/mybash.sh" >> ~/.profile
-        echo "fi" >> ~/.profile
-        echo >> ~/.profile
+        echo >> ~/.bashrc
+        echo "# This sources my bash stuff!!" >> ~/.bashrc
+        echo "if [ -d ~/.bash.d ]; then" >> ~/.bashrc
+        echo "  source ~/.bash.d/mybash.sh" >> ~/.bashrc
+        echo "fi" >> ~/.bashrc
+        echo >> ~/.bashrc
     fi
 }
 

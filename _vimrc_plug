@@ -45,7 +45,7 @@ nnoremap tv :tabedit ~/.vimrc_plug<CR>
 colorscheme gruvbox
 
 "PLUGIN SPECIFIC {{{1
-" ultisnipets {{{
+" ultisnipets {{{2
 if !empty(glob("~/.vim/plugged/ultisnips/plugin/UltiSnips.vim"))
     " trigger configuration. do not use <tab> if you
     " use https://github.com/valloric/youcompleteme.
@@ -264,7 +264,7 @@ if !empty(glob("~/.vim/plugged/DoxygenToolkit.vim"))
     " let g:DoxygenToolkit_commentType = "C++"
 endif
 "}}}
-" Syntatic {{{2
+" Syntastic {{{2
 if !empty(glob("~/.vim/plugged/syntastic/plugin/syntastic.vim"))
     set statusline+=%#warningmsg#
     set statusline+=%{SyntasticStatuslineFlag()}
@@ -274,6 +274,12 @@ if !empty(glob("~/.vim/plugged/syntastic/plugin/syntastic.vim"))
     let g:syntastic_auto_loc_list = 1
     let g:syntastic_check_on_open = 1
     let g:syntastic_check_on_wq = 0
+endif
+"}}}
+" Rust {{{2
+if !empty(glob("~/.vim/plugged/rust.vim/plugin/rust.vim"))
+    let g:rustfmt_autosave = 1
+    let g:rust_clip_command = 'xclip -selection clipboard'
 endif
 "}}}
 
