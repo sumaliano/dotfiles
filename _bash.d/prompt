@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-__powerline() 
+__powerline()
 {
 
     # BLACK=1
@@ -22,7 +22,7 @@ __powerline()
     # BRIGHT_WHITE=16
 
 
-    git_info() 
+    git_info()
     {
         local GIT_BRANCH_SYMBOL='Ч '
         local GIT_BRANCH_CHANGED_SYMBOL='+'
@@ -53,7 +53,7 @@ __powerline()
 		# printf "($branch$marks)"
     }
 
-    over_ssh() 
+    over_ssh()
     {
         if [ -n "$SSH_CLIENT" ] || [ -n "$SSH_TTY" ]; then
             SESSION_TYPE="SSH "
@@ -71,7 +71,7 @@ __powerline()
     _bg () { echo "\[$(tput setab $1)\]" ; }
 
 
-    ps1() 
+    ps1()
     {
         # what OS?
         case "$(uname)" in

@@ -2,13 +2,13 @@
 
 # Append to the default bashrc
 append_to_profile() {
-    if ! grep -q "This sources my bash stuff" ~/.bashrc; 
+    if ! grep -q "Bash dotfiles" ~/.bashrc; 
 	then
-        echo "Appending to bash."
+        echo "Appending to ~/.bashrc"
         echo >> ~/.bashrc
-        echo "# This sources my bash stuff!!" >> ~/.bashrc
+        echo "# Bash dotfiles" >> ~/.bashrc
         echo "if [ -d ~/.bash.d ]; then" >> ~/.bashrc
-        echo "  source ~/.bash.d/mybash.sh" >> ~/.bashrc
+        echo "  source ~/.bash.d/shell.sh" >> ~/.bashrc
         echo "fi" >> ~/.bashrc
         echo >> ~/.bashrc
     fi

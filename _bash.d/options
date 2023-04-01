@@ -23,7 +23,9 @@ shopt -s checkwinsize
 # set -o noclobber
 
 # Automatically trim long paths in the prompt (requires Bash 4.x)
-PROMPT_DIRTRIM=2
+if [ ${BASH_VERSINFO[0]} -ge 4 ]; then
+    PROMPT_DIRTRIM=2
+fi
 
 # Turn on recursive globbing (enables "**" to recurse all directories)
 if [ ${BASH_VERSINFO[0]} -ge 4 ]; then
@@ -31,7 +33,7 @@ if [ ${BASH_VERSINFO[0]} -ge 4 ]; then
 fi
 
 # Case-insensitive globbing (used in pathname expansion)
-shopt -s nocaseglob;
+# shopt -s nocaseglob;
 
 ## BETTER DIRECTORY NAVIGATION ##
 

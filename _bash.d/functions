@@ -28,6 +28,27 @@ function tarit() { # {{{1
 	tar -c $1 | pv -s ${SIZE}k > $1.tar
 } #}}}
 
+ex () { # {{{1
+  if [ -f $1 ] ; then
+    case $1 in
+      *.tar.bz2)   tar xjf $1   ;;
+      *.tar.gz)    tar xzf $1   ;;
+      *.bz2)       bunzip2 $1   ;;
+      *.rar)       unrar x $1     ;;
+      *.gz)        gunzip $1    ;;
+      *.tar)       tar xf $1    ;;
+      *.tbz2)      tar xjf $1   ;;
+      *.tgz)       tar xzf $1   ;;
+      *.zip)       unzip $1     ;;
+      *.Z)         uncompress $1;;
+      *.7z)        7z x $1      ;;
+      *)           echo "'$1' cannot be extracted via ex()" ;;
+    esac
+  else
+    echo "'$1' is not a valid file"
+  fi
+} #}}}
+
 function trashit () { # {{{1
 	if [ $# -eq 0 ]; then
 		echo "usage: trashit <files...>" >&2
@@ -49,18 +70,36 @@ function trashit () { # {{{1
 
 function o() { [ $# -eq 0 ] && open . || open "$@"; }
 
-function tre() { tree -aC -I '.git|node_modules|bower_components' --dirsfirst "$@" | less -FRNX; } 
+function tre() { tree -aC -I '.git|node_modules|bower_components' --dirsfirst "$@" | less -FRNX; }
 
 function colors() { # {{{1
-	local X=$(tput op)
-	local Y=$(printf %$((COLUMNS-6))s)
-	for i in {0..256}; do
-		o=00$i;
-		echo -e ${o:${#o}-3:3} $(tput setaf $i;tput setab $i)${Y// /=}$X;
-	done
+        local fgc bgc vals seq0
+
+    printf "Color escapes are %s\n" '\e[${value};...;${value}m'
+    printf "Values 30..37 are \e[33mforeground colors\e[m\n"
+    printf "Values 40..47 are \e[43mbackground colors\e[m\n"
+    printf "Value  1 gives a  \e[1mbold-faced look\e[m\n\n"
+
+    # foreground colors
+    for fgc in {30..37}; do
+        # background colors
+        for bgc in {40..47}; do
+            fgc=${fgc#37} # white
+            bgc=${bgc#40} # black
+
+            vals="${fgc:+$fgc;}${bgc}"
+            vals=${vals%%;}
+
+            seq0="${vals:+\e[${vals}m}"
+            printf "  %-9s" "${seq0:-(default)}"
+            printf " ${seq0}TEXT\e[m"
+            printf " \e[${vals:+${vals+$vals;}}1mBOLD\e[m"
+        done
+        echo; echo
+    done
 } #}}}
 
-function meteo() { [ $# -eq 0 ] && curl -4 "wttr.in/Darmstadt" ||  curl -4 "wttr.in/$1"; } 
+function meteo() { [ $# -eq 0 ] && curl -4 "wttr.in/Darmstadt" ||  curl -4 "wttr.in/$1"; }
 
 function md() { mkdir -p "$@" && cd "$1"; }
 
@@ -119,13 +158,13 @@ End-Of-Usage
     done
 } #}}}
 # turn that video into webm.
-webmify(){ ffmpeg -i "$1" -vcodec libvpx -acodec libvorbis -isync -copyts -aq 80 -threads 3 -qmax 30 -y "$2" "$1.webm"; } 
+webmify(){ ffmpeg -i "$1" -vcodec libvpx -acodec libvorbis -isync -copyts -aq 80 -threads 3 -qmax 30 -y "$2" "$1.webm"; }
 
 pip_upgrade_all() { sudo pip3 freeze --local | grep -v '^\-e' | cut -d = -f 1  | xargs -n1 sudo pip3 install -U; }
 
 
 finder () {
-	find . -type f -print0 | xargs -0 grep $1
+    find $1 -type f -print0 | xargs -0 grep $2
 }
 
 killer () {

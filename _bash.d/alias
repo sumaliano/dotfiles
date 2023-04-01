@@ -10,21 +10,21 @@ alias _="sudo"
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
-    test -r ~/.bash.d/dircolors && eval "$(dircolors -b ~/.bash.d/dircolors)" || eval "$(dircolors -b)"
+    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
+
     alias ls='ls --color=auto --time-style=+"%d.%m.%Y %H:%M" -F'
     alias dir='dir --color=auto'
-
     alias grep='grep --color=auto'
     alias fgrep='fgrep --color=auto'
     alias egrep='egrep --color=auto'
 fi
 
 alias l1='ls -1'
-alias la='ls -A   --group-directories-first'
-alias ll='ls -la  --group-directories-first'
-alias l='ls -l   --group-directories-first'
-alias llh='ls -h -la  --group-directories-first'
-alias lh='ls -h -l   --group-directories-first'
+alias la='ls -A'
+alias l='ls -l'
+alias ll='ls -la'
+alias lh='ls -h -l'
+alias llh='ls -h -la'
 alias l.='ls -ld  --group-directories-first .?*'
 alias lt='ls -ltr'
 alias lz='du -a -h -d1 | sort -h'
@@ -198,7 +198,6 @@ alias gwc="git whatchanged"
 alias gnew="git log HEAD@{1}..HEAD@{0}"
 alias gsdiff='git show --name-only --oneline HEAD'
 alias glsall='git ls-tree -r HEAD --name-only'
-# Show all alias related docker
 galias() { alias | grep 'git' | sed "s/^\([^=]*\)=\(.*\)/\1 => \2/"| sed "s/['|\']//g" | sort; }
 
 

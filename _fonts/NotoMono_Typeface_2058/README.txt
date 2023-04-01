@@ -1,1 +1,0 @@
-To learn more about the typeface and license, visit https://www.fontmirror.com/noto-mono
