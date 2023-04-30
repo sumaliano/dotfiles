@@ -33,6 +33,8 @@ Plug 'sirtaj/vim-openscad', {'for': 'scad'}
 Plug 'octol/vim-cpp-enhanced-highlight' , {'for' : 'cc,hpp,h,cpp,c'}
 Plug 'morhetz/gruvbox'
 Plug 'rust-lang/rust.vim', {'for' : 'rust'}
+Plug 'sudar/vim-arduino-syntax'
+Plug 'stevearc/vim-arduino'
 
 Plug 'vim-syntastic/syntastic'
 Plug 'Valloric/YouCompleteMe' , { 'dir': '~/.vim/plugged/YouCompleteMe', 'do': 'python3 install.py --all' }
@@ -224,7 +226,7 @@ endif
 "}}}
 " YCM {{{2
 if !empty(glob("~/.vim/plugged/YouCompleteMe/plugin/youcompleteme.vim"))
-    let g:ycm_global_ycm_extra_conf = "~/.vim/ycm_extra_conf.py"
+    let g:ycm_global_ycm_extra_conf = "~/.vim/plugged/YouCompleteMe/.ycm_extra_conf.py"
     let g:ycm_filetype_blacklist = {
                 \ 'tagbar' : 1,
                 \ 'qf' : 1,
@@ -280,6 +282,16 @@ endif
 if !empty(glob("~/.vim/plugged/rust.vim/plugin/rust.vim"))
     let g:rustfmt_autosave = 1
     let g:rust_clip_command = 'xclip -selection clipboard'
+endif
+" Vim-Arduino {{{2
+if !empty(glob("~/.vim/plugged/vim-arduino"))
+    nnoremap <buffer> <leader>aa <cmd>ArduinoAttach<CR>
+    nnoremap <buffer> <leader>av <cmd>ArduinoVerify<CR>
+    nnoremap <buffer> <leader>au <cmd>ArduinoUpload<CR>
+    nnoremap <buffer> <leader>aus <cmd>ArduinoUploadAndSerial<CR>
+    nnoremap <buffer> <leader>as <cmd>ArduinoSerial<CR>
+    nnoremap <buffer> <leader>ab <cmd>ArduinoChooseBoard<CR>
+    nnoremap <buffer> <leader>ap <cmd>ArduinoChooseProgrammer<CR>
 endif
 "}}}
 

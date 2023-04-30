@@ -95,7 +95,7 @@ endif
 
 " AUTOCMDS {{{1
 if has ('autocmd') " Remain compatible with earlier versions
-    augroup vimrcEx
+    augroup _filetypes
         autocmd!
 
         autocmd BufRead,BufNewFile *.gle set filetype=gle
@@ -106,8 +106,8 @@ if has ('autocmd') " Remain compatible with earlier versions
         autocmd BufRead,BufNewFile *.md set filetype=markdown
         autocmd BufRead,BufNewFile *.jira set filetype=confluencewiki
 
-        autocmd Filetype tex setlocal colorcolumn=0
-        autocmd Filetype tex setlocal makeprg='make'
+        autocmd Filetype tex set colorcolumn=0
+        autocmd Filetype tex set makeprg='make'
         autocmd Filetype tex syntax spell toplevel
 
         " For ruby, autoindent with two spaces, always expand tabs
@@ -115,26 +115,29 @@ if has ('autocmd') " Remain compatible with earlier versions
                     \ set ai sw=2 sts=2 ts=2 et
         autocmd FileType python,javascript set sw=4 sts=4 ts=4 et
         autocmd FileType python set smartindent
-
         autocmd Filetype c,cpp set colorcolumn=100
-        autocmd FileType c set makeprg=gcc\ -o\ %<\ %
-        autocmd FileType cpp set makeprg=g++\ -std=c++11\ -o\ %<\ %
-        autocmd Filetype vim setlocal foldmethod=marker
+        autocmd Filetype vim set foldmethod=marker
 
         " This closed the quickfix after selection using <cr>
         autocmd FileType qf nnoremap <buffer> <cr> <cr>:cclose<cr>
 
         autocmd BufWinEnter quickfix nnoremap <silent> <buffer> q :cclose<cr>:lclose<cr>
-        autocmd BufEnter * if (winnr('$') == 1 && &buftype ==# 'quickfix' ) | bd|  q | endif
+        autocmd BufEnter * if (winnr('$') == 1 && &buftype ==# 'quickfix' ) | bd |  q | endif
     augroup END
 
-    augroup vimrc     " Source vim configuration upon save
+    augroup _makeprg
+        autocmd!
+        autocmd FileType c   if !filereadable("./Makefile") && !filereadable("./makefile") | set makeprg=gcc\ -o\ %<\ % | endif
+        autocmd FileType cpp if !filereadable("./Makefile") && !filereadable("./makefile") | set makeprg=g++\ -std=c++11\ -o\ %<\ % | endif
+    augroup END
+
+    augroup _vimrc     " Source vim configuration upon save
         autocmd!
         autocmd! BufWritePost ~/.vimrc_standalone source %
         autocmd! BufWritePost ~/.vimrc_plug source %
     augroup END
 
-    augroup numbertoggle
+    augroup _numbertoggle
         autocmd!
         autocmd InsertLeave * set relativenumber
         autocmd InsertEnter * set norelativenumber
@@ -307,6 +310,9 @@ map <F3> :ToggleNumber<CR>
 nnoremap <F4> :e %:p:s,.hpp$,.X123X,:s,.cpp$,.hpp,:s,.X123X$,.cpp,<CR>
 
 " Call MAKE
+"(compile)
+map <C-b> :w <CR> <bar> :call Clevermake() <CR>
+"(compile and execute)
 map <F8> :w <CR> <bar> :call Clevermake() <CR> <bar> :!./%< <CR>
 "}}}
 
@@ -414,7 +420,6 @@ endfunction
 
 function! Clevermake() "{{{2
     if !exists("g:make_command")
-        echo "Compiling using makeprg ..."
         :make
     else
         exec g:make_command
@@ -593,9 +598,11 @@ function! s:CommentaryPlugin() "{{{2
     nmap <silent> <Plug>CommentaryUndo :echoerr "Change your <Plug>CommentaryUndo map to <Plug>Commentary<Plug>Commentary"<CR>
 
     if !hasmapto('<Plug>Commentary') || maparg('gc','n') ==# ''
+        xmap gcc  <Plug>Commentary
         xmap <c-_>  <Plug>Commentary
         nmap gc  <Plug>Commentary
         omap gc  <Plug>Commentary
+        nmap gcc <Plug>CommentaryLine
         nmap <c-_> <Plug>CommentaryLine
         if maparg('c','n') ==# '' && !exists('v:operator')
             nmap cgc <Plug>ChangeCommentary
