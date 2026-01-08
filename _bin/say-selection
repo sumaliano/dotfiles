@@ -1,9 +1,0 @@
-#!/bin/bash
-if pidof -x say-aplay >/dev/null; then
-	kill -15 "$(pidof -x aplay)"
-    echo "Process already running; being killed ..."	
-else
-	pico2wave -l=en-GB -w=/tmp/test.wav "$(xsel)"
-	aplay /tmp/test.wav
-	#rm /tmp/test.wav
-fi
