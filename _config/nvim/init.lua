@@ -1,0 +1,1 @@
+/home/jsilva/.config/nvim/init_minimal.lua

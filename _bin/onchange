@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Watch current directory (recursively) for file changes, and execute
 # a command when a file or directory is created, modified or deleted.

@@ -1,0 +1,417 @@
+#!/usr/bin/env bash
+#
+# Minimal bash extensions
+# Appended to system bashrc - extends, doesn't replace
+#
+
+# Exit early if not running interactively
+[[ $- != *i* ]] && return
+
+# ============================================================================
+# HISTORY - Better defaults
+# ============================================================================
+
+HISTSIZE=50000
+HISTFILESIZE=100000
+HISTCONTROL=ignoreboth:erasedups
+HISTIGNORE="ls:ll:la:l:cd:pwd:exit:clear:history:bg:fg"
+HISTTIMEFORMAT="%F %T  "
+shopt -s histappend
+# Write history after each command (share between terminals)
+PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND; }history -a"
+
+# ============================================================================
+# SHELL OPTIONS - Sensible improvements
+# ============================================================================
+
+shopt -s checkwinsize   # Update window size after commands
+shopt -s cmdhist        # Multi-line commands as single history entry
+
+# Bash 4.0+ features (fail silently on older bash)
+shopt -s globstar 2>/dev/null      # Enable ** for recursive matching
+shopt -s autocd 2>/dev/null        # cd by typing directory name
+shopt -s dirspell 2>/dev/null      # Autocorrect in directory completion
+
+# Other optional features (graceful degradation)
+shopt -s cdspell 2>/dev/null       # Autocorrect typos in cd
+shopt -s nocaseglob 2>/dev/null    # Case-insensitive globbing
+shopt -s dotglob 2>/dev/null       # Include dotfiles in globbing
+shopt -s extglob 2>/dev/null       # Extended pattern matching
+shopt -s no_empty_cmd_completion 2>/dev/null   # Don't complete on empty line
+
+# Disable Ctrl-S/Ctrl-Q flow control (frees up for other bindings)
+stty -ixon 2>/dev/null
+
+# ============================================================================
+# PROMPT - Git-aware, exit status, jobs indicator
+# ============================================================================
+
+_git_prompt() {
+    local branch
+    branch=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+    [ -z "$branch" ] && return
+
+    local status=""
+    local git_status
+    git_status=$(git status --porcelain 2>/dev/null)
+
+    # Check for various states
+    [[ $git_status =~ ^\?\? ]] && status+="?"     # Untracked files
+    [[ $git_status =~ ^.M ]] && status+="*"        # Modified files
+    [[ $git_status =~ ^M ]] && status+="+"         # Staged files
+
+    [ -n "$status" ] && branch="$branch $status"
+    echo "$branch"
+}
+
+_set_prompt() {
+    local last=$?
+    local reset='\[\e[0m\]'
+    local red='\[\e[31m\]'
+    local green='\[\e[32m\]'
+    local yellow='\[\e[33m\]'
+    local blue='\[\e[34m\]'
+    local cyan='\[\e[36m\]'
+    local magenta='\[\e[35m\]'
+
+    # Color based on exit status
+    local status_color=$green
+    [ $last -ne 0 ] && status_color=$red
+
+    # Git branch with status
+    local branch="$(_git_prompt)"
+    local git_info=""
+    [ -n "$branch" ] && git_info=" ${yellow}($branch)${reset}"
+
+    # Python virtualenv
+    local venv=""
+    [ -n "$VIRTUAL_ENV" ] && venv="${cyan}[$(basename $VIRTUAL_ENV)]${reset} "
+
+    # Background jobs indicator
+    local jobs_info=""
+    local job_count=$(jobs -p | wc -l)
+    [ "$job_count" -gt 0 ] && jobs_info="${magenta}[${job_count}]${reset} "
+
+    PS1="${jobs_info}${venv}${status_color}\u@\h${reset}:${blue}\w${reset}${git_info}\$ "
+}
+
+PROMPT_COMMAND="_set_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+
+# ============================================================================
+# ALIASES - Essential shortcuts
+# ============================================================================
+
+# Colors (if supported)
+if command -v dircolors &>/dev/null; then
+    [ -r ~/dotfiles/_dir_colors ] && eval "$(dircolors -b ~/dotfiles/_dir_colors)" || eval "$(dircolors -b)"
+fi
+
+alias ls='ls --color=auto -F'
+alias l1='ls -1'
+alias ll='ls -lh'
+alias la='ls -lAh'
+alias l='ls -C'
+alias lt='ls -lhtr'               # Sort by time, newest last
+alias lS='ls -lhSr'               # Sort by size
+alias l.='ls -d .*'
+alias grep='grep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias egrep='egrep --color=auto'
+
+# Navigation
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias .....='cd ../../../..'
+alias -- -='cd -'
+alias ~='cd ~'
+
+# Safety
+alias cp='cp -iv'
+alias mv='mv -iv'
+alias rm='rm -iv'
+alias ln='ln -iv'
+alias mkdir='mkdir -pv'
+
+# Helpers
+alias dus='du -sh * | sort -h'    # Disk usage, sorted
+alias free='free -h 2>/dev/null || free'
+alias path='echo -e ${PATH//:/\\n}'
+alias now='date +"%Y-%m-%d %H:%M:%S"'
+alias day='date +%j'
+alias week='date +%V'
+alias myip='echo $(curl -s ifconfig.me)'
+alias localip='hostname -I | awk "{print \$1}"'
+alias ports='ss -tulanp 2>/dev/null || netstat -tulanp'
+alias psg='ps aux | grep -v grep | grep -i'
+alias h='history | tail -25'
+alias j='jobs -l'
+alias c='clear'
+
+# Git shortcuts (keep it minimal - use git aliases for complex ones)
+alias g='git'
+alias gs='git status -sb'
+alias ga='git add'
+alias gaa='git add -A'
+alias gc='git commit'
+alias gcm='git commit -m'
+alias gca='git commit --amend'
+alias gd='git diff'
+alias gds='git diff --staged'
+alias gl='git log --oneline -15'
+alias glo='git log --oneline --graph --all -20'
+alias gp='git push'
+alias gpl='git pull'
+alias gco='git checkout'
+alias gcb='git checkout -b'
+alias gb='git branch'
+alias gst='git stash'
+alias gstp='git stash pop'
+
+# Docker shortcuts (if available)
+if command -v docker &>/dev/null; then
+    alias d='docker'
+    alias dc='docker compose'
+    alias dps='docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"'
+    alias dimg='docker images'
+    alias dex='docker exec -it'
+    alias dlogs='docker logs -f'
+    alias dprune='docker system prune -af'
+fi
+
+# Editor
+export EDITOR="${EDITOR:-vi}"
+command -v vim &>/dev/null && alias vi='vim' && export EDITOR='vim'
+command -v nvim &>/dev/null && alias vim='nvim' && alias nv='nvim' && export EDITOR='nvim'
+
+# Modern tools (auto-detect)
+command -v bat &>/dev/null && alias cat='bat --style=plain --paging=never' && alias less='bat'
+command -v eza &>/dev/null && alias ls='eza --group-directories-first' && alias ll='eza -l --group-directories-first' && alias lt='eza -l --sort=modified' && alias tree='eza --tree'
+command -v fd &>/dev/null && alias find='fd'
+command -v rg &>/dev/null && alias grep='rg'
+command -v htop &>/dev/null && alias top='htop'
+command -v duf &>/dev/null && alias df='duf'
+
+# Reload bashrc
+alias reload='source ~/.bashrc && echo "Reloaded!"'
+
+# ============================================================================
+# FUNCTIONS - Core utilities
+# ============================================================================
+
+# Create directory and cd into it
+mkcd() {
+    mkdir -p "$1" && cd "$1"
+}
+
+# Go up N directories (up 3 = cd ../../..)
+up() {
+    local d=""
+    local limit="${1:-1}"
+    for ((i = 1; i <= limit; i++)); do d="../$d"; done
+    cd "$d" || return 1
+}
+
+# Extract any archive
+extract() {
+    [ ! -f "$1" ] && echo "File not found: $1" && return 1
+    local dir="${1%.*}"
+    case "$1" in
+        *.tar.bz2|*.tbz|*.tbz2) tar xjf "$1" ;;
+        *.tar.gz|*.tgz) tar xzf "$1" ;;
+        *.tar.xz|*.txz) tar xJf "$1" ;;
+        *.tar.zst) tar --zstd -xf "$1" ;;
+        *.tar) tar xf "$1" ;;
+        *.bz2) bunzip2 "$1" ;;
+        *.gz) gunzip "$1" ;;
+        *.xz) unxz "$1" ;;
+        *.zip) unzip -q "$1" -d "$dir" ;;
+        *.rar) unrar x "$1" ;;
+        *.7z) 7z x "$1" ;;
+        *.Z) uncompress "$1" ;;
+        *.deb) ar x "$1" ;;
+        *) echo "Unknown format: $1"; return 1 ;;
+    esac
+}
+
+# Create archive from folder
+archive() {
+    [ -z "$1" ] && echo "Usage: archive <folder> [format: tar.gz|zip|7z]" && return 1
+    local format="${2:-tar.gz}"
+    local name="${1%/}"
+    case "$format" in
+        tar.gz|tgz) tar -czf "${name}.tar.gz" "$1" ;;
+        tar.xz|txz) tar -cJf "${name}.tar.xz" "$1" ;;
+        zip) zip -rq "${name}.zip" "$1" ;;
+        7z) 7z a "${name}.7z" "$1" ;;
+        *) echo "Unknown format: $format" ;;
+    esac && echo "Created: ${name}.${format}"
+}
+
+# Quick file/dir info
+ff() { find . -type f -iname "*$1*" 2>/dev/null; }
+fd() { find . -type d -iname "*$1*" 2>/dev/null; }
+
+# Serve current directory via HTTP
+serve() {
+    local port="${1:-8000}"
+    echo "Serving $(pwd) on http://localhost:$port"
+    python3 -m http.server "$port" 2>/dev/null || python -m SimpleHTTPServer "$port"
+}
+
+# Quick notes
+note() {
+    local f="$HOME/.notes"
+    if [ -z "$1" ]; then
+        [ -s "$f" ] && sed = "$f" | sed 'N;s/\n/ /' || echo "No notes yet."
+    elif [ "$1" = "-c" ]; then
+        if [ -z "$2" ]; then
+            read -p "Clear all notes? (y/n) " ans
+            [[ "$ans" == [yY]* ]] && rm -f "$f" && echo "Cleared"
+        else
+            sed -i "${2}d" "$f" && echo "Deleted #$2"
+        fi
+    else
+        echo "$(date +'%F %H:%M'): $*" >> "$f" && echo "Added"
+    fi
+}
+
+# Show most used commands
+topcmd() {
+    history | awk '{CMD[$2]++;count++;}END { for (a in CMD)print CMD[a] " " CMD[a]/count*100 "% " a;}' | grep -v "./" | sort -rn | head -20
+}
+
+# Directory bookmarks (persistent)
+MARKPATH="${MARKPATH:-$HOME/.marks}"
+[ -d "$MARKPATH" ] || mkdir -p "$MARKPATH"
+
+mark() {
+    [ -z "$1" ] && echo "Usage: mark <name>" && return 1
+    ln -sf "$(pwd)" "$MARKPATH/$1" && echo "Marked: $1 -> $(pwd)"
+}
+
+unmark() {
+    [ -z "$1" ] && echo "Usage: unmark <name>" && return 1
+    rm -f "$MARKPATH/$1" && echo "Removed: $1"
+}
+
+jump() {
+    [ -z "$1" ] && echo "Usage: jump <name>" && return 1
+    local target="$MARKPATH/$1"
+    [ -L "$target" ] && cd -P "$target" || echo "Mark '$1' not found"
+}
+
+marks() { ls -l "$MARKPATH" 2>/dev/null | sed 's/  / /g' | cut -d' ' -f9- | sed 's/ -> / → /'; }
+
+# Git: clone and cd
+gclone() {
+    git clone "$1" && cd "$(basename "$1" .git)"
+}
+
+# ============================================================================
+# PATH - Add user bins
+# ============================================================================
+
+for dir in "$HOME/.local/bin" "$HOME/bin" "$HOME/.bin" "$HOME/.cargo/bin" "$HOME/go/bin"; do
+    [ -d "$dir" ] && [[ ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
+done
+export PATH
+
+# ============================================================================
+# FZF - Fuzzy finder integration (if available)
+# ============================================================================
+
+if command -v fzf &>/dev/null; then
+    # FZF default options
+    export FZF_DEFAULT_OPTS='
+        --height=40%
+        --layout=reverse
+        --border=rounded
+        --info=inline
+        --prompt="❯ "
+        --pointer="▶"
+        --marker="✓"
+        --bind="ctrl-a:select-all,ctrl-d:deselect-all"
+        --bind="ctrl-y:execute-silent(echo {+} | xclip -selection clipboard)"
+    '
+
+    # Use fd or rg for faster searches if available
+    if command -v fd &>/dev/null; then
+        export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+        export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+        export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'
+    elif command -v rg &>/dev/null; then
+        export FZF_DEFAULT_COMMAND='rg --files --hidden --follow --glob "!.git/*"'
+        export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+    fi
+
+    # Preview with bat if available
+    if command -v bat &>/dev/null; then
+        export FZF_CTRL_T_OPTS="--preview 'bat --color=always --style=numbers --line-range=:500 {}'"
+    fi
+
+    # Load fzf keybindings and completions
+    [ -f /usr/share/fzf/key-bindings.bash ] && source /usr/share/fzf/key-bindings.bash
+    [ -f /usr/share/fzf/completion.bash ] && source /usr/share/fzf/completion.bash
+    # Alternative locations (macOS homebrew, etc.)
+    [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+
+    # FZF-powered functions
+    # Interactive cd with preview
+    fcd() {
+        local dir
+        dir=$(find ${1:-.} -type d 2>/dev/null | fzf --preview 'ls -la {}' +m) && cd "$dir"
+    }
+
+    # Interactive history search
+    fh() {
+        local cmd
+        cmd=$(history | fzf --tac --no-sort | sed 's/^[ ]*[0-9]*[ ]*//')
+        [ -n "$cmd" ] && eval "$cmd"
+    }
+
+    # Interactive git log
+    fgl() {
+        git log --oneline --color=always | fzf --ansi --preview 'git show --color=always {1}' | cut -d' ' -f1
+    }
+
+    # Interactive git branch checkout
+    fgb() {
+        local branches branch
+        branches=$(git branch --all | grep -v HEAD) &&
+        branch=$(echo "$branches" | fzf -d $(( 2 + $(echo "$branches" | wc -l) )) +m) &&
+        git checkout $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
+    }
+
+    # Kill process interactively
+    fkill() {
+        local pid
+        pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
+        [ -n "$pid" ] && echo "$pid" | xargs kill -${1:-9}
+    }
+fi
+
+# ============================================================================
+# COMPLETION - Better tab completion
+# ============================================================================
+
+# Enable programmable completion features
+if ! shopt -oq posix; then
+    [ -f /usr/share/bash-completion/bash_completion ] && source /usr/share/bash-completion/bash_completion
+    [ -f /etc/bash_completion ] && source /etc/bash_completion
+fi
+
+# Git completion for aliases
+if type __git_complete &>/dev/null; then
+    __git_complete g __git_main
+    __git_complete gco _git_checkout
+    __git_complete gb _git_branch
+    __git_complete gp _git_push
+    __git_complete gpl _git_pull
+fi
+
+# ============================================================================
+# LOCAL OVERRIDES - Machine-specific settings
+# ============================================================================
+
+[ -f ~/.bashrc.local ] && source ~/.bashrc.local

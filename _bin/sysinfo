@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Quick system information summary
+# Works on Linux and macOS
+
+set -euo pipefail
+
+# Colors
+C='\033[0;36m'  # Cyan
+G='\033[0;32m'  # Green
+N='\033[0m'     # Reset
+
+echo -e "${C}=== System Info ===${N}"
+echo ""
+
+# Hostname
+echo -e "${G}Hostname:${N} $(hostname)"
+
+# OS
+if [[ -f /etc/os-release ]]; then
+    echo -e "${G}OS:${N} $(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
+elif [[ "$(uname)" == "Darwin" ]]; then
+    echo -e "${G}OS:${N} macOS $(sw_vers -productVersion 2>/dev/null || echo '')"
+else
+    echo -e "${G}OS:${N} $(uname -s) $(uname -r)"
+fi
+
+# Kernel
+echo -e "${G}Kernel:${N} $(uname -r)"
+
+# Uptime
+echo -e "${G}Uptime:${N} $(uptime -p 2>/dev/null || uptime | sed 's/.*up //' | sed 's/, [0-9]* user.*//')"
+
+# CPU
+if [[ -f /proc/cpuinfo ]]; then
+    cpu=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)
+    cores=$(grep -c '^processor' /proc/cpuinfo)
+    echo -e "${G}CPU:${N} $cpu ($cores cores)"
+elif command -v sysctl &>/dev/null; then
+    echo -e "${G}CPU:${N} $(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo 'Unknown')"
+fi
+
+# Memory
+if command -v free &>/dev/null; then
+    mem=$(free -h | awk '/^Mem:/ {print $3 "/" $2}')
+    echo -e "${G}Memory:${N} $mem"
+elif [[ "$(uname)" == "Darwin" ]]; then
+    mem=$(vm_stat | awk '/Pages active/ {print $3*4096/1024/1024/1024 " GB used"}' 2>/dev/null || echo 'Unknown')
+    echo -e "${G}Memory:${N} $mem"
+fi
+
+# Disk
+echo -e "${G}Disk (/):${N} $(df -h / | awk 'NR==2 {print $3 "/" $2 " (" $5 " used)"}')"
+
+# Load
+echo -e "${G}Load:${N} $(uptime | awk -F'load average:' '{print $2}' | xargs)"
+
+# IP addresses
+echo ""
+echo -e "${C}=== Network ===${N}"
+echo ""
+
+# Local IP
+if command -v hostname &>/dev/null && hostname -I &>/dev/null; then
+    echo -e "${G}Local IP:${N} $(hostname -I | awk '{print $1}')"
+elif command -v ipconfig &>/dev/null; then
+    echo -e "${G}Local IP:${N} $(ipconfig getifaddr en0 2>/dev/null || echo 'Unknown')"
+fi
+
+# Public IP (optional, quick timeout)
+if command -v curl &>/dev/null; then
+    pub_ip=$(curl -s --connect-timeout 2 ifconfig.me 2>/dev/null || echo "N/A")
+    echo -e "${G}Public IP:${N} $pub_ip"
+fi
+
+echo ""

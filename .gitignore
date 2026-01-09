@@ -1,0 +1,30 @@
+# Local machine-specific configuration
+bashrc.local
+.bashrc.local
+
+# Vim temporary files
+*.swp
+*.swo
+*.swn
+*~
+.*.sw?
+Session.vim
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+Desktop.ini
+
+# Backup files
+*.backup
+*.bak
+
+# Test/tmp
+test/
+tmp/
+.tmp/
+
+# Claude plans
+.claude/plans/

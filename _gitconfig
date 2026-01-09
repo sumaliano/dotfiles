@@ -1,0 +1,132 @@
+# Git configuration template
+# Copy to ~/.gitconfig and customize [user] section
+
+[user]
+    # CHANGE THESE - uncomment and set your info
+    # name = Your Name
+    # email = your.email@example.com
+
+[core]
+    editor = vim
+    pager = less -FRX
+    autocrlf = input
+    whitespace = trailing-space,space-before-tab
+
+[init]
+    defaultBranch = main
+
+[pull]
+    rebase = true
+
+[push]
+    default = current
+    autoSetupRemote = true
+
+[fetch]
+    prune = true
+
+[merge]
+    conflictstyle = diff3
+    tool = vimdiff
+
+[diff]
+    colorMoved = default
+    algorithm = histogram
+
+[rebase]
+    autoStash = true
+
+[rerere]
+    enabled = true
+
+[alias]
+    # Status
+    s = status -sb
+    st = status
+
+    # Commits
+    c = commit
+    cm = commit -m
+    ca = commit --amend
+    can = commit --amend --no-edit
+
+    # Branches
+    b = branch
+    ba = branch -a
+    bd = branch -d
+    bD = branch -D
+    co = checkout
+    cb = checkout -b
+    sw = switch
+    sc = switch -c
+
+    # Diff
+    d = diff
+    ds = diff --staged
+    dc = diff --cached
+
+    # Log (compact)
+    l = log --oneline -20
+    lg = log --oneline --graph --all -20
+    ll = log --pretty=format:'%C(yellow)%h%Creset %s %C(cyan)<%an>%Creset %C(green)(%cr)%Creset' -20
+    hist = log --pretty=format:'%h %ad | %s%d [%an]' --graph --date=short
+
+    # Stash
+    ss = stash
+    sp = stash pop
+    sl = stash list
+    sd = stash drop
+
+    # Remote
+    f = fetch --all --prune
+    pl = pull
+    ps = push
+    pf = push --force-with-lease
+
+    # Undo
+    undo = reset HEAD~1 --mixed
+    unstage = reset HEAD --
+    discard = checkout --
+
+    # Utility
+    aliases = config --get-regexp alias
+    branches = branch -a
+    remotes = remote -v
+    tags = tag -l
+    last = log -1 HEAD --stat
+    whoami = !git config user.name && git config user.email
+
+    # Find
+    find = !git ls-files | grep -i
+    grep = grep -Ii
+
+[color]
+    ui = auto
+
+[color "branch"]
+    current = yellow reverse
+    local = yellow
+    remote = green
+
+[color "diff"]
+    meta = yellow bold
+    frag = magenta bold
+    old = red bold
+    new = green bold
+
+[color "status"]
+    added = green
+    changed = yellow
+    untracked = red
+
+[help]
+    autocorrect = prompt
+
+[credential]
+    helper = cache --timeout=3600
+
+# URL shortcuts (uncomment if needed)
+# [url "git@github.com:"]
+#     insteadOf = gh:
+# [url "git@gitlab.com:"]
+#     insteadOf = gl:

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Display terminal color palette
+# Useful for testing terminal themes
+
+# Basic 16 colors
+echo "=== Basic 16 Colors ==="
+echo ""
+for i in {0..7}; do
+    printf "\033[48;5;%dm  %3d  \033[0m" "$i" "$i"
+done
+echo ""
+for i in {8..15}; do
+    printf "\033[48;5;%dm  %3d  \033[0m" "$i" "$i"
+done
+echo ""
+echo ""
+
+# 256 color cube (optional)
+if [[ "${1:-}" == "-a" ]] || [[ "${1:-}" == "--all" ]]; then
+    echo "=== 256 Color Palette ==="
+    echo ""
+    for i in {0..255}; do
+        printf "\033[48;5;%dm %3d\033[0m" "$i" "$i"
+        (( (i + 1) % 16 == 0 )) && echo ""
+    done
+    echo ""
+fi
+
+# Named colors reference
+echo "=== Color Reference ==="
+echo ""
+echo -e "\033[0;30mBlack\033[0m   \033[0;31mRed\033[0m     \033[0;32mGreen\033[0m   \033[0;33mYellow\033[0m"
+echo -e "\033[0;34mBlue\033[0m    \033[0;35mMagenta\033[0m \033[0;36mCyan\033[0m    \033[0;37mWhite\033[0m"
+echo ""
+echo -e "\033[1;30mBold Black\033[0m   \033[1;31mBold Red\033[0m     \033[1;32mBold Green\033[0m   \033[1;33mBold Yellow\033[0m"
+echo -e "\033[1;34mBold Blue\033[0m    \033[1;35mBold Magenta\033[0m \033[1;36mBold Cyan\033[0m    \033[1;37mBold White\033[0m"
+echo ""
+
+# True color test
+echo "=== True Color Test ==="
+echo ""
+awk 'BEGIN{
+    for (i=0; i<77; i++) {
+        r = 255-(i*255/76);
+        g = (i*510/76);
+        b = (i*255/76);
+        if (g>255) g = 510-g;
+        printf "\033[48;2;%d;%d;%dm ", r,g,b;
+    }
+    printf "\033[0m\n";
+}'
+echo ""
+echo "(If you see a smooth gradient, your terminal supports true color)"
+echo ""

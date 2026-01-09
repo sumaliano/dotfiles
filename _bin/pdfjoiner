@@ -1,4 +1,0 @@
-#!/bin/bash
-
-gs -dNOPAUSE -sDEVICE=pdfwrite -sOUTPUTFILE=joined_PDF.pdf -dBATCH $1 $2
-mv joined_PDF.pdf ~/Desktop

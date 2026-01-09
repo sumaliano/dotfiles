@@ -1,7 +1,8 @@
 $include /etc/inputrc
 
-# Show all autocomplete results at once
-#set page-completions off
+# ====================
+# Completion Settings
+# ====================
 
 # If there are more than 200 possible completions for a word, ask to show them all
 set completion-query-items 200
@@ -9,19 +10,31 @@ set completion-query-items 200
 # Show extra file information when completing, like `ls -F` does
 set visible-stats on
 
-# Be more intelligent when autocompleting by also looking at the text after
-# the cursor. For example, when the current line is "cd ~/src/mozil", and
-# the cursor is on the "z", pressing Tab will not autocomplete it to "cd
-# ~/src/mozillail", but to "cd ~/src/mozilla". (This is supported by the
-# Readline used by Bash 4.)
+# Show file types in completions
+set mark-directories on
+set mark-symlinked-directories on
+
+# Append slash to completed directory symlinks
+set mark-symlinked-directories on
+
+# Autocomplete hidden files without needing a leading dot
+set match-hidden-files on
+
+# Smart completion - looks at text after cursor too
 set skip-completed-text on
 
-# Allow UTF-8 input and output, instead of showing stuff like $'\0123\0456'
-set input-meta on
-set output-meta on
-set convert-meta off
+# Display matches for ambiguous patterns at first tab press
+set show-all-if-ambiguous on
 
-## SMARTER TAB-COMPLETION (Readline bindings) ##
+# Show all completions on second tab if first tab didn't complete
+set show-all-if-unmodified on
+
+# Color files by type in completion (requires readline 7.0+)
+# Older systems will silently ignore these
+$if version >= 7.0
+    set colored-stats on
+    set colored-completion-prefix on
+$endif
 
 # Perform file completion in a case insensitive fashion
 set completion-ignore-case on
@@ -29,32 +42,85 @@ set completion-ignore-case on
 # Treat hyphens and underscores as equivalent
 set completion-map-case on
 
-# Display matches for ambiguous patterns at first tab press
-set show-all-if-ambiguous on
+# ====================
+# Input/Output
+# ====================
 
-# Immediately add a trailing slash when autocompleting symlinks to directories
-# set mark-symlinked-directories on
+# Allow UTF-8 input and output
+set input-meta on
+set output-meta on
+set convert-meta off
 
-# Flip through autocompletion matches with Shift-Tab.
-"\e[Z": menu-complete
-# TAB: menu-complete
+# Ring bell style (none = no beeping)
+set bell-style none
 
-# Filtered history search
-# "\e[A": history-search-backward  # Up
-# "\e[B": history-search-forward   # Down
-# "\e[C": forward-char
-# "\e[D": backward-char
-"\e[5~": history-search-backward  # PgUp
-"\e[6~": history-search-forward   # PgDown
+# ====================
+# Editing
+# ====================
 
-# set editing-mode vi
-# $if mode=vi
-#   set keymap vi-command
-#   # these are for vi-command mode
-#   "\e[A": history-search-backward
-#   "\e[B": history-search-forward
-#   set keymap vi-insert
-#   # these are for vi-insert mode
-#   "\e[A": history-search-backward
-#   "\e[B": history-search-forward
-# $endif
+# Don't paginate long completion lists
+set page-completions off
+
+# Number of screen columns used to display possible completions
+set completion-display-width 0
+
+# Show mode in prompt for vi mode (if enabled)
+set show-mode-in-prompt off
+
+# ====================
+# Key Bindings
+# ====================
+
+# Tab completion - forward
+TAB: menu-complete
+
+# Shift-Tab - reverse completion
+"\e[Z": menu-complete-backward
+
+# Ctrl-Space - complete (useful if Tab is menu-complete)
+"\C-@": complete
+
+# Up/Down arrows - search history based on what you've typed
+#  "\e[A": history-search-backward
+#  "\e[B": history-search-forward
+"\e[A": previous-history
+"\e[B": next-history
+
+# PgUp/PgDown - move through history (alternative)
+#  "\e[5~": previous-history
+#  "\e[6~": next-history
+"\e[5~": history-search-backward
+"\e[6~": history-search-forward
+
+# Ctrl-Left/Right - move by word
+"\e[1;5C": forward-word
+"\e[1;5D": backward-word
+
+# Alt-Left/Right - move by word (alternative)
+"\e[1;3C": forward-word
+"\e[1;3D": backward-word
+
+# Home/End - beginning/end of line
+"\e[H": beginning-of-line
+"\e[F": end-of-line
+
+# Ctrl-w - delete word backwards
+"\C-w": backward-kill-word
+
+# Alt-d - delete word forwards
+"\ed": kill-word
+
+# Ctrl-k - delete to end of line
+"\C-k": kill-line
+
+# Ctrl-u - delete to beginning of line
+"\C-u": backward-kill-line
+
+# Ctrl-y - yank (paste) killed text
+"\C-y": yank
+
+# Alt-. - insert last argument from previous command
+"\e.": yank-last-arg
+
+# Alt-r - revert line
+"\er": revert-line

@@ -1,4 +1,0 @@
-#!/bin/bash
-
-wget -c -m --restrict-file-names=nocontrol --user-agent="direct download -- `uname -a`" --no-parent --reject "index.html*" $1
-

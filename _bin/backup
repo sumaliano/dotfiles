@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Quick backup utility - creates timestamped copies
+# Usage: backup file.txt        -> file.txt.2024-01-15_103045
+#        backup -z folder       -> folder.2024-01-15_103045.tar.gz
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: $(basename "$0") [-z] <file_or_folder>"
+    echo "  -z    Compress folders with tar.gz"
+    echo ""
+    echo "Examples:"
+    echo "  $(basename "$0") config.yaml          # Creates config.yaml.TIMESTAMP"
+    echo "  $(basename "$0") -z myproject         # Creates myproject.TIMESTAMP.tar.gz"
+    exit 1
+}
+
+COMPRESS=0
+[[ "${1:-}" == "-z" ]] && COMPRESS=1 && shift
+
+[[ -z "${1:-}" ]] && usage
+[[ ! -e "$1" ]] && echo "Error: $1 not found" && exit 1
+
+TIMESTAMP=$(date +%Y-%m-%d_%H%M%S)
+SOURCE="${1%/}"  # Remove trailing slash
+BACKUP="${SOURCE}.${TIMESTAMP}"
+
+if [[ -d "$SOURCE" ]]; then
+    if [[ $COMPRESS -eq 1 ]]; then
+        tar -czf "${BACKUP}.tar.gz" "$SOURCE"
+        echo "Created: ${BACKUP}.tar.gz"
+    else
+        cp -r "$SOURCE" "$BACKUP"
+        echo "Created: $BACKUP/"
+    fi
+else
+    cp "$SOURCE" "$BACKUP"
+    echo "Created: $BACKUP"
+fi

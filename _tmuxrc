@@ -1,0 +1,160 @@
+# Modern Tmux Configuration
+# Minimal, fast, vim-friendly, works on SSH
+
+# ====================
+# General Settings
+# ====================
+
+# Use C-a as prefix (like screen, familiar)
+unbind C-b
+set -g prefix C-a
+bind C-a send-prefix
+
+# Terminal - fallback friendly
+set -g default-terminal "screen-256color"
+set -ga terminal-overrides ",xterm-256color:Tc,tmux-256color:Tc"
+
+# Fast escape time (important for vim)
+set -sg escape-time 0
+
+# Increase scrollback buffer
+set -g history-limit 50000
+
+# Aggressive resize (useful when multiple clients)
+setw -g aggressive-resize on
+
+# Start window/pane numbering at 1 (not 0)
+set -g base-index 1
+setw -g pane-base-index 1
+
+# Renumber windows when one is closed
+set -g renumber-windows on
+
+# Enable mouse support (optional, useful for scrolling)
+set -g mouse on
+
+# Focus events enabled for vim autoread
+set -g focus-events on
+
+# ====================
+# Key Bindings
+# ====================
+
+# Reload config with r
+bind r source-file ~/.tmux.conf \; display "Config reloaded!"
+
+# Better split bindings (more intuitive)
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+unbind '"'
+unbind %
+
+# Vim-like pane navigation
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+# Vim-like pane resizing
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+
+# Window navigation
+bind -r C-h select-window -t :-
+bind -r C-l select-window -t :+
+
+# Copy mode vi bindings (tmux 2.4+, fallback for older versions)
+setw -g mode-keys vi
+
+# Modern bindings (tmux 2.4+)
+bind -T copy-mode-vi 'v' send -X begin-selection 2>/dev/null || bind -t vi-copy 'v' begin-selection
+bind -T copy-mode-vi 'V' send -X select-line 2>/dev/null || bind -t vi-copy 'V' select-line
+bind -T copy-mode-vi 'C-v' send -X rectangle-toggle 2>/dev/null || bind -t vi-copy 'C-v' rectangle-toggle
+bind -T copy-mode-vi 'y' send -X copy-selection-and-cancel 2>/dev/null || bind -t vi-copy 'y' copy-selection
+bind -T copy-mode-vi Escape send -X cancel 2>/dev/null || bind -t vi-copy Escape cancel
+
+# Clipboard - works across systems (OSC52 for SSH, xclip/pbcopy locally)
+# OSC52 allows copying through SSH without X forwarding (tmux 2.6+)
+set -s set-clipboard on 2>/dev/null || set -g set-clipboard on
+# Copy to system clipboard if available
+if-shell "command -v xclip" "bind -T copy-mode-vi y send -X copy-pipe-and-cancel 'xclip -sel clip -i'" ""
+if-shell "command -v pbcopy" "bind -T copy-mode-vi y send -X copy-pipe-and-cancel 'pbcopy'" ""
+if-shell "command -v wl-copy" "bind -T copy-mode-vi y send -X copy-pipe-and-cancel 'wl-copy'" ""
+
+# Quick session management
+bind S command-prompt -p "New session:" "new-session -A -s '%%'"
+bind K confirm-before -p "Kill session #S? (y/n)" "kill-session"
+
+# Swap windows
+bind -r < swap-window -t -1\; select-window -t -1
+bind -r > swap-window -t +1\; select-window -t +1
+
+# Synchronize panes toggle (type in all panes at once)
+bind a setw synchronize-panes\; display "Sync #{?pane_synchronized,ON,OFF}"
+
+# Quick pane layouts
+bind = select-layout even-horizontal
+bind + select-layout even-vertical
+
+# Last window toggle
+bind Tab last-window
+
+# Clear screen and history
+bind C-k send-keys C-l \; clear-history
+
+# ====================
+# Status Bar (minimal for performance)
+# ====================
+
+# Update status bar every 10 seconds (less CPU on remote)
+set -g status-interval 10
+
+# Status bar position
+set -g status-position bottom
+
+# Status bar colors (clean, minimal)
+set -g status-style 'bg=black fg=white'
+
+# Left status: session
+set -g status-left-length 20
+set -g status-left '#[fg=green,bold]#S #[fg=white]| '
+
+# Right status: hostname and time
+set -g status-right-length 40
+set -g status-right '#[fg=cyan]#h #[fg=white]%H:%M'
+
+# Window status format (minimal)
+setw -g window-status-format ' #I:#W '
+setw -g window-status-current-format '#[fg=cyan,bold] #I:#W* '
+
+# Pane border colors
+set -g pane-border-style 'fg=brightblack'
+set -g pane-active-border-style 'fg=cyan'
+
+# Message colors
+set -g message-style 'bg=black fg=yellow bold'
+
+# ====================
+# Activity Monitoring
+# ====================
+
+# Monitor for activity
+setw -g monitor-activity on
+set -g visual-activity off
+
+# ====================
+# Optional Plugins
+# ====================
+
+# Uncomment to use TPM (Tmux Plugin Manager)
+# Install TPM: git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+
+# Plugin list (commented out by default, minimal setup)
+# set -g @plugin 'tmux-plugins/tpm'
+# set -g @plugin 'tmux-plugins/tmux-resurrect'
+# set -g @plugin 'tmux-plugins/tmux-continuum'
+
+# Initialize TPM (keep this at the very bottom)
+# run '~/.tmux/plugins/tpm/tpm'

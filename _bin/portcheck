@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Check if a port is open (locally or remotely)
+# Usage: portcheck 8080           # Check localhost:8080
+#        portcheck host 22        # Check host:22
+#        portcheck -l             # List listening ports
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: $(basename "$0") [host] <port>"
+    echo "       $(basename "$0") -l [pattern]    # List listening ports"
+    echo ""
+    echo "Examples:"
+    echo "  $(basename "$0") 8080              # Check localhost:8080"
+    echo "  $(basename "$0") google.com 443    # Check google.com:443"
+    echo "  $(basename "$0") -l                # List all listening ports"
+    echo "  $(basename "$0") -l 80             # Filter by port/pattern"
+    exit 1
+}
+
+list_ports() {
+    local pattern="${1:-}"
+    echo "Listening ports:"
+    echo ""
+    if command -v ss &>/dev/null; then
+        if [[ -n "$pattern" ]]; then
+            ss -tuln | grep -E "(State|LISTEN)" | grep -i "$pattern" || echo "No matches found"
+        else
+            ss -tuln | grep -E "(State|LISTEN)"
+        fi
+    elif command -v netstat &>/dev/null; then
+        if [[ -n "$pattern" ]]; then
+            netstat -tuln | grep -E "(Proto|LISTEN)" | grep -i "$pattern" || echo "No matches found"
+        else
+            netstat -tuln | grep -E "(Proto|LISTEN)"
+        fi
+    else
+        echo "Error: ss or netstat not found"
+        exit 1
+    fi
+}
+
+check_port() {
+    local host="$1"
+    local port="$2"
+
+    echo -n "Checking $host:$port... "
+
+    # Try multiple methods
+    if command -v nc &>/dev/null; then
+        if nc -z -w2 "$host" "$port" 2>/dev/null; then
+            echo -e "\033[32mOPEN\033[0m"
+            return 0
+        else
+            echo -e "\033[31mCLOSED\033[0m"
+            return 1
+        fi
+    elif command -v timeout &>/dev/null; then
+        if timeout 2 bash -c "echo >/dev/tcp/$host/$port" 2>/dev/null; then
+            echo -e "\033[32mOPEN\033[0m"
+            return 0
+        else
+            echo -e "\033[31mCLOSED\033[0m"
+            return 1
+        fi
+    else
+        # Fallback using /dev/tcp (bash built-in)
+        if (echo >/dev/tcp/"$host"/"$port") 2>/dev/null; then
+            echo -e "\033[32mOPEN\033[0m"
+            return 0
+        else
+            echo -e "\033[31mCLOSED\033[0m"
+            return 1
+        fi
+    fi
+}
+
+# Parse arguments
+case "${1:-}" in
+    -l|--list)
+        list_ports "${2:-}"
+        ;;
+    -h|--help|"")
+        usage
+        ;;
+    *)
+        if [[ $# -eq 1 ]]; then
+            # Just port, assume localhost
+            check_port "localhost" "$1"
+        elif [[ $# -eq 2 ]]; then
+            check_port "$1" "$2"
+        else
+            usage
+        fi
+        ;;
+esac
