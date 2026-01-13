@@ -12,7 +12,7 @@ local opt = vim.opt
 opt.swapfile, opt.backup, opt.writebackup = false, false, false
 opt.updatetime, opt.timeoutlen = 300, 500
 opt.number, opt.relativenumber = true, true
-opt.cursorline, opt.signcolumn = true, "yes"
+opt.cursorline, opt.signcolumn = true, "auto"  -- Only show when there are signs
 opt.termguicolors, opt.mouse = true, "a"
 opt.scrolloff, opt.sidescrolloff = 8, 8
 opt.wrap, opt.showmode = false, false
@@ -133,32 +133,73 @@ map("n", "]e", function() vim.diagnostic.goto_next({ severity = vim.diagnostic.s
 -- COMPLETION
 -- ============================================================================
 
-map("i", "<Tab>", function()
-  if vim.fn.pumvisible() == 1 then return "<C-n>" end
+-- Cache LSP client status per buffer to avoid repeated checks
+local lsp_attached = {}
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(ev) lsp_attached[ev.buf] = true end,
+})
+vim.api.nvim_create_autocmd("LspDetach", {
+  callback = function(ev) lsp_attached[ev.buf] = false end,
+})
+vim.api.nvim_create_autocmd("BufDelete", {
+  callback = function(ev) lsp_attached[ev.buf] = nil end,
+})
+
+-- Helper: Check if LSP omnifunc is available (cached)
+local function has_lsp_omnifunc()
+  return lsp_attached[vim.api.nvim_get_current_buf()] and vim.bo.omnifunc ~= ""
+end
+
+-- Helper: Smart completion selection
+local function smart_complete()
   local col = vim.fn.col('.') - 1
-  if col == 0 or vim.fn.getline('.'):sub(col, col):match('%s') then return "<Tab>" end
   local line = vim.fn.getline('.')
   local before = line:sub(1, col)
+
+  -- File path completion
   if before:match('[~/.]?/?[%w._/-]*$') and (before:match('/') or before:match('^%.') or before:match('^~')) then
-    return "<C-x><C-f>"
+    return vim.api.nvim_replace_termcodes('<C-x><C-f>', true, false, true)
   end
-  return "<C-x><C-o>"
+
+  -- LSP omnifunc completion (with fallback)
+  if has_lsp_omnifunc() and (before:match('[%w_][%w_]+$') or before:match('%.$') or before:match('->$') or before:match('::$')) then
+    return vim.api.nvim_replace_termcodes('<C-x><C-o>', true, false, true)
+  end
+
+  -- Default to keyword completion (always works)
+  return vim.api.nvim_replace_termcodes('<C-n>', true, false, true)
+end
+
+-- Tab: Smart completion with proper fallback
+map("i", "<Tab>", function()
+  -- If menu is visible, navigate down
+  if vim.fn.pumvisible() == 1 then
+    return "<C-n>"
+  end
+
+  -- At start of line or after whitespace: insert tab
+  local col = vim.fn.col('.') - 1
+  if col == 0 or vim.fn.getline('.'):sub(col, col):match('%s') then
+    return "<Tab>"
+  end
+
+  -- Otherwise: smart completion
+  return smart_complete()
 end, { expr = true })
 
+-- Shift-Tab: Navigate up in menu
 map("i", "<S-Tab>", function()
   return vim.fn.pumvisible() == 1 and "<C-p>" or "<S-Tab>"
 end, { expr = true })
 
+-- Enter: Accept completion or insert newline
 map("i", "<CR>", function()
   return vim.fn.pumvisible() == 1 and "<C-y>" or "<CR>"
 end, { expr = true })
 
-map("i", "<C-Space>", "<C-x><C-o>")
-map("i", "<C-f>", "<C-x><C-f>")
-map("i", "<C-e>", function()
-  return vim.fn.pumvisible() == 1 and "<C-e>" or "<End>"
-end, { expr = true })
+-- Note: Ctrl-N/Ctrl-P (keyword completion) and Ctrl-X submodes work by default, no mapping needed
 
+-- Auto-complete on typing (optional, toggle with F2)
 local auto_complete = false
 local auto_complete_group = vim.api.nvim_create_augroup("AutoComplete", { clear = true })
 
@@ -172,14 +213,23 @@ map("n", "<F2>", function()
           if vim.fn.pumvisible() == 0 and vim.fn.mode() == 'i' then
             local col = vim.fn.col('.')
             local before = vim.fn.getline('.'):sub(1, col - 1)
+
+            -- Only trigger if typing meaningful content
             if before:match('[%w_][%w_]+$') or before:match('%.$') or before:match('->$') or before:match('::$') then
-              vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<C-x><C-o>', true, false, true), 'n', false)
+              -- Use safe completion with fallback
+              if has_lsp_omnifunc() then
+                pcall(function()
+                  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<C-x><C-o>', true, false, true), 'n', false)
+                end)
+              else
+                vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<C-n>', true, false, true), 'n', false)
+              end
             end
           end
         end, 100)
       end,
     })
-    print("Auto-completion: ON")
+    print("Auto-completion: ON (LSP + keyword fallback)")
   else
     vim.api.nvim_clear_autocmds({ group = auto_complete_group })
     print("Auto-completion: OFF")
@@ -269,7 +319,7 @@ end
 -- Mappings
 map("n", "<leader>sw", strip_whitespace, { desc = "Strip whitespace" })
 map("n", "<leader>st", function() set_tab() end, { desc = "Set tab width" })
-map("n", "<leader>bh", close_hidden_buffers, { desc = "Close hidden buffers" })
+map("n", "<leader>bo", close_hidden_buffers, { desc = "Close hidden buffers" })
 
 -- Commands
 vim.api.nvim_create_user_command("StripWhitespace", strip_whitespace, { desc = "Strip trailing whitespace" })
@@ -285,45 +335,196 @@ vim.api.nvim_create_user_command("ToggleNumber", toggle_number, { desc = "Cycle 
 
 vim.g.netrw_banner, vim.g.netrw_liststyle, vim.g.netrw_winsize = 0, 3, 25
 
+-- File finding (fd/find with picker)
 map("n", "<leader>ff", function()
-  vim.cmd("edit " .. vim.fn.fnameescape(vim.fn.input("Find: ", "", "file")))
+  local cmd = vim.fn.executable("fd") == 1
+    and "fd --type f --hidden --exclude .git"
+    or "find . -type f ! -path '*/.git/*' 2>/dev/null"
+
+  local files = vim.fn.systemlist(cmd)
+  if #files == 0 then return print("No files found") end
+
+  if #files > 1000 then
+    files = vim.list_slice(files, 1, 1000)
+    print("Showing first 1000 files")
+  end
+
+  vim.ui.select(files, {
+    prompt = "Find file:",
+    format_item = function(item) return item:gsub("^%./", "") end,
+  }, function(choice)
+    if choice then vim.cmd("edit " .. vim.fn.fnameescape(choice)) end
+  end)
 end, { desc = "Find files" })
 
-map("n", "<leader>fd", function()
-  local pattern = vim.fn.input("Pattern: ", "*.yml")
-  local files = vim.fn.systemlist("find . -type f -name '" .. pattern .. "' 2>/dev/null")
-  if #files == 0 then print("No files found") return end
-  vim.ui.select(files, { prompt = "Select:" }, function(choice)
+-- Find by pattern (*.lua, *.py, etc)
+map("n", "<leader>fp", function()
+  local pattern = vim.fn.input("Pattern (*.lua, *.py, etc): ")
+  if pattern == "" then return end
+
+  local cmd = vim.fn.executable("fd") == 1
+    and ("fd --type f --hidden --exclude .git --glob " .. vim.fn.shellescape(pattern))
+    or ("find . -type f -name " .. vim.fn.shellescape(pattern) .. " ! -path '*/.git/*' 2>/dev/null")
+
+  local files = vim.fn.systemlist(cmd)
+  if #files == 0 then return print("No files matching " .. pattern) end
+
+  vim.ui.select(files, {
+    prompt = "Select:",
+    format_item = function(item) return item:gsub("^%./", "") end,
+  }, function(choice)
     if choice then vim.cmd("edit " .. vim.fn.fnameescape(choice)) end
   end)
 end, { desc = "Find by pattern" })
 
+-- Search in files (grep/rg)
 map("n", "<leader>fg", function()
-  local search = vim.fn.input("Grep: ")
+  local search = vim.fn.input("Search: ")
   if search == "" then return end
-  if vim.fn.executable("rg") == 1 then
-    vim.cmd("grep! " .. vim.fn.shellescape(search))
-    vim.cmd("copen")
-  elseif vim.fn.executable("grep") == 1 then
-    vim.cmd("grep! -r " .. vim.fn.shellescape(search) .. " .")
-    vim.cmd("copen")
-  else
-    print("No grep tool found")
-  end
-end, { desc = "Grep" })
 
+  vim.cmd("silent! grep! " .. vim.fn.shellescape(search))
+  local qf_size = #vim.fn.getqflist()
+
+  if qf_size > 0 then
+    vim.cmd("copen")
+    print(qf_size .. " matches")
+  else
+    print("No matches found")
+  end
+end, { desc = "Search in files" })
+
+-- Search word under cursor
+map("n", "<leader>fw", function()
+  local word = vim.fn.expand("<cword>")
+  vim.cmd("silent! grep! " .. vim.fn.shellescape(word))
+  local qf_size = #vim.fn.getqflist()
+
+  if qf_size > 0 then
+    vim.cmd("copen")
+    print(qf_size .. " matches for '" .. word .. "'")
+  else
+    print("No matches")
+  end
+end, { desc = "Search word" })
+
+-- Buffer list
+map("n", "<leader>fb", function()
+  local buffers = vim.tbl_filter(function(buf)
+    return vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].buflisted
+  end, vim.api.nvim_list_bufs())
+
+  if #buffers == 0 then return print("No buffers") end
+
+  local items = vim.tbl_map(function(buf)
+    local name = vim.api.nvim_buf_get_name(buf)
+    local display = name ~= "" and vim.fn.fnamemodify(name, ":~:.") or "[No Name]"
+    local modified = vim.bo[buf].modified and " [+]" or ""
+    local current = buf == vim.api.nvim_get_current_buf() and " %" or ""
+    return { buf = buf, display = display .. modified .. current }
+  end, buffers)
+
+  vim.ui.select(items, {
+    prompt = "Buffer:",
+    format_item = function(item) return item.display end,
+  }, function(choice)
+    if choice then vim.api.nvim_set_current_buf(choice.buf) end
+  end)
+end, { desc = "List buffers" })
+
+-- Recent files (filtered)
 map("n", "<leader>fr", function()
-  vim.ui.select(vim.v.oldfiles, { prompt = "Recent:" }, function(choice)
+  local recent = vim.tbl_filter(function(file)
+    return vim.fn.filereadable(file) == 1
+  end, vim.v.oldfiles)
+
+  if #recent == 0 then return print("No recent files") end
+  recent = vim.list_slice(recent, 1, math.min(50, #recent))
+
+  vim.ui.select(recent, {
+    prompt = "Recent:",
+    format_item = function(item) return vim.fn.fnamemodify(item, ":~:.") end,
+  }, function(choice)
     if choice then vim.cmd("edit " .. vim.fn.fnameescape(choice)) end
   end)
-end, { desc = "Recent" })
+end, { desc = "Recent files" })
 
-map("n", "<leader>e", "<cmd>Lexplore<cr>", { desc = "Explorer" })
+-- File explorer
+map("n", "<leader>e", "<cmd>Lexplore<cr>", { desc = "Explorer sidebar" })
+
+-- Browse directory in new tab (like original)
 map("n", "-", function()
-  vim.cmd("tabe | Explore")
-  vim.cmd("nnoremap <buffer> <Esc> :bd!<CR>")
-  vim.cmd("nnoremap <buffer> q :bd!<CR>")
-end, { desc = "Explorer" })
+  local dir = vim.fn.expand("%:p:h")
+  if dir == "" then dir = vim.fn.getcwd() end
+
+  -- Open in new tab so bd works cleanly
+  vim.cmd("tabnew")
+  vim.cmd("Explore " .. vim.fn.fnameescape(dir))
+
+  -- Set buffer-local close mappings (after netrw loads)
+  vim.defer_fn(function()
+    vim.keymap.set("n", "<Esc>", "<cmd>tabclose<cr>", { buffer = true, silent = true })
+    vim.keymap.set("n", "q", "<cmd>tabclose<cr>", { buffer = true, silent = true })
+  end, 50)
+end, { desc = "Browse directory" })
+
+-- Auto-setup Lexplore sidebar with close mappings
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "netrw",
+  callback = function()
+    -- For Lexplore sidebar, just toggle it
+    vim.keymap.set("n", "<Esc>", "<cmd>Lexplore<cr>", { buffer = true, silent = true })
+    vim.keymap.set("n", "q", "<cmd>Lexplore<cr>", { buffer = true, silent = true })
+  end,
+})
+
+-- Enhanced file jump
+map("n", "gf", function()
+  local file = vim.fn.expand("<cfile>")
+  if vim.fn.filereadable(file) == 1 then
+    vim.cmd("edit " .. vim.fn.fnameescape(file))
+  else
+    local found = vim.fn.findfile(file)
+    if found ~= "" then
+      vim.cmd("edit " .. vim.fn.fnameescape(found))
+    else
+      print("File not found: " .. file)
+    end
+  end
+end, { desc = "Go to file" })
+
+-- Alternate file (switch between two files)
+map("n", "<leader><leader>", "<C-^>", { desc = "Alternate file" })
+
+-- Marks navigator
+map("n", "<leader>fm", function()
+  local marks = vim.fn.getmarklist()
+  local items = {}
+
+  for _, mark in ipairs(marks) do
+    if mark.mark:match("^'[a-zA-Z]$") then
+      local buf = vim.api.nvim_buf_is_loaded(mark.pos[1]) and mark.pos[1] or nil
+      if buf then
+        local file = vim.api.nvim_buf_get_name(buf)
+        local line = mark.pos[2]
+        table.insert(items, {
+          mark = mark.mark:sub(2),
+          display = mark.mark:sub(2) .. " → " ..
+                   (file ~= "" and vim.fn.fnamemodify(file, ":~:.") or "[No Name]") ..
+                   ":" .. line
+        })
+      end
+    end
+  end
+
+  if #items == 0 then return print("No marks") end
+
+  vim.ui.select(items, {
+    prompt = "Mark:",
+    format_item = function(item) return item.display end,
+  }, function(choice)
+    if choice then vim.cmd("normal! '" .. choice.mark) end
+  end)
+end, { desc = "List marks" })
 
 -- ============================================================================
 -- GIT
@@ -334,16 +535,13 @@ if vim.fn.executable("git") == 1 then
   vim.fn.sign_define("GitChange", { text = "~", texthl = "DiffChange" })
   vim.fn.sign_define("GitDelete", { text = "_", texthl = "DiffDelete" })
 
-  local function update_git_signs()
-    local bufnr = vim.api.nvim_get_current_buf()
-    local file = vim.api.nvim_buf_get_name(bufnr)
-    if file == "" or vim.bo.buftype ~= "" then return end
+  -- Cache for git-tracked status per buffer
+  local git_tracked = {}
+  local update_timers = {}
 
-    local tracked = vim.fn.system("git ls-files --error-unmatch " .. vim.fn.shellescape(file) .. " 2>/dev/null")
-    if vim.v.shell_error ~= 0 then return end
-
-    local diff = vim.fn.systemlist("git diff --no-color --no-ext-diff -U0 " .. vim.fn.shellescape(file) .. " 2>/dev/null")
-    if vim.v.shell_error ~= 0 then return end
+  -- Parse git diff output and place signs
+  local function place_signs_from_diff(bufnr, diff)
+    if not vim.api.nvim_buf_is_valid(bufnr) then return end
 
     vim.fn.sign_unplace("git_signs", { buffer = bufnr })
 
@@ -352,9 +550,8 @@ if vim.fn.executable("git") == 1 then
     while i <= #diff do
       local d = diff[i]
       if d:match("^@@") then
-        local old_start, old_count, new_start, new_count = d:match("@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
-        new_start = tonumber(new_start)
-        line = new_start
+        local new_start = d:match("@@%s*%-(%d+),?(%d*)%s*%+(%d+)")
+        line = tonumber(new_start)
 
         local has_del, has_add = false, false
         for j = i + 1, math.min(i + 30, #diff) do
@@ -385,8 +582,88 @@ if vim.fn.executable("git") == 1 then
     end
   end
 
+  local function update_git_signs()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local file = vim.api.nvim_buf_get_name(bufnr)
+    if file == "" or vim.bo.buftype ~= "" then return end
+
+    -- Check if file is git-tracked (async, with cache)
+    if git_tracked[bufnr] == nil then
+      vim.system(
+        { "git", "ls-files", "--error-unmatch", file },
+        { text = true },
+        vim.schedule_wrap(function(result)
+          if not vim.api.nvim_buf_is_valid(bufnr) then return end
+          git_tracked[bufnr] = result.code == 0
+
+          -- Set signcolumn based on git tracking
+          pcall(function()
+            if git_tracked[bufnr] then
+              vim.wo.signcolumn = "auto"
+            else
+              vim.wo.signcolumn = "no"
+            end
+          end)
+
+          -- If tracked, start diff
+          if git_tracked[bufnr] then
+            update_git_signs()
+          end
+        end)
+      )
+      return
+    end
+
+    if not git_tracked[bufnr] then return end
+
+    -- Run git diff async
+    vim.system(
+      { "git", "diff", "--no-color", "--no-ext-diff", "-U0", file },
+      { text = true },
+      vim.schedule_wrap(function(result)
+        if not vim.api.nvim_buf_is_valid(bufnr) or result.code ~= 0 then return end
+        local diff = vim.split(result.stdout, "\n", { trimempty = true })
+        place_signs_from_diff(bufnr, diff)
+      end)
+    )
+  end
+
+  -- Debounced update function
+  local function schedule_update()
+    local bufnr = vim.api.nvim_get_current_buf()
+    if not git_tracked[bufnr] then return end
+
+    -- Cancel pending timer
+    if update_timers[bufnr] then
+      update_timers[bufnr]:stop()
+    end
+
+    -- Schedule new update
+    update_timers[bufnr] = vim.defer_fn(function()
+      update_git_signs()
+      update_timers[bufnr] = nil
+    end, 500)
+  end
+
+  -- Update on file read and write
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
-    callback = function() vim.defer_fn(update_git_signs, 100) end,
+    callback = update_git_signs,
+  })
+
+  -- Update after typing stops (debounced)
+  vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
+    callback = schedule_update,
+  })
+
+  -- Clear cache and timers when buffer is deleted
+  vim.api.nvim_create_autocmd("BufDelete", {
+    callback = function(ev)
+      if update_timers[ev.buf] then
+        update_timers[ev.buf]:stop()
+        update_timers[ev.buf] = nil
+      end
+      git_tracked[ev.buf] = nil
+    end,
   })
 
   map("n", "<leader>gd", function()
@@ -625,13 +902,18 @@ map("n", "<leader>?", function()
     "  <leader>gp     Push",
     "  Signs: + (add), ~ (change), _ (delete)",
     "",
-    "FILES             (prefix: <leader>f)",
-    "  <leader>ff     Find file",
-    "  <leader>fd     Find by pattern",
-    "  <leader>fg     Grep",
+    "NAVIGATION        (prefix: <leader>f)",
+    "  <leader>ff     Find files (fuzzy)",
+    "  <leader>fp     Find by pattern (*.lua, *.py)",
+    "  <leader>fg     Search in files (grep)",
+    "  <leader>fw     Search word under cursor",
+    "  <leader>fb     Buffer list",
     "  <leader>fr     Recent files",
-    "  <leader>e      Explorer (sidebar)",
-    "  -              Explorer (fullscreen)",
+    "  <leader>fm     Marks list",
+    "  <leader><leader> Alternate file (last 2)",
+    "  <leader>e      Explorer sidebar",
+    "  -              Browse current directory",
+    "  gf             Go to file under cursor",
     "",
     "WINDOWS",
     "  <C-h/j/k/l>    Navigate windows",
@@ -642,7 +924,7 @@ map("n", "<leader>?", function()
     "  <Tab>          Next buffer",
     "  <S-Tab>        Prev buffer",
     "  <leader>bd     Delete buffer",
-    "  <leader>bh     Close hidden buffers",
+    "  <leader>bo     Close hidden buffers",
     "",
     "EDITING",
     "  gcc / <C-/>    Toggle comment (line)",
@@ -662,6 +944,14 @@ map("n", "<leader>?", function()
     "  <leader>qc     Close quickfix",
     "  [l / ]l        Prev/Next location",
     "  q (in qf)      Close quickfix window",
+    "",
+    "COMPLETION",
+    "  <Tab>          Smart completion (LSP → keyword fallback)",
+    "  <S-Tab>        Previous completion item",
+    "  <Enter>        Accept completion",
+    "  <C-n> / <C-p>  Keyword completion (built-in, always works)",
+    "  <C-x><C-f>     File path completion (built-in)",
+    "  <C-x><C-l>     Line completion (built-in)",
     "",
     "MISC",
     "  <leader>t      Terminal",
