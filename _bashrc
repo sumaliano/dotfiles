@@ -47,55 +47,86 @@ stty -ixon 2>/dev/null
 # ============================================================================
 
 _git_prompt() {
-    local branch
-    branch=$(git symbolic-ref --short HEAD 2>/dev/null || git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
-    [ -z "$branch" ] && return
+    # 1. PRE-FLIGHT: Quickly check if we are even in a Git repo.
+    # Searching for the .git folder is faster than running 'git status'.
+    [ ! -d .git ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1 && return
 
-    local status=""
-    local git_status
-    git_status=$(git status --porcelain 2>/dev/null)
+    local status_lines
+    # 2. OPTIMIZED CALL: --ignore-submodules=dirty is the #1 speed fix.
+    status_lines=$(git status --porcelain -b --ignore-submodules=dirty 2>/dev/null)
+    [ -z "$status_lines" ] && return
 
-    # Check for various states
-    [[ $git_status =~ ^\?\? ]] && status+="?"     # Untracked files
-    [[ $git_status =~ ^.M ]] && status+="*"        # Modified files
-    [[ $git_status =~ ^M ]] && status+="+"         # Staged files
+    local branch="" untracked=0 modified=0 staged=0 unmerged=0 ahead=0 behind=0
 
-    [ -n "$status" ] && branch="$branch $status"
-    echo "$branch"
+    while IFS= read -r line; do
+        case "${line:0:2}" in
+            "##")
+                # Cleanup '## branch...upstream [ahead X]'
+                branch="${line:3}"
+                branch="${branch%%...*}"
+                branch="${branch%% *}"
+
+                # Use regex ONLY for ahead/behind as it's complex to parse with case
+                [[ "$line" =~ ahead\ ([0-9]+) ]] && ahead="${BASH_REMATCH[1]}"
+                [[ "$line" =~ behind\ ([0-9]+) ]] && behind="${BASH_REMATCH[1]}"
+                ;;
+            "??") untracked=1 ;;
+            "U"?) unmerged=1  ;;
+            " M"|" D"|" T") modified=1 ;;
+            "M "|"A "|"D "|"R ") staged=1   ;;
+        esac
+    done <<< "$status_lines"
+
+    [ -z "$branch" ] && branch=$(git rev-parse --short HEAD 2>/dev/null)
+
+    # 3. COMPACT SYMBOLS: Using standard Git indicators
+    local bits=""
+    [ $unmerged -eq 1 ]  && bits+="!"
+    [ $staged -eq 1 ]    && bits+="+"
+    [ $modified -eq 1 ]  && bits+="*"
+    [ $untracked -eq 1 ] && bits+="?"
+    [ $ahead -gt 0 ]     && bits+="↑$ahead"
+    [ $behind -gt 0 ]    && bits+="↓$behind"
+
+    echo "${branch}${bits:+ $bits}"
 }
 
 _set_prompt() {
-    local last=$?
-    local reset='\[\e[0m\]'
-    local red='\[\e[31m\]'
-    local green='\[\e[32m\]'
-    local yellow='\[\e[33m\]'
-    local blue='\[\e[34m\]'
-    local cyan='\[\e[36m\]'
-    local magenta='\[\e[35m\]'
+    local last_exit=$?
+    local r='\[\e[0m\]'
+    local red='\[\e[31m\]'    local grn='\[\e[32m\]'
+    local yel='\[\e[33m\]'    local blu='\[\e[34m\]'
+    local cyn='\[\e[36m\]'    local mag='\[\e[35m\]'
 
-    # Color based on exit status
-    local status_color=$green
-    [ $last -ne 0 ] && status_color=$red
+    # 1. Exit status: Green if 0, Red if error
+    local color=$grn
+    [ $last_exit -ne 0 ] && color=$red
 
-    # Git branch with status
-    local branch="$(_git_prompt)"
+    # 2. Git
     local git_info=""
-    [ -n "$branch" ] && git_info=" ${yellow}($branch)${reset}"
+    local branch=$(_git_prompt)
+    [ -n "$branch" ] && git_info=" ${yel}($branch)${r}"
 
-    # Python virtualenv
+    # 3. Virtualenv
     local venv=""
-    [ -n "$VIRTUAL_ENV" ] && venv="${cyan}[$(basename $VIRTUAL_ENV)]${reset} "
+    [ -n "$VIRTUAL_ENV" ] && venv="${cyn}[${VIRTUAL_ENV##*/}]${r} "
 
-    # Background jobs indicator
+    # 4. Jobs
     local jobs_info=""
-    local job_count=$(jobs -p | wc -l)
-    [ "$job_count" -gt 0 ] && jobs_info="${magenta}[${job_count}]${reset} "
+    local j=($(jobs -p))
+    [ ${#j[@]} -gt 0 ] && jobs_info="${mag}[${#j[@]}]${r} "
 
-    PS1="${jobs_info}${venv}${status_color}\u@\h${reset}:${blue}\w${reset}${git_info}\$ "
+    # 5. Dynamic Window Title (Optional: puts user@host:dir in terminal tab)
+    local title="\[\e]0;\u@\h: \w\a\]"
+
+    # Construction: Using \w for full path, or \W for just the current folder
+    PS1="${title}${jobs_info}${venv}${color}\u@\h${r}:${blu}\w${r}${git_info}λ "
 }
 
-PROMPT_COMMAND="_set_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+# Proper PROMPT_COMMAND assignment
+if [[ ! "$PROMPT_COMMAND" =~ _set_prompt ]]; then
+  PROMPT_COMMAND="_set_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+fi
 
 # ============================================================================
 # ALIASES - Essential shortcuts
@@ -122,7 +153,6 @@ alias egrep='egrep --color=auto'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
-alias .....='cd ../../../..'
 alias -- -='cd -'
 alias ~='cd ~'
 
@@ -150,15 +180,18 @@ alias c='clear'
 
 # Git shortcuts (keep it minimal - use git aliases for complex ones)
 alias g='git'
-alias gs='git status -sb'
+alias gs='git status'
+alias gg='git status -sb'
 alias ga='git add'
 alias gaa='git add -A'
 alias gc='git commit'
 alias gcm='git commit -m'
 alias gca='git commit --amend'
+alias gfix='git commit --amend --no-edit'
 alias gd='git diff'
 alias gds='git diff --staged'
-alias gl='git log --oneline -15'
+#  alias gl='git log --oneline -15'
+alias gl='git log --oneline --graph --decorate --all'
 alias glo='git log --oneline --graph --all -20'
 alias gp='git push'
 alias gpl='git pull'
@@ -167,6 +200,9 @@ alias gcb='git checkout -b'
 alias gb='git branch'
 alias gst='git stash'
 alias gstp='git stash pop'
+alias gprune='git branch --merged | grep -v "^\*\\|main\\|master" | xargs git branch -d'
+alias grh='git reset HEAD'
+alias gundo='git reset --soft HEAD~1'
 
 # Docker shortcuts (if available)
 if command -v docker &>/dev/null; then
@@ -366,7 +402,7 @@ if command -v fzf &>/dev/null; then
     # Interactive history search
     fh() {
         local cmd
-        cmd=$(history | fzf --tac --no-sort | sed 's/^[ ]*[0-9]*[ ]*//')
+        cmd=$(history | fzf --tac --no-sort | awk '{$1=$2=$3=""; sub(/^[[:space:]]+/, ""); print}')
         [ -n "$cmd" ] && eval "$cmd"
     }
 
