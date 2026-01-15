@@ -42,6 +42,9 @@ shopt -s no_empty_cmd_completion 2>/dev/null   # Don't complete on empty line
 # Disable Ctrl-S/Ctrl-Q flow control (frees up for other bindings)
 stty -ixon 2>/dev/null
 
+# Disable Ctrl-D (EOF)
+set -o ignoreeof
+
 # ============================================================================
 # PROMPT - Git-aware, exit status, jobs indicator
 # ============================================================================
@@ -219,6 +222,7 @@ fi
 export EDITOR="${EDITOR:-vi}"
 command -v vim &>/dev/null && alias vi='vim' && export EDITOR='vim'
 command -v nvim &>/dev/null && alias vim='nvim' && alias nv='nvim' && export EDITOR='nvim'
+command -v nvim &>/dev/null && alias nvim='nvim -u ~/.config/nvim/init_plugins.lua'
 
 # Modern tools (auto-detect)
 command -v bat &>/dev/null && alias cat='bat --style=plain --paging=never' && alias less='bat'

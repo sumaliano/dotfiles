@@ -21,13 +21,16 @@ set mark-symlinked-directories on
 set match-hidden-files on
 
 # Smart completion - looks at text after cursor too
-set skip-completed-text on
+set skip-completed-text off
 
 # Display matches for ambiguous patterns at first tab press
 set show-all-if-ambiguous on
 
 # Show all completions on second tab if first tab didn't complete
-set show-all-if-unmodified on
+set show-all-if-unmodified off
+
+# Prevents cycling on the first Tab if the common prefix isn't typed yet
+set menu-complete-display-prefix on
 
 # Color files by type in completion (requires readline 7.0+)
 # Older systems will silently ignore these
