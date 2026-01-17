@@ -221,8 +221,8 @@ fi
 # Editor
 export EDITOR="${EDITOR:-vi}"
 command -v vim &>/dev/null && alias vi='vim' && export EDITOR='vim'
-command -v nvim &>/dev/null && alias vim='nvim' && alias nv='nvim' && export EDITOR='nvim'
-command -v nvim &>/dev/null && alias nvim='nvim -u ~/.config/nvim/init_plugins.lua'
+command -v nvim &>/dev/null && alias vim='nvim' && alias nvim='nvim' && export EDITOR='nvim'
+command -v nvim &>/dev/null && alias nv='nvim -u ~/.config/nvim/init_plugins.lua'
 
 # Modern tools (auto-detect)
 command -v bat &>/dev/null && alias cat='bat --style=plain --paging=never' && alias less='bat'

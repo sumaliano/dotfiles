@@ -35,7 +35,7 @@ pcall(vim.cmd, "colorscheme retrobox")
 local map = vim.keymap.set
 
 -- ============================================================================
--- LSP & DIAGNOSTICS
+-- LSP & DIAGNOSTICS (Neovim 0.11+ native)
 -- ============================================================================
 -- Install LSP servers:
 --   Python:  pip install pyright
@@ -46,47 +46,14 @@ local map = vim.keymap.set
 --
 -- Check status: <leader>li
 
-local lsp_servers = {
-  { name = "bashls", cmd = { "bash-language-server", "start" }, ft = { "sh", "bash", "zsh" }, root = { ".git" } },
-  { name = "pyright", cmd = { "pyright-langserver", "--stdio" }, ft = { "python" }, root = { "pyproject.toml", "setup.py", "requirements.txt", ".git" } },
-  { name = "jdtls", cmd = { "jdtls" }, ft = { "java" }, root = { "pom.xml", "build.gradle", ".git" } },
-  { name = "rust_analyzer", cmd = { "rust-analyzer" }, ft = { "rust" }, root = { "Cargo.toml", ".git" } },
-  { name = "clangd", cmd = { "clangd" }, ft = { "c", "cpp" }, root = { "compile_commands.json", ".git" } },
-}
+local lsp_servers = { "bashls", "pyright", "jdtls", "rust_analyzer", "clangd" }
 
-local available_servers = {}
-for _, server in ipairs(lsp_servers) do
-  if vim.fn.executable(server.cmd[1]) == 1 then
-    table.insert(available_servers, server)
-  end
-end
+-- Enable servers that are installed
+vim.lsp.enable(lsp_servers)
 
-for _, server in ipairs(available_servers) do
-  vim.api.nvim_create_autocmd("FileType", {
-    pattern = server.ft,
-    callback = function(args)
-      local clients = vim.lsp.get_clients({ bufnr = args.buf, name = server.name })
-      if #clients > 0 then return end
-
-      local root = vim.fs.dirname(vim.fs.find(server.root, { upward = true })[1])
-      if not root then root = vim.fn.getcwd() end
-
-      local ok = pcall(vim.lsp.start, {
-        name = server.name,
-        cmd = server.cmd,
-        root_dir = root,
-      })
-
-      if not ok then
-        vim.notify("Failed to start " .. server.name, vim.log.levels.WARN)
-      end
-    end,
-  })
-end
-
+-- LSP keymaps on attach
 vim.api.nvim_create_autocmd("LspAttach", {
   callback = function(ev)
-    -- Set omnifunc
     vim.bo[ev.buf].omnifunc = "v:lua.vim.lsp.omnifunc"
 
     local function m(mode, lhs, rhs, desc)
@@ -237,34 +204,7 @@ map("n", "<F2>", function()
 end, { desc = "Toggle auto-completion" })
 
 -- ============================================================================
--- EDITING
--- ============================================================================
-
-local function toggle_comment()
-  local cs = vim.bo.commentstring
-  if not cs or cs == "" then return end
-  local comment = cs:gsub("%%s", "")
-  local line1, line2 = vim.fn.line("."), vim.fn.line("v")
-  if line2 < line1 then line1, line2 = line2, line1 end
-
-  for lnum = line1, line2 do
-    local line = vim.fn.getline(lnum)
-    if line:match("^%s*" .. vim.pesc(comment)) then
-      line = line:gsub("^(%s*)" .. vim.pesc(comment) .. "%s?", "%1")
-    else
-      line = line:gsub("^(%s*)", "%1" .. comment .. " ")
-    end
-    vim.fn.setline(lnum, line)
-  end
-end
-
-map("n", "gcc", toggle_comment, { desc = "Comment line" })
-map("v", "gc", function() toggle_comment(); vim.cmd("normal! gv") end, { desc = "Comment" })
-map("n", "<C-_>", toggle_comment, { desc = "Comment line" })
-map("v", "<C-_>", function() toggle_comment(); vim.cmd("normal! gv") end, { desc = "Comment" })
-
--- ============================================================================
--- UTILITY FUNCTIONS
+-- UTILITIES
 -- ============================================================================
 
 local function strip_whitespace()
@@ -842,20 +782,17 @@ map("n", "<leader>li", function()
     table.insert(info, string.format("  - %s (id: %d)", client.name, client.id))
   end
   table.insert(info, "")
-  table.insert(info, "Available servers: " .. (#available_servers > 0 and table.concat(vim.tbl_map(function(s) return s.name end, available_servers), ", ") or "none"))
+  table.insert(info, "Configured: " .. table.concat(lsp_servers, ", "))
   table.insert(info, "Log: " .. vim.lsp.get_log_path())
 
   vim.notify(table.concat(info, "\n"), vim.log.levels.INFO)
 end, { desc = "LSP info" })
 
-map("n", "<leader>ec", function()
-  vim.cmd.edit(vim.fn.stdpath("config") .. "/init.lua")
-end, { desc = "Edit config" })
+map("n", "<leader>c", function()
+  vim.cmd.edit(vim.env.MYVIMRC)
+end, { desc = "Edit active config" })
 
 map("n", "<leader>?", function()
-  local lsp_status = #available_servers > 0 and
-    string.format("(%d/%d available)", #available_servers, #lsp_servers) or "(none installed)"
-
   local help = {
     "═══════════════════════════════════════════════════════════",
     "                    CUSTOM KEYMAPS",
@@ -863,13 +800,13 @@ map("n", "<leader>?", function()
     "",
     "GENERAL",
     "  <leader>w      Save",
-    "  <leader>q      Quit",
+    "  <leader>x      Quit",
     "  <leader>Q      Quit all",
     "  <Esc>          Clear search highlight",
     "  <leader>ec     Edit config",
     "  <leader>?      Show this help",
     "",
-    "LSP NAVIGATION    " .. lsp_status,
+    "LSP NAVIGATION",
     "  gd             Go to definition",
     "  gD             Go to declaration",
     "  gr             Go to references",
@@ -927,8 +864,7 @@ map("n", "<leader>?", function()
     "  <leader>bo     Close hidden buffers",
     "",
     "EDITING",
-    "  gcc / <C-/>    Toggle comment (line)",
-    "  gc             Toggle comment (visual)",
+    "  gcc / gc       Comment (native)",
     "  <leader>sw     Strip whitespace",
     "  <A-j/k>        Move line(s) down/up",
     "  < / >          Indent (visual, sticky)",
