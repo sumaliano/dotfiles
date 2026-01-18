@@ -93,47 +93,78 @@ require("lazy").setup({
   },
 
   ---------------------------------------------------------------------------
-  -- Completion (nvim-cmp)
+  -- Completion (blink.cmp) - fast, batteries-included
+  -- Default keymaps:
+  --   <C-space>    Show completion / toggle docs
+  --   <C-e>        Hide completion
+  --   <C-y>        Accept completion
+  --   <C-p>/<C-n>  Select prev/next (or <Up>/<Down>)
+  --   <C-b>/<C-f>  Scroll docs up/down
+  --   <Tab>/<S-Tab> Snippet jump forward/backward
+  --   <C-k>        Toggle signature help
+  -- Custom:
+  --   <F2>         Toggle auto-trigger (default: off)
   ---------------------------------------------------------------------------
   {
-    "hrsh7th/nvim-cmp",
+    "saghen/blink.cmp",
+    version = "1.*",
     event = "InsertEnter",
-    dependencies = {
-      "hrsh7th/cmp-nvim-lsp",
-      "hrsh7th/cmp-buffer",
-      "hrsh7th/cmp-path",
-      "hrsh7th/cmp-cmdline",
-    },
-    config = function()
-      local cmp = require("cmp")
-      cmp.setup({
-        mapping = cmp.mapping.preset.insert({
-          ["<C-b>"] = cmp.mapping.scroll_docs(-4),
-          ["<C-f>"] = cmp.mapping.scroll_docs(4),
-          ["<C-Space>"] = cmp.mapping.complete(),
-          ["<C-e>"] = cmp.mapping.abort(),
-          ["<CR>"] = cmp.mapping.confirm({ select = false }),
-          ["<Tab>"] = cmp.mapping.select_next_item(),
-          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
-        }),
-        sources = cmp.config.sources(
-          { { name = "nvim_lsp" }, { name = "path" } },
-          { { name = "buffer", keyword_length = 3 } }
-        ),
-      })
-      cmp.setup.cmdline("/", {
-        mapping = cmp.mapping.preset.cmdline(),
-        sources = { { name = "buffer" } },
-      })
-      cmp.setup.cmdline(":", {
-        mapping = cmp.mapping.preset.cmdline(),
-        sources = cmp.config.sources({ { name = "path" } }, { { name = "cmdline" } }),
-      })
+    opts = function()
+      -- Auto-trigger state (default: disabled, toggle with F2)
+      vim.g.blink_cmp_auto_trigger = false
+
+      vim.keymap.set("n", "<F2>", function()
+        vim.g.blink_cmp_auto_trigger = not vim.g.blink_cmp_auto_trigger
+        print("Completion auto-trigger: " .. (vim.g.blink_cmp_auto_trigger and "ON" or "OFF"))
+      end, { desc = "Toggle completion auto-trigger" })
+
+      return {
+        -- Explicitly using defaults for documentation
+        keymap = {
+          preset = "default",
+          ["<C-space>"] = { "show", "show_documentation", "hide_documentation" },
+          ["<C-e>"] = { "hide", "fallback" },
+          ["<C-y>"] = { "select_and_accept", "fallback" },
+          ["<Up>"] = { "select_prev", "fallback" },
+          ["<Down>"] = { "select_next", "fallback" },
+          ["<C-p>"] = { "select_prev", "fallback_to_mappings" },
+          ["<C-n>"] = { "select_next", "fallback_to_mappings" },
+          ["<C-b>"] = { "scroll_documentation_up", "fallback" },
+          ["<C-f>"] = { "scroll_documentation_down", "fallback" },
+          ["<Tab>"] = { "snippet_forward", "fallback" },
+          ["<S-Tab>"] = { "snippet_backward", "fallback" },
+          ["<C-k>"] = { "show_signature", "hide_signature", "fallback" },
+        },
+        completion = {
+          documentation = { auto_show = true },
+          trigger = {
+            show_on_keyword = function()
+              return vim.g.blink_cmp_auto_trigger
+            end,
+            show_on_trigger_character = function()
+              return vim.g.blink_cmp_auto_trigger
+            end,
+          },
+        },
+        sources = {
+          default = { "lsp", "path", "buffer" },
+        },
+      }
     end,
   },
 
   ---------------------------------------------------------------------------
-  -- Telescope – replaces custom fd/find/grep pickers
+  -- Telescope – fuzzy finder
+  -- Default keymaps (in picker):
+  --   <C-n>/<C-p>    Select next/prev item (or <Down>/<Up>)
+  --   <CR>           Confirm selection
+  --   <C-x>          Open in horizontal split
+  --   <C-v>          Open in vertical split
+  --   <C-t>          Open in new tab
+  --   <C-u>/<C-d>    Scroll preview up/down
+  --   <C-/>          Show mappings help (insert mode)
+  --   ?              Show mappings help (normal mode)
+  --   <Esc>/<C-c>    Close picker
   ---------------------------------------------------------------------------
   {
     "nvim-telescope/telescope.nvim",
@@ -148,18 +179,6 @@ require("lazy").setup({
       { "<leader>fm", "<cmd>Telescope marks<cr>", desc = "Marks list" },
       { "<leader>fs", "<cmd>Telescope lsp_document_symbols<cr>", desc = "Symbols" },
     },
-    opts = {
-      defaults = {
-        prompt_prefix = "   ",
-        selection_caret = " ",
-        mappings = {
-          i = {
-            ["<C-j>"] = "move_selection_next",
-            ["<C-k>"] = "move_selection_previous",
-          },
-        },
-      },
-    },
   },
 
   -- Git Commands
@@ -171,6 +190,50 @@ require("lazy").setup({
       { "<leader>gc", "<cmd>Git commit<cr>", desc = "Git commit" },
       { "<leader>gp", "<cmd>Git push<cr>", desc = "Git push" },
       { "<leader>gl", "<cmd>Git log<cr>", desc = "Git log" },
+    },
+  },
+
+  -- Git Signs (gutter indicators)
+  {
+    "lewis6991/gitsigns.nvim",
+    event = { "BufReadPost", "BufNewFile" },
+    opts = {
+      signs = {
+        add = { text = "+" },
+        change = { text = "~" },
+        delete = { text = "_" },
+        topdelete = { text = "‾" },
+        changedelete = { text = "~" },
+      },
+      on_attach = function(bufnr)
+        local gs = package.loaded.gitsigns
+        local function m(mode, lhs, rhs, desc)
+          vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, desc = desc })
+        end
+        -- Navigation
+        m("n", "]c", function()
+          if vim.wo.diff then return "]c" end
+          vim.schedule(function() gs.next_hunk() end)
+          return "<Ignore>"
+        end, "Next hunk")
+        m("n", "[c", function()
+          if vim.wo.diff then return "[c" end
+          vim.schedule(function() gs.prev_hunk() end)
+          return "<Ignore>"
+        end, "Prev hunk")
+        -- Actions (matching init_minimal.lua)
+        m("n", "<leader>ga", gs.stage_hunk, "Stage hunk")
+        m("n", "<leader>gA", gs.stage_buffer, "Stage buffer")
+        m("n", "<leader>gu", gs.undo_stage_hunk, "Undo stage hunk")
+        m("n", "<leader>gr", gs.reset_hunk, "Reset hunk")
+        m("n", "<leader>gR", gs.reset_buffer, "Reset buffer")
+        m("n", "<leader>gp", gs.preview_hunk, "Preview hunk")
+        m("n", "<leader>gb", function() gs.blame_line({ full = true }) end, "Blame line")
+        m("n", "<leader>gB", gs.toggle_current_line_blame, "Toggle line blame")
+        -- Visual mode
+        m("v", "<leader>ga", function() gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end, "Stage selection")
+        m("v", "<leader>gr", function() gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") }) end, "Reset selection")
+      end,
     },
   },
 
@@ -247,7 +310,7 @@ require("lazy").setup({
   },
 
   ---------------------------------------------------------------------------
-  -- File explorer – replaces Lexplore/netrw workflow
+  -- File explorer (nvim-tree)
   ---------------------------------------------------------------------------
   {
     "nvim-tree/nvim-tree.lua",
@@ -262,9 +325,16 @@ require("lazy").setup({
       filters = { dotfiles = false },
       on_attach = function(bufnr)
         local api = require("nvim-tree.api")
+        -- Apply all default mappings first
         api.config.mappings.default_on_attach(bufnr)
+        -- Default mappings include: (explicitly listed for documentation)
+        -- <CR>/o = open, <C-v> = vsplit, <C-x> = split, <C-t> = tabnew
+        -- <Tab> = preview, R = refresh, a = create, d = delete, r = rename
+        -- x = cut, c = copy, p = paste, y = copy_name, Y = copy_path
+        -- gy = copy_absolute_path, H = toggle_dotfiles, I = toggle_git_ignored
+        -- q = close, ? = toggle_help
+        -- Additional close mapping
         vim.keymap.set("n", "<Esc>", api.tree.close, { buffer = bufnr, desc = "Close" })
-        vim.keymap.set("n", "q", api.tree.close, { buffer = bufnr, desc = "Close" })
       end,
     },
   },
@@ -313,9 +383,9 @@ require("lazy").setup({
 -- Add Mason bin to PATH so vim.lsp.enable() can find servers
 vim.env.PATH = vim.fn.stdpath("data") .. "/mason/bin:" .. vim.env.PATH
 
--- Default config for all servers (cmp capabilities)
+-- Default config for all servers (blink.cmp capabilities)
 vim.lsp.config("*", {
-  capabilities = require("cmp_nvim_lsp").default_capabilities(),
+  capabilities = require("blink.cmp").get_lsp_capabilities(),
 })
 
 -- Server-specific settings
@@ -346,7 +416,7 @@ vim.diagnostic.config({
   float = { border = "rounded", source = true },
 })
 
--- LSP keymaps on attach
+-- LSP keymaps on attach (using Neovim 0.11+ default keys)
 vim.api.nvim_create_autocmd("LspAttach", {
   callback = function(ev)
     local m = function(mode, lhs, rhs, desc)
@@ -354,15 +424,14 @@ vim.api.nvim_create_autocmd("LspAttach", {
     end
     m("n", "gd", vim.lsp.buf.definition, "Definition")
     m("n", "gD", vim.lsp.buf.declaration, "Declaration")
-    m("n", "gr", vim.lsp.buf.references, "References")
-    m("n", "gi", vim.lsp.buf.implementation, "Implementation")
-    m("n", "gy", vim.lsp.buf.type_definition, "Type definition")
+    m("n", "grr", vim.lsp.buf.references, "References")
+    m("n", "gri", vim.lsp.buf.implementation, "Implementation")
+    m("n", "gry", vim.lsp.buf.type_definition, "Type definition")
     m("n", "K", vim.lsp.buf.hover, "Hover")
-    m("n", "<C-s>", vim.lsp.buf.signature_help, "Signature help")
+    m("n", "grn", vim.lsp.buf.rename, "Rename")
+    m("n", "gra", vim.lsp.buf.code_action, "Code action")
     m("i", "<C-s>", vim.lsp.buf.signature_help, "Signature help")
-    m("n", "<leader>rn", vim.lsp.buf.rename, "Rename")
-    m("n", "<leader>ca", vim.lsp.buf.code_action, "Code action")
-    m("n", "<leader>f", function() vim.lsp.buf.format({ async = true }) end, "Format")
+    m("n", "grf", function() vim.lsp.buf.format({ async = true }) end, "Format")
   end,
 })
 
@@ -429,12 +498,13 @@ map("n", "<leader>w", "<cmd>w<cr>", { desc = "Save" })
 map("n", "<leader>x", "<cmd>q<cr>", { desc = "Quit" })
 map("n", "<leader>Q", "<cmd>qa<cr>", { desc = "Quit all" })
 
--- Diagnostics
+-- Diagnostics (using defaults)
+map("n", "<C-W>d", vim.diagnostic.open_float, { desc = "Show diagnostic" })
 map("n", "[d", vim.diagnostic.goto_prev, { desc = "Prev diagnostic" })
 map("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
 map("n", "[e", function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end, { desc = "Prev error" })
 map("n", "]e", function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end, { desc = "Next error" })
-map("n", "<leader>d", vim.diagnostic.open_float, { desc = "Show diagnostic" })
+-- map("n", "<leader>d", vim.diagnostic.open_float, { desc = "Show diagnostic" })
 
 -- Windows
 map("n", "<C-h>", "<C-w>h", { desc = "Left" })
@@ -448,6 +518,7 @@ map("n", "<leader>|", "<cmd>vsplit<cr>", { desc = "Split vertical" })
 map("n", "<Tab>", "<cmd>bnext<cr>", { desc = "Next buffer" })
 map("n", "<S-Tab>", "<cmd>bprevious<cr>", { desc = "Prev buffer" })
 map("n", "<leader>bd", "<cmd>bdelete<cr>", { desc = "Delete buffer" })
+map("n", "<leader>bl", "<cmd>buffers<cr>", { desc = "List buffers" })
 
 -- Terminal
 map("n", "<leader>t", "<cmd>terminal<cr>", { desc = "Terminal" })
@@ -492,28 +563,13 @@ end, { nargs = "?", desc = "Set tab width" })
 vim.api.nvim_create_user_command("CloseHiddenBuffers", close_hidden_buffers, { desc = "Close hidden buffers" })
 vim.api.nvim_create_user_command("ToggleNumber", toggle_number, { desc = "Cycle number modes" })
 
--- Config (plugin init)
+-- Edit this config file
 map("n", "<leader>c", function()
   vim.cmd.edit(vim.fn.stdpath("config") .. "/init_plugins.lua")
 end, { desc = "Edit config" })
 
 -- Alternate file
 map("n", "<leader><leader>", "<C-^>", { desc = "Alternate file" })
-
--- Go to file under cursor (as in minimal)
-map("n", "gf", function()
-  local file = vim.fn.expand("<cfile>")
-  if vim.fn.filereadable(file) == 1 then
-    vim.cmd("edit " .. vim.fn.fnameescape(file))
-  else
-    local found = vim.fn.findfile(file)
-    if found ~= "" then
-      vim.cmd("edit " .. vim.fn.fnameescape(found))
-    else
-      print("File not found: " .. file)
-    end
-  end
-end, { desc = "Go to file" })
 
 -- Run current file (same semantics as minimal)
 map("n", "<leader>r", function()
@@ -569,30 +625,51 @@ map("n", "<leader>?", function()
     "  <leader>c      Edit config",
     "  <leader>?      Show this help",
     "",
-    "LSP",
-    "  gd/gD/gr/gi/gy  Definition/decl/references/etc",
+    "LSP (gr prefix for actions)",
+    "  gd / gD        Definition / Declaration",
+    "  grr            References",
+    "  gri            Implementation",
+    "  gry            Type definition",
     "  K              Hover",
-    "  <C-s>          Signature help",
-    "  <leader>rn     Rename",
-    "  <leader>ca     Code action",
-    "  <leader>f      Format",
+    "  grn            Rename",
+    "  gra            Code action",
+    "  grf            Format",
+    "  <C-s>          Signature help (insert)",
     "  <leader>li     LSP info",
     "",
     "DIAGNOSTICS",
-    "  <leader>d      Show diagnostic float",
     "  [d / ]d        Prev/Next diagnostic",
-    "  [e / ]e        Prev/Next error",
+    "  <C-W>d         Show diagnostic float",
     "",
-    "NAVIGATION (telescope / nvim-tree)",
+    "GIT               (gitsigns + native)",
+    "  [c / ]c        Prev/Next hunk",
+    "  <leader>ga     Stage hunk (visual: selection)",
+    "  <leader>gA     Stage buffer",
+    "  <leader>gu     Undo stage hunk",
+    "  <leader>gr     Reset hunk (visual: selection)",
+    "  <leader>gR     Reset buffer",
+    "  <leader>gp     Preview hunk",
+    "  <leader>gb     Blame line",
+    "  <leader>gB     Toggle line blame",
+    "  <leader>gd     Diff file (side-by-side)",
+    "  <leader>gD     Diff all (full diff)",
+    "  <leader>gs     Git status (fugitive)",
+    "  <leader>gc     Git commit",
+    "  <leader>gl     Git log",
+    "  Signs: + (add), ~ (change), _ (delete)",
+    "",
+    "TELESCOPE (<C-n>/<C-p> select, <C-u>/<C-d> scroll)",
     "  <leader>ff     Find files",
     "  <leader>fg     Search in files",
     "  <leader>fb     Buffers",
     "  <leader>fr     Recent files",
     "  <leader>fm     Marks list",
     "  <leader>fs     LSP symbols",
-    "  <leader>E / -  Explorer sidebar (nvim-tree)",
+    "",
+    "NAVIGATION",
+    "  <leader>e / -  Explorer (nvim-tree)",
     "  <leader><leader> Alternate file",
-    "  gf             Go to file under cursor",
+    "  gf             Go to file (default)",
     "",
     "EDITING",
     "  <leader>sw     Strip whitespace",
@@ -606,6 +683,7 @@ map("n", "<leader>?", function()
     "BUFFERS & WINDOWS",
     "  <Tab>/<S-Tab>  Next/Prev buffer",
     "  <leader>bd     Delete buffer",
+    "  <leader>bl     List buffer",
     "  <C-h/j/k/l>    Window navigation",
     "  <leader>-/|    Split windows",
     "",
@@ -615,10 +693,20 @@ map("n", "<leader>?", function()
     "  <leader>qc     Close quickfix",
     "  [l / ]l        Prev/Next location",
     "",
+    "COMPLETION (blink.cmp defaults)",
+    "  <C-space>      Show / toggle docs",
+    "  <C-y>          Accept",
+    "  <C-e>          Hide",
+    "  <C-n>/<C-p>    Select next/prev",
+    "  <C-b>/<C-f>    Scroll docs",
+    "  <Tab>/<S-Tab>  Snippet jump",
+    "  <C-k>          Signature help",
+    "",
     "MISC",
     "  <leader>t      Terminal",
     "  <Esc><Esc>     Exit terminal mode",
     "  <leader>r      Run file",
+    "  <F2>           Toggle completion auto-trigger",
     "  <F3>           Cycle number modes",
     "",
     "═══════════════════════════════════════════════════════════",
