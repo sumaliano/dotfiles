@@ -1,5 +1,5 @@
 -- Minimal Neovim Config - Plugin-Free & Portable
--- Python, Bash, Rust, Java, C/C++ | LSP, Git, Completion, Navigation
+-- Purist native (Neovim 0.11+) | LSP, Git, Completion, Navigation
 
 -- ============================================================================
 -- SETTINGS
@@ -26,8 +26,20 @@ opt.completeopt, opt.pumheight = "menu,menuone,noselect", 10
 opt.shortmess:append("c")
 opt.hidden, opt.autoread = true, true
 opt.diffopt:append("vertical")
+opt.diffopt:append("linematch:60")
+opt.diffopt:append("algorithm:histogram")
 opt.list, opt.listchars = true, { tab = "│ ", trail = "·", extends = "→", precedes = "←", nbsp = "␣" }
 opt.fillchars = { eob = " ", fold = " ", foldopen = "v", foldsep = " ", foldclose = ">" }
+
+-- Make grep usable out of the box (offline, no external plugins)
+-- Prefer ripgrep if available, otherwise fallback to grep.
+if vim.fn.executable("rg") == 1 then
+  vim.o.grepprg = "rg --vimgrep --no-heading --smart-case"
+  vim.o.grepformat = "%f:%l:%c:%m"
+end
+
+-- More predictable completion menu behavior
+opt.complete:append({ "." })
 
 vim.o.statusline = " %f %m%r%h%w %= %y %{&ff} %l:%c %p%% "
 pcall(vim.cmd, "colorscheme retrobox")
@@ -468,6 +480,8 @@ if vim.fn.executable("git") == 1 then
   local update_timers = {}
   local inline_blame_enabled = {}
   local inline_blame_ns = vim.api.nvim_create_namespace("git_inline_blame")
+  local inline_diff_enabled = {}
+  local inline_diff_ns = vim.api.nvim_create_namespace("git_inline_diff")
 
   -- Parse git diff output into hunks and place signs
   local function parse_diff_and_place_signs(bufnr, diff_output)
@@ -561,6 +575,37 @@ if vim.fn.executable("git") == 1 then
     end
   end
 
+  -- Render inline diff hunks as virtual lines above their start
+  local function render_inline_diff(bufnr)
+    vim.api.nvim_buf_clear_namespace(bufnr, inline_diff_ns, 0, -1)
+    if not inline_diff_enabled[bufnr] then return end
+    local hunks = git_hunks[bufnr] or {}
+    for _, h in ipairs(hunks) do
+      local virt = {}
+      for _, dl in ipairs(h.diff_lines) do
+        if not dl:match("^@@") then
+          local hl
+          if dl:match("^%+") and not dl:match("^%+%+%+") then
+            hl = "DiffAdd"
+          elseif dl:match("^%-") and not dl:match("^%-%-%-") then
+            hl = "DiffDelete"
+          else
+            hl = "DiffText"
+          end
+          table.insert(virt, { { dl, hl } })
+        end
+      end
+      if #virt > 0 then
+        local line = math.max(h.start_line - 1, 0)
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, inline_diff_ns, line, 0, {
+          virt_lines = virt,
+          virt_lines_above = true,
+          hl_mode = "combine",
+        })
+      end
+    end
+  end
+
   local function update_git_signs()
     local bufnr = vim.api.nvim_get_current_buf()
     local file = vim.api.nvim_buf_get_name(bufnr)
@@ -603,25 +648,34 @@ if vim.fn.executable("git") == 1 then
         if not vim.api.nvim_buf_is_valid(bufnr) or result.code ~= 0 then return end
         local diff = vim.split(result.stdout, "\n", { trimempty = true })
         parse_diff_and_place_signs(bufnr, diff)
+        if inline_diff_enabled[bufnr] then
+          render_inline_diff(bufnr)
+        end
       end)
     )
   end
 
-  -- Debounced update function
+  -- Debounced update using libuv timers (vim.defer_fn returns no timer handle)
   local function schedule_update()
     local bufnr = vim.api.nvim_get_current_buf()
     if not git_tracked[bufnr] then return end
 
-    -- Cancel pending timer
-    if update_timers[bufnr] then
-      update_timers[bufnr]:stop()
+    local t = update_timers[bufnr]
+    if t then
+      pcall(t.stop, t)
+      pcall(t.close, t)
     end
 
-    -- Schedule new update
-    update_timers[bufnr] = vim.defer_fn(function()
+    t = vim.uv.new_timer()
+    update_timers[bufnr] = t
+    t:start(500, 0, vim.schedule_wrap(function()
+      if update_timers[bufnr] == t then
+        update_timers[bufnr] = nil
+      end
+      pcall(t.stop, t)
+      pcall(t.close, t)
       update_git_signs()
-      update_timers[bufnr] = nil
-    end, 500)
+    end))
   end
 
   -- Update on file read and write
@@ -637,13 +691,16 @@ if vim.fn.executable("git") == 1 then
   -- Clear cache and timers when buffer is deleted
   vim.api.nvim_create_autocmd("BufDelete", {
     callback = function(ev)
-      if update_timers[ev.buf] then
-        update_timers[ev.buf]:stop()
+      local t = update_timers[ev.buf]
+      if t then
+        pcall(t.stop, t)
+        pcall(t.close, t)
         update_timers[ev.buf] = nil
       end
       git_tracked[ev.buf] = nil
       git_hunks[ev.buf] = nil
       inline_blame_enabled[ev.buf] = nil
+      inline_diff_enabled[ev.buf] = nil
     end,
   })
 
@@ -922,6 +979,7 @@ if vim.fn.executable("git") == 1 then
   end
 
   -- Inline blame toggle
+  -- Inline blame (fast): blame only the current line, not the whole file.
   local function update_inline_blame(bufnr)
     if not inline_blame_enabled[bufnr] then
       vim.api.nvim_buf_clear_namespace(bufnr, inline_blame_ns, 0, -1)
@@ -931,8 +989,10 @@ if vim.fn.executable("git") == 1 then
     local file = vim.api.nvim_buf_get_name(bufnr)
     if file == "" then return end
 
+    local line = vim.api.nvim_win_get_cursor(0)[1]
+
     vim.system(
-      { "git", "blame", "--line-porcelain", file },
+      { "git", "blame", "--porcelain", "-L", string.format("%d,%d", line, line), file },
       { text = true },
       vim.schedule_wrap(function(result)
         if not vim.api.nvim_buf_is_valid(bufnr) or result.code ~= 0 then return end
@@ -940,34 +1000,32 @@ if vim.fn.executable("git") == 1 then
 
         vim.api.nvim_buf_clear_namespace(bufnr, inline_blame_ns, 0, -1)
 
-        local lines = vim.split(result.stdout, "\n")
-        local current_line = 0
+        local commit = ""
         local author = ""
         local time = ""
-        local commit = ""
 
-        for _, line in ipairs(lines) do
-          if line:match("^%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x") then
-            commit = line:sub(1, 8)
-            current_line = tonumber(line:match("%x+ %d+ (%d+)")) or 0
-          elseif line:match("^author ") then
-            author = line:sub(8)
-          elseif line:match("^author%-time ") then
-            local ts = tonumber(line:sub(13))
-            if ts then
-              time = os.date("%Y-%m-%d", ts)
-            end
-          elseif line:match("^\t") and current_line > 0 then
-            local blame_text = string.format("  %s %s %s", commit, author, time)
-            if commit:match("^0+$") then
-              blame_text = "  Not committed yet"
-            end
-            pcall(vim.api.nvim_buf_set_extmark, bufnr, inline_blame_ns, current_line - 1, 0, {
-              virt_text = { { blame_text, "Comment" } },
-              virt_text_pos = "eol",
-            })
+        for l in result.stdout:gmatch("[^\n]+") do
+          if commit == "" then
+            commit = (l:match("^(%x+)") or ""):sub(1, 8)
+          elseif l:match("^author ") then
+            author = l:sub(8)
+          elseif l:match("^author%-time ") then
+            local ts = tonumber(l:sub(13))
+            if ts then time = os.date("%Y-%m-%d", ts) end
           end
         end
+
+        local blame_text
+        if commit:match("^0+$") then
+          blame_text = "  Not committed yet"
+        else
+          blame_text = string.format("  %s %s %s", commit ~= "" and commit or "????????", author, time)
+        end
+
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, inline_blame_ns, line - 1, 0, {
+          virt_text = { { blame_text, "Comment" } },
+          virt_text_pos = "eol",
+        })
       end)
     )
   end
@@ -985,6 +1043,29 @@ if vim.fn.executable("git") == 1 then
     end
   end
 
+  -- Inline diff toggle (virt_lines)
+  local function toggle_inline_diff()
+    local bufnr = vim.api.nvim_get_current_buf()
+    inline_diff_enabled[bufnr] = not inline_diff_enabled[bufnr]
+    if inline_diff_enabled[bufnr] then
+      print("Inline diff: ON")
+      render_inline_diff(bufnr)
+    else
+      print("Inline diff: OFF")
+      vim.api.nvim_buf_clear_namespace(bufnr, inline_diff_ns, 0, -1)
+    end
+  end
+
+  -- Refresh blame as you move (still cheap because it is per-line)
+  vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
+    callback = function()
+      local b = vim.api.nvim_get_current_buf()
+      if inline_blame_enabled[b] then
+        update_inline_blame(b)
+      end
+    end,
+  })
+
   -- Hunk navigation (respects diff mode)
   map("n", "]c", function()
     if vim.wo.diff then return "]c" end
@@ -998,14 +1079,29 @@ if vim.fn.executable("git") == 1 then
     return "<Ignore>"
   end, { expr = true, desc = "Prev hunk" })
 
-  map("n", "<leader>gd", function()
-    local file = vim.fn.expand("%")
-    if file == "" then return print("No file") end
+  -- Git/diff helpers (standardized under <leader>g)
+  local function buf_file_path()
+    local p = vim.api.nvim_buf_get_name(0)
+    return p ~= "" and p or nil
+  end
 
-    local rel_path = vim.fn.systemlist("git ls-files --full-name " .. vim.fn.shellescape(vim.fn.expand("%:p")))[1]
-    if vim.v.shell_error ~= 0 or not rel_path then return print("File not tracked") end
+  local function git_tracked_relpath(abs)
+    local rel = vim.fn.systemlist("git ls-files --full-name " .. vim.fn.shellescape(abs))[1]
+    if vim.v.shell_error ~= 0 or not rel or rel == "" then
+      return nil
+    end
+    return rel
+  end
 
-    local content = vim.fn.systemlist("git show HEAD:" .. rel_path)
+  -- Diff current buffer vs HEAD, side-by-side using built-in diff mode.
+  local function git_diff_file()
+    local abs = buf_file_path()
+    if not abs then return print("No file") end
+
+    local rel = git_tracked_relpath(abs)
+    if not rel then return print("File not tracked") end
+
+    local content = vim.fn.systemlist("git show HEAD:" .. rel)
     if vim.v.shell_error ~= 0 then return print("No HEAD version") end
 
     local ft = vim.bo.filetype
@@ -1015,7 +1111,7 @@ if vim.fn.executable("git") == 1 then
     vim.bo.buftype = "nofile"
     vim.bo.bufhidden = "wipe"
     vim.bo.swapfile = false
-    vim.api.nvim_buf_set_name(0, "HEAD:" .. vim.fn.fnamemodify(file, ":t"))
+    vim.api.nvim_buf_set_name(0, "HEAD:" .. vim.fn.fnamemodify(abs, ":t"))
     vim.api.nvim_buf_set_lines(0, 0, -1, false, content)
     vim.bo.modifiable = false
     vim.bo.filetype = ft
@@ -1025,10 +1121,11 @@ if vim.fn.executable("git") == 1 then
     vim.cmd("diffthis")
     vim.fn.setpos(".", pos)
 
-    print("Diff mode: ]c/[c navigate, :diffoff to exit")
-  end, { desc = "Diff file" })
+    print("Diff mode: ]c/[c hunks, :diffoff to exit")
+  end
 
-  map("n", "<leader>gD", function()
+  -- Show full repo diff in a scratch tab.
+  local function git_diff_repo()
     local diff = vim.fn.systemlist("git diff HEAD")
     if #diff == 0 then return print("No changes") end
 
@@ -1040,13 +1137,14 @@ if vim.fn.executable("git") == 1 then
     vim.bo.filetype = "diff"
     vim.bo.modifiable = false
     vim.keymap.set("n", "q", "<cmd>bd<cr>", { buffer = true })
-  end, { desc = "Diff all" })
+  end
 
-  map("n", "<leader>gb", function()
-    local file = vim.fn.expand("%:p")
-    if file == "" then return end
+  -- Blame view (sidebar), plus lightweight inline blame toggle.
+  local function git_blame_sidebar()
+    local abs = buf_file_path()
+    if not abs then return end
 
-    local blame = vim.fn.systemlist("git blame --date=short " .. vim.fn.shellescape(file))
+    local blame = vim.fn.systemlist("git blame --date=short " .. vim.fn.shellescape(abs))
     if vim.v.shell_error ~= 0 then return print("Blame failed") end
 
     local line = vim.fn.line(".")
@@ -1054,7 +1152,7 @@ if vim.fn.executable("git") == 1 then
     vim.cmd("leftabove 40vnew")
     vim.bo.buftype = "nofile"
     vim.bo.bufhidden = "wipe"
-    vim.api.nvim_buf_set_name(0, "blame")
+    vim.api.nvim_buf_set_name(0, "git blame")
     vim.api.nvim_buf_set_lines(0, 0, -1, false, blame)
     vim.bo.modifiable = false
     vim.wo.wrap = false
@@ -1065,11 +1163,11 @@ if vim.fn.executable("git") == 1 then
     vim.cmd("wincmd p")
     vim.wo.scrollbind = true
     vim.cmd("normal! " .. line .. "G")
-  end, { desc = "Blame" })
+  end
 
-  map("n", "<leader>gl", function()
-    local file = vim.fn.expand("%:p")
-    local cmd = file ~= "" and ("git log --oneline -20 -- " .. vim.fn.shellescape(file)) or "git log --oneline -20"
+  local function git_log()
+    local abs = buf_file_path()
+    local cmd = abs and ("git log --oneline -20 -- " .. vim.fn.shellescape(abs)) or "git log --oneline -20"
     local log = vim.fn.systemlist(cmd)
     if #log == 0 then return print("No history") end
 
@@ -1080,14 +1178,50 @@ if vim.fn.executable("git") == 1 then
     vim.api.nvim_buf_set_lines(0, 0, -1, false, log)
     vim.bo.modifiable = false
     vim.keymap.set("n", "q", "<cmd>bd<cr>", { buffer = true })
-  end, { desc = "Log" })
+  end
 
-  -- Hunk actions
-  map("n", "<leader>ga", stage_hunk, { desc = "Stage hunk" })
-  map("v", "<leader>ga", function()
+  -- Standardized mappings: <leader>g{...}
+  -- Hunks (navigation is [c/]c)
+  map("n", "<leader>gs", "<cmd>!git status<cr>", { desc = "Git status" })
+  map("n", "<leader>gC", "<cmd>terminal git commit<cr>", { desc = "Git commit" })
+  map("n", "<leader>gP", "<cmd>!git push<cr>", { desc = "Git push" })
+  map("n", "<leader>gl", git_log, { desc = "Git log" })
+
+  map("n", "<leader>gd", git_diff_file, { desc = "Git diff file (vs HEAD)" })
+  map("n", "<leader>gD", git_diff_repo, { desc = "Git diff repo (vs HEAD)" })
+
+  map("n", "<leader>gb", git_blame_sidebar, { desc = "Git blame (sidebar)" })
+  map("n", "<leader>gB", toggle_inline_blame, { desc = "Git inline blame (current line)" })
+
+  map("n", "<leader>hs", stage_hunk, { desc = "Git stage hunk" })
+  map("v", "<leader>hs", function()
     vim.cmd("normal! ")
     stage_visual_selection()
-  end, { desc = "Stage selection" })
+  end, { desc = "Git stage selection" })
+
+  map("n", "<leader>hu", undo_stage_hunk, { desc = "Git undo stage hunk" })
+
+  map("n", "<leader>hr", reset_hunk, { desc = "Git reset hunk" })
+  map("v", "<leader>hr", function()
+    vim.cmd("normal! ")
+    reset_visual_selection()
+  end, { desc = "Git reset selection" })
+
+  map("n", "<leader>hp", preview_hunk, { desc = "Git preview hunk" })
+  map("n", "<leader>hI", toggle_inline_diff, { desc = "Git inline diff (virt-lines)" })
+
+  -- Stage buffer / all
+  map("n", "<leader>ga", function()
+    local abs = buf_file_path()
+    if not abs then return print("No file") end
+    vim.fn.system("git add " .. vim.fn.shellescape(abs))
+    if vim.v.shell_error == 0 then
+      print("Staged buffer")
+      update_git_signs()
+    else
+      print("Failed to stage buffer")
+    end
+  end, { desc = "Git stage buffer" })
 
   map("n", "<leader>gA", function()
     vim.fn.system("git add -A")
@@ -1097,46 +1231,32 @@ if vim.fn.executable("git") == 1 then
     else
       print("Failed to stage changes")
     end
-  end, { desc = "Stage all" })
+  end, { desc = "Git stage all" })
 
-  map("n", "<leader>gu", undo_stage_hunk, { desc = "Undo stage hunk" })
-
-  map("n", "<leader>gU", function()
-    local file = vim.fn.expand("%:p")
-    if file == "" then return print("No file") end
-    vim.fn.system("git reset HEAD " .. vim.fn.shellescape(file))
+  -- Unstage buffer
+  map("n", "<leader>gu", function()
+    local abs = buf_file_path()
+    if not abs then return print("No file") end
+    vim.fn.system("git reset HEAD " .. vim.fn.shellescape(abs))
     if vim.v.shell_error == 0 then
       print("Unstaged buffer")
       update_git_signs()
     else
       print("Failed to unstage buffer")
     end
-  end, { desc = "Unstage buffer" })
-
-  map("n", "<leader>gr", reset_hunk, { desc = "Reset hunk" })
-  map("v", "<leader>gr", function()
-    vim.cmd("normal! ")
-    reset_visual_selection()
-  end, { desc = "Reset selection" })
+  end, { desc = "Git unstage buffer" })
 
   map("n", "<leader>gR", function()
-    local file = vim.fn.expand("%:p")
-    if file == "" then return print("No file") end
-    vim.fn.system("git checkout -- " .. vim.fn.shellescape(file))
+    local abs = buf_file_path()
+    if not abs then return print("No file") end
+    vim.fn.system("git checkout -- " .. vim.fn.shellescape(abs))
     if vim.v.shell_error == 0 then
       print("Reset buffer")
       vim.cmd("edit")
     else
       print("Failed to reset buffer")
     end
-  end, { desc = "Reset buffer" })
-
-  map("n", "<leader>gp", preview_hunk, { desc = "Preview hunk" })
-  map("n", "<leader>gB", toggle_inline_blame, { desc = "Toggle inline blame" })
-
-  map("n", "<leader>gs", "<cmd>!git status<cr>", { desc = "Status" })
-  map("n", "<leader>gc", "<cmd>terminal git commit<cr>", { desc = "Commit" })
-  map("n", "<leader>gP", "<cmd>!git push<cr>", { desc = "Push" })
+  end, { desc = "Git reset buffer" })
 end
 
 -- ============================================================================
@@ -1236,22 +1356,30 @@ map("n", "<leader>?", function()
     "  [d / ]d        Prev/Next diagnostic",
     "  <C-W>d         Show diagnostic float",
     "",
-    "GIT               (prefix: <leader>g)",
+    "GIT / DIFF        (prefix: <leader>g)",
     "  [c / ]c        Prev/Next hunk",
-    "  <leader>ga     Stage hunk (visual: selection)",
+    "  <leader>ga     Stage buffer",
     "  <leader>gA     Stage all",
-    "  <leader>gu     Undo stage hunk",
-    "  <leader>gr     Reset hunk (visual: selection)",
+    "  <leader>gu     Unstage buffer",
     "  <leader>gR     Reset buffer",
-    "  <leader>gp     Preview hunk",
-    "  <leader>gd     Diff file (side-by-side)",
-    "  <leader>gD     Diff all (full diff)",
     "  <leader>gb     Blame (sidebar)",
-    "  <leader>gB     Toggle inline blame",
+    "  <leader>gB     Inline blame (current line)",
     "  <leader>gl     Log (file or repo)",
     "  <leader>gs     Status",
-    "  <leader>gc     Commit",
+    "  <leader>gC     Commit",
     "  <leader>gP     Push",
+    "",
+    "HUNKS             (prefix: <leader>h)",
+    "  <leader>hs    Stage hunk (visual: selection)",
+    "  <leader>hu    Undo stage hunk",
+    "  <leader>hr    Reset hunk (visual: selection)",
+    "  <leader>hp    Preview hunk",
+    "  <leader>hI    Inline diff (virt-lines)",
+    "",
+    "DIFF",
+    "  <leader>gd     Diff file (vs HEAD)",
+    "  <leader>gD     Diff repo (vs HEAD)",
+    "",
     "  Signs: + (add), ~ (change), _ (delete)",
     "",
     "NAVIGATION        (prefix: <leader>f)",
@@ -1397,17 +1525,16 @@ vim.api.nvim_create_autocmd("TermClose", {
   callback = function() vim.cmd("bdelete!") end,
 })
 
+-- NOTE: keep minimal config self-contained; avoid heavy module reload loops.
+-- Only reload when this file is written.
 local crg = vim.api.nvim_create_augroup("configReload", { clear = true })
 vim.api.nvim_create_autocmd("BufWritePost", {
   group = crg,
-  pattern = vim.env.MYVIMRC,
-  callback = function()
-    for k in pairs(package.loaded) do
-      if k:match("^user") then package.loaded[k] = nil end
-    end
-    if pcall(vim.cmd, "source $MYVIMRC") then
-      vim.notify("Config reloaded!", vim.log.levels.INFO)
-    end
+  pattern = "init_minimal.lua",
+  callback = function(ev)
+    if ev.file == "" then return end
+    pcall(vim.cmd, "source " .. vim.fn.fnameescape(ev.file))
+    vim.notify("init_minimal.lua reloaded", vim.log.levels.INFO)
   end,
 })
 

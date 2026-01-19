@@ -115,6 +115,20 @@ require("lazy").setup({
 
       vim.keymap.set("n", "<F2>", function()
         vim.g.blink_cmp_auto_trigger = not vim.g.blink_cmp_auto_trigger
+
+        -- Update blink.cmp trigger booleans and apply.
+        local ok, blink = pcall(require, "blink.cmp")
+        if ok and blink and type(blink.setup) == "function" then
+          blink.setup({
+            completion = {
+              trigger = {
+                show_on_keyword = vim.g.blink_cmp_auto_trigger,
+                show_on_trigger_character = vim.g.blink_cmp_auto_trigger,
+              },
+            },
+          })
+        end
+
         print("Completion auto-trigger: " .. (vim.g.blink_cmp_auto_trigger and "ON" or "OFF"))
       end, { desc = "Toggle completion auto-trigger" })
 
@@ -138,12 +152,10 @@ require("lazy").setup({
         completion = {
           documentation = { auto_show = true },
           trigger = {
-            show_on_keyword = function()
-              return vim.g.blink_cmp_auto_trigger
-            end,
-            show_on_trigger_character = function()
-              return vim.g.blink_cmp_auto_trigger
-            end,
+            -- blink.cmp expects booleans here (validated); we keep the toggle by
+            -- reloading blink.cmp config when F2 is pressed.
+            show_on_keyword = false,
+            show_on_trigger_character = false,
           },
         },
         sources = {
@@ -212,27 +224,53 @@ require("lazy").setup({
         end
         -- Navigation
         m("n", "]c", function()
-          if vim.wo.diff then return "]c" end
-          vim.schedule(function() gs.next_hunk() end)
-          return "<Ignore>"
+          if vim.wo.diff then
+            vim.cmd.normal({ "]c", bang = true })
+          else
+            gs.nav_hunk("next")
+          end
         end, "Next hunk")
+
         m("n", "[c", function()
-          if vim.wo.diff then return "[c" end
-          vim.schedule(function() gs.prev_hunk() end)
-          return "<Ignore>"
+          if vim.wo.diff then
+            vim.cmd.normal({ "[c", bang = true })
+          else
+            gs.nav_hunk("prev")
+          end
         end, "Prev hunk")
-        -- Actions (matching init_minimal.lua)
-        m("n", "<leader>ga", gs.stage_hunk, "Stage hunk")
-        m("n", "<leader>gA", gs.stage_buffer, "Stage buffer")
-        m("n", "<leader>gu", gs.undo_stage_hunk, "Undo stage hunk")
-        m("n", "<leader>gr", gs.reset_hunk, "Reset hunk")
-        m("n", "<leader>gR", gs.reset_buffer, "Reset buffer")
-        m("n", "<leader>gp", gs.preview_hunk, "Preview hunk")
-        m("n", "<leader>gb", function() gs.blame_line({ full = true }) end, "Blame line")
-        m("n", "<leader>gB", gs.toggle_current_line_blame, "Toggle line blame")
-        -- Visual mode
-        m("v", "<leader>ga", function() gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") }) end, "Stage selection")
-        m("v", "<leader>gr", function() gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") }) end, "Reset selection")
+
+        -- Actions
+        m("n", "<leader>hs", gs.stage_hunk, "Stage hunk")
+        m("n", "<leader>hr", gs.reset_hunk, "Reset hunk")
+        m("n", "<leader>hu", gs.undo_stage_hunk, "Undo stage hunk")
+        m("v", "<leader>hs", function()
+          gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") })
+        end, "Stage hunk")
+        m("v", "<leader>hr", function()
+          gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") })
+        end, "Reset hunk")
+        m("n", "<leader>hS", gs.stage_buffer, "Stage buffer")
+        m("n", "<leader>hR", gs.reset_buffer, "Reset buffer")
+        m("n", "<leader>hp", gs.preview_hunk, "Preview hunk")
+        m("n", "<leader>hi", gs.preview_hunk_inline, "Preview hunk inline")
+        m("n", "<leader>hb", function()
+          gs.blame_line({ full = true })
+        end, "Blame line")
+        m("n", "<leader>hd", gs.diffthis, "Diff this")
+        m("n", "<leader>hD", function()
+          gs.diffthis("~")
+        end, "Diff this (~)")
+        m("n", "<leader>hQ", function()
+          gs.setqflist("all")
+        end, "Quickfix (all hunks)")
+        m("n", "<leader>hq", gs.setqflist, "Quickfix (buffer hunks)")
+
+        -- Toggles
+        m("n", "<leader>tb", gs.toggle_current_line_blame, "Toggle line blame")
+        m("n", "<leader>tw", gs.toggle_word_diff, "Toggle word diff")
+
+        -- Text object
+        m({ "o", "x" }, "ih", gs.select_hunk, "Select hunk")
       end,
     },
   },
@@ -643,16 +681,16 @@ map("n", "<leader>?", function()
     "",
     "GIT               (gitsigns + native)",
     "  [c / ]c        Prev/Next hunk",
-    "  <leader>ga     Stage hunk (visual: selection)",
-    "  <leader>gA     Stage buffer",
-    "  <leader>gu     Undo stage hunk",
-    "  <leader>gr     Reset hunk (visual: selection)",
-    "  <leader>gR     Reset buffer",
-    "  <leader>gp     Preview hunk",
-    "  <leader>gb     Blame line",
-    "  <leader>gB     Toggle line blame",
-    "  <leader>gd     Diff file (side-by-side)",
-    "  <leader>gD     Diff all (full diff)",
+    "  <leader>hs     Stage hunk (visual: selection)",
+    "  <leader>hu     Undo stage hunk",
+    "  <leader>hr     Reset hunk (visual: selection)",
+    "  <leader>hS     Stage buffer",
+    "  <leader>hR     Reset buffer",
+    "  <leader>hp     Preview hunk",
+    "  <leader>hb     Blame line",
+    "  <leader>hB     Toggle line blame",
+    "  <leader>hd     Diff hunk",
+    "  <leader>hD     Diff file",
     "  <leader>gs     Git status (fugitive)",
     "  <leader>gc     Git commit",
     "  <leader>gl     Git log",
