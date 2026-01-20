@@ -343,19 +343,73 @@ if vim.fn.executable("git") == 1 then
   end)
 
   -- Git commands
+  local function diff_buf(lines)
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    vim.bo.buftype, vim.bo.bufhidden, vim.bo.modifiable = "nofile", "wipe", false
+    vim.cmd("diffthis")
+    map("n", "q", "<cmd>tabclose<cr>", { buffer = true })
+  end
+
+  local function resolve_conflict(buf, ours)
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local cur = vim.api.nvim_win_get_cursor(0)[1]
+    local s, m, e, f
+    for i = cur, 1, -1 do if lines[i]:match("^<<<<<<<") then s = i; break end end
+    if not s then return print("Not in conflict") end
+    for i = s, #lines do
+      if lines[i]:match("^|||||||") then m = i
+      elseif lines[i]:match("^=======") then e = i
+      elseif lines[i]:match("^>>>>>>>") then f = i; break end
+    end
+    if not e or not f then return print("Malformed conflict") end
+    local result = {}
+    local a, b = ours and s + 1 or e + 1, ours and (m or e) - 1 or f - 1
+    for i = a, b do table.insert(result, lines[i]) end
+    vim.api.nvim_buf_set_lines(buf, s - 1, f, false, result)
+  end
+
   map("n", "<leader>gd", function()
     local rel = git_rel()
     if not rel then return print("Not tracked") end
 
+    -- Check for merge conflict
+    local ours = vim.fn.systemlist("git show :2:" .. rel .. " 2>/dev/null")
+    local theirs = vim.fn.systemlist("git show :3:" .. rel .. " 2>/dev/null")
+
+    if #ours > 0 and #theirs > 0 then
+      local file = vim.api.nvim_buf_get_name(0)
+      vim.cmd("tabnew " .. vim.fn.fnameescape(file))
+      local work_buf = vim.api.nvim_get_current_buf()
+      local center = vim.api.nvim_get_current_win()
+
+      vim.cmd("leftabove vnew")
+      diff_buf(ours)
+      local ours_buf = vim.api.nvim_get_current_buf()
+
+      vim.api.nvim_set_current_win(center)
+      vim.cmd("rightbelow vnew")
+      diff_buf(theirs)
+      local theirs_buf = vim.api.nvim_get_current_buf()
+
+      vim.api.nvim_set_current_win(center)
+      vim.cmd("diffthis")
+
+      -- gh/gl = diffget hunk, gH/gL = resolve conflict block
+      map("n", "gh", "<cmd>diffget " .. ours_buf .. "<cr>", { buffer = work_buf })
+      map("n", "gl", "<cmd>diffget " .. theirs_buf .. "<cr>", { buffer = work_buf })
+      map("n", "gH", function() resolve_conflict(work_buf, true) end, { buffer = work_buf })
+      map("n", "gL", function() resolve_conflict(work_buf, false) end, { buffer = work_buf })
+      map("n", "q", "<cmd>tabclose<cr>", { buffer = work_buf })
+      return print("Merge: OURS | WORKING | THEIRS (gh/gl=hunk gH/gL=block | ]c/[c nav | q=quit)")
+    end
+
+    -- Normal diff against HEAD
     local head = vim.fn.systemlist("git show HEAD:" .. rel)
     if #head == 0 then return print("No HEAD") end
 
     vim.cmd("vnew")
-    vim.api.nvim_buf_set_lines(0, 0, -1, false, head)
-    vim.bo.buftype = "nofile"
-    vim.bo.bufhidden = "wipe"
-    vim.bo.modifiable = false
-    vim.cmd("diffthis | wincmd p | diffthis")
+    diff_buf(head)
+    vim.cmd("wincmd p | diffthis")
   end)
 
   map("n", "<leader>gD", function()
@@ -512,7 +566,7 @@ vim.api.nvim_create_autocmd("TermClose", {
 map("n", "<leader>?", function()
   print([[
 CUSTOM: w/q/Q save/quit | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win | c config
-GIT:    gd diff(split) gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset | gb/gl blame/log
+GIT:    gd diff/merge gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset | gb/gl blame/log
 HUNK:   hp preview | hs stage | hr reset | hi inline | MISC: r run | sw strip | st tab | F2 auto-cmp
 NATIVE: gd/gD/grr/gri/K/grn/gra LSP | [d/]d [e/]e diag | ]c/[c diff | gc comment | <C-L> clear | ZZ quit]])
 end)
