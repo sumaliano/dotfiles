@@ -31,13 +31,71 @@ o.list = true
 o.listchars = { tab = "| ", trail = ".", nbsp = "+" }
 o.mouse = ""
 o.showmode = false
-o.diffopt:append({ "vertical", "linematch:60", "algorithm:histogram" })
+o.laststatus = 2
+o.diffopt:append({ "vertical", "linematch:60", "algorithm:histogram", "indent-heuristic", "internal" })
+-- o.diffopt:append({ "vertical", "linematch:60", "algorithm:histogram" })
 
 if vim.fn.executable("rg") == 1 then
   vim.o.grepprg = "rg --vimgrep --smart-case"
 end
 
 pcall(vim.cmd, "colorscheme retrobox")
+
+-- Statusline
+local cached_branch = ""
+local function update_branch()
+  cached_branch = vim.fn.system("git branch --show-current 2>/dev/null"):gsub("\n", "")
+end
+
+local function statusline()
+  local mode_map = {
+    n = "N", i = "I", v = "V", V = "VL", ["\22"] = "VB",
+    c = "C", R = "R", t = "T"
+  }
+
+  local parts = {}
+
+  -- Mode
+  local mode = mode_map[vim.fn.mode()] or vim.fn.mode()
+  table.insert(parts, " " .. mode .. " ")
+
+  -- Git branch
+  if cached_branch ~= "" then
+    table.insert(parts, " " .. cached_branch)
+  end
+
+  -- File path
+  local file = vim.fn.expand("%:~:.")
+  if file == "" then file = "[No Name]" end
+  table.insert(parts, " " .. file)
+
+  -- Modified flag
+  if vim.bo.modified then
+    table.insert(parts, " [+]")
+  elseif not vim.bo.modifiable then
+    table.insert(parts, " [-]")
+  end
+
+  -- Right side
+  table.insert(parts, "%=")
+
+  -- LSP status
+  if #vim.lsp.get_clients({ bufnr = 0 }) > 0 then
+    table.insert(parts, "LSP ")
+  end
+
+  -- Position
+  table.insert(parts, "%l:%c %p%% ")
+
+  return table.concat(parts, "")
+end
+
+vim.api.nvim_create_autocmd({ "BufEnter", "DirChanged" }, {
+  callback = update_branch
+})
+
+_G.statusline_fn = statusline
+vim.o.statusline = "%!v:lua.statusline_fn()"
 
 -- LSP (native: gd gD grr gri gO K grn gra)
 vim.lsp.enable({ "bashls", "pyright", "clangd", "rust_analyzer", "jdtls" })
@@ -187,10 +245,14 @@ if vim.fn.executable("git") == 1 then
     vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
     vim.bo.buftype = "nofile"
     vim.bo.bufhidden = "wipe"
-    vim.bo.modifiable = false
     vim.b.is_scratch = true
     if ft then vim.bo.filetype = ft end
-    if diff_mode then vim.cmd("diffthis") end
+    if diff_mode then
+      vim.cmd("diffthis")
+      vim.bo.modifiable = false
+    else
+      vim.bo.modifiable = false
+    end
     map("n", "q", close_scratch, { buffer = true })
   end
 
@@ -199,16 +261,20 @@ if vim.fn.executable("git") == 1 then
     make_scratch(lines, ft, false)
   end
 
-  -- Signs
-  vim.fn.sign_define("GitAdd", { text = "+", texthl = "DiffAdd" })
-  vim.fn.sign_define("GitChange", { text = "~", texthl = "DiffChange" })
-  vim.fn.sign_define("GitDelete", { text = "_", texthl = "DiffDelete" })
+  -- Signs (defined in git section, highlights set above)
+  vim.fn.sign_define("GitAdd", { text = "▎", texthl = "GitSignAdd", linehl = "", numhl = "GitSignAdd" })
+  vim.fn.sign_define("GitChange", { text = "▎", texthl = "GitSignChange", linehl = "", numhl = "GitSignChange" })
+  vim.fn.sign_define("GitDelete", { text = "▁", texthl = "GitSignDelete", linehl = "", numhl = "GitSignDelete" })
+  -- vim.fn.sign_define("GitAdd", { text = "+", texthl = "DiffAdd" })
+  -- vim.fn.sign_define("GitChange", { text = "~", texthl = "DiffChange" })
+  -- vim.fn.sign_define("GitDelete", { text = "_", texthl = "DiffDelete" })
 
   local function update_signs(buf)
-    if vim.bo[buf].buftype ~= "" or vim.api.nvim_buf_get_name(buf) == "" then return end
+    local name = vim.api.nvim_buf_get_name(buf)
+    if vim.bo[buf].buftype ~= "" or name == "" or not vim.fn.filereadable(name) then return end
     vim.fn.sign_unplace("git", { buffer = buf })
 
-    local diff = vim.fn.systemlist({ "git", "diff", "-U0", "--", vim.api.nvim_buf_get_name(buf) })
+    local diff = vim.fn.systemlist({ "git", "diff", "-U0", "--", name })
     for _, line in ipairs(diff) do
       local os, oc, ns, nc = line:match("^@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
       if ns then
@@ -363,8 +429,8 @@ if vim.fn.executable("git") == 1 then
     print("No more hunks")
   end
 
-  map("n", "]h", next_hunk)
-  map("n", "[h", prev_hunk)
+  map("n", "]c", next_hunk)
+  map("n", "[c", prev_hunk)
 
   -- Inline diff
   local ns = vim.api.nvim_create_namespace("inline_diff")
@@ -380,6 +446,10 @@ if vim.fn.executable("git") == 1 then
     end
 
     local diff = vim.fn.systemlist("git diff -U0 -- " .. git_file())
+    if vim.v.shell_error ~= 0 then
+      return print("No git diff")
+    end
+
     local i = 1
     while i <= #diff do
       local _, new_start = diff[i]:match("^@@.-%-(%d+),?%d*%s*%+(%d+),?%d*.-@@")
@@ -388,7 +458,8 @@ if vim.fn.executable("git") == 1 then
         i = i + 1
         while i <= #diff and not diff[i]:match("^@@") do
           if diff[i]:match("^%-") and not diff[i]:match("^%-%-%-") then
-            table.insert(deleted, { { diff[i], "DiffDelete" } })
+            local line = diff[i]:sub(2)
+            table.insert(deleted, { { "  " .. line, "DiffDeletedLine" } })
           end
           i = i + 1
         end
@@ -402,6 +473,7 @@ if vim.fn.executable("git") == 1 then
         i = i + 1
       end
     end
+
     print("Inline diff: ON")
   end)
 
@@ -449,11 +521,13 @@ if vim.fn.executable("git") == 1 then
 
       vim.cmd("leftabove vnew")
       make_scratch(ours, nil, true)
+      vim.wo.foldcolumn = "0"
       local ours_buf = vim.api.nvim_get_current_buf()
 
       vim.api.nvim_set_current_win(center)
       vim.cmd("rightbelow vnew")
       make_scratch(theirs, nil, true)
+      vim.wo.foldcolumn = "0"
       local theirs_buf = vim.api.nvim_get_current_buf()
 
       vim.api.nvim_set_current_win(center)
@@ -473,6 +547,7 @@ if vim.fn.executable("git") == 1 then
     local work_buf = vim.api.nvim_get_current_buf()
     vim.cmd("vnew")
     make_scratch(head, nil, true)
+    vim.wo.foldcolumn = "0"
     vim.cmd("wincmd p | diffthis")
     map("n", "q", function()
       close_scratch()
@@ -513,7 +588,41 @@ if vim.fn.executable("git") == 1 then
   end)
 
   map("n", "<leader>gl", function()
-    scratch(vim.fn.systemlist("git log --oneline -30 -- " .. git_file()), nil)
+    local rel = git_rel()
+    if not rel then return print("Not tracked") end
+
+    local log = vim.fn.systemlist("git log --oneline -100 -- " .. git_file())
+    if #log == 0 then return print("No history") end
+
+    -- Populate quickfix with commits
+    local qf = {}
+    for _, line in ipairs(log) do
+      local hash = line:match("^(%w+)")
+      if hash then
+        table.insert(qf, { text = line, user_data = hash })
+      end
+    end
+    vim.fn.setqflist(qf, "r")
+    vim.fn.setqflist({}, "a", { title = "Git Log: " .. rel })
+    vim.cmd("copen")
+
+    -- Map Enter to show commit diff
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = "qf",
+      once = true,
+      callback = function()
+        map("n", "<CR>", function()
+          local idx = vim.fn.line(".")
+          local item = vim.fn.getqflist()[idx]
+          if item and item.user_data then
+            local diff = vim.fn.systemlist("git show " .. item.user_data .. " -- " .. git_file())
+            if #diff > 0 then
+              scratch(diff, "git")
+            end
+          end
+        end, { buffer = true })
+      end,
+    })
   end)
 
   map("n", "<leader>gL", function()
@@ -550,8 +659,14 @@ map("v", "<leader>r", function()
   vim.fn.feedkeys(string.rep("\b", #selection + 3), "n")
 end)
 
--- Quickfix shortcuts
+-- Quickfix toggle
 map("n", "Q", function()
+  for _, win in ipairs(vim.fn.getwininfo()) do
+    if win.quickfix == 1 then
+      vim.cmd("cclose")
+      return
+    end
+  end
   if vim.fn.empty(vim.fn.getqflist()) == 1 then
     print("Quickfix empty")
   else
@@ -669,10 +784,11 @@ vim.api.nvim_create_autocmd("FileType", {
 -- Help
 map("n", "<leader>?", function()
   print([[
-CUSTOM:   w/q/Q save/quit | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win | c config
-          <leader>s replace word/selection | Q open quickfix | q close (in qf)
-GIT:      gd diff/merge gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset | gb/gl/gL blame/log
+CUSTOM:   w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win
+          <leader>r replace word/selection | c config | F2 auto-cmp | F3 numbers
+GIT:      gd diff/merge gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset
+          gb blame | gl log(qf+Enter=diff) | gL global-log
 HUNK:     hp preview | hs stage | hr reset | hi inline | ]h/[h next/prev hunk
-CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: r run | sw strip | st tab | F2 auto-cmp | F3 numbers
+CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: r run | sw strip | st tab
 NATIVE:   gd/gD/grr/gri/K/grn/gra LSP | [d/]d [e/]e diag | ]c/[c diff | gc comment | <C-L> clear | ZZ quit]])
 end)
