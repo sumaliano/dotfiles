@@ -535,6 +535,30 @@ map("n", "<leader>w", "<cmd>w<cr>")
 map("n", "<leader>q", "<cmd>q<cr>")
 map("n", "<leader>Q", "<cmd>qa<cr>")
 
+-- Replace word under cursor or visual selection
+map("n", "<leader>r", function()
+  local word = vim.fn.expand("<cword>")
+  vim.fn.feedkeys(":%s/\\<" .. word .. "\\>/" .. word .. "/gc", "n")
+  vim.fn.feedkeys(string.rep("\b", #word + 3), "n")
+end)
+
+map("v", "<leader>r", function()
+  vim.cmd('normal! "zy')
+  local selection = vim.fn.getreg("z")
+  local escaped = vim.fn.escape(selection, "\\/")
+  vim.fn.feedkeys(":%s/\\V" .. escaped .. "/" .. selection .. "/gc", "n")
+  vim.fn.feedkeys(string.rep("\b", #selection + 3), "n")
+end)
+
+-- Quickfix shortcuts
+map("n", "Q", function()
+  if vim.fn.empty(vim.fn.getqflist()) == 1 then
+    print("Quickfix empty")
+  else
+    vim.cmd("copen")
+  end
+end)
+
 map("n", "<C-h>", "<C-w>h")
 map("n", "<C-j>", "<C-w>j")
 map("n", "<C-k>", "<C-w>k")
@@ -635,11 +659,19 @@ vim.api.nvim_create_autocmd("TermClose", {
   callback = function() vim.cmd("bd!") end,
 })
 
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "qf",
+  callback = function()
+    map("n", "q", "<cmd>cclose<cr>", { buffer = true })
+  end,
+})
+
 -- Help
 map("n", "<leader>?", function()
   print([[
 CUSTOM:   w/q/Q save/quit | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win | c config
-GIT:      gd diff/merge gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset | gb/gl blame/log
+          <leader>s replace word/selection | Q open quickfix | q close (in qf)
+GIT:      gd diff/merge gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset | gb/gl/gL blame/log
 HUNK:     hp preview | hs stage | hr reset | hi inline | ]h/[h next/prev hunk
 CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: r run | sw strip | st tab | F2 auto-cmp | F3 numbers
 NATIVE:   gd/gD/grr/gri/K/grn/gra LSP | [d/]d [e/]e diag | ]c/[c diff | gc comment | <C-L> clear | ZZ quit]])
