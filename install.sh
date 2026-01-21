@@ -157,11 +157,14 @@ install_vim() {
     # Create directories for undo/backup/swap
     run mkdir -p ~/.vim/{undo,backup,swap}
 
+    run ln -s "$DOTFILES_DIR/_config/nvim/colors" ~/.vim/colors
+
     success "Vim configured"
 }
 
 uninstall_vim() {
     info "Removing vim config..."
+    [[ -L ~/.vim/colors ]] && run rm -f ~/.vim/colors
     [[ -L ~/.vimrc ]] && run rm -f ~/.vimrc
     [[ -L ~/.vim ]] && run rm -f ~/.vim
     success "Vim config removed"
@@ -179,6 +182,7 @@ install_neovim() {
 
     if [[ -d "$DOTFILES_DIR/_config/nvim" ]]; then
         backup_and_link "$DOTFILES_DIR/_config/nvim" "$config_dir/nvim"
+        run ln -sf "$config_dir/nvim/init_minimal.lua" "$config_dir/nvim/init.lua"
         success "Neovim configured"
     else
         warning "Neovim config not found, skipping"
@@ -188,6 +192,7 @@ install_neovim() {
 uninstall_neovim() {
     info "Removing neovim config..."
     local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+    [[ -L "$config_dir/nvim/init.lua" ]] && run rm -f "$config_dir/nvim/init.lua"
     [[ -L "$config_dir/nvim" ]] && run rm -f "$config_dir/nvim"
     success "Neovim config removed"
 }
