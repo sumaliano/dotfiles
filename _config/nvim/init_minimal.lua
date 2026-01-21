@@ -236,9 +236,9 @@ if vim.fn.executable("git") == 1 then
     end
   end
 
-  vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
+  vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave" }, {
     callback = function(ev)
-      vim.defer_fn(function() update_signs(ev.buf) end, 100)
+      update_signs(ev.buf)
     end,
   })
 
