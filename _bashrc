@@ -193,9 +193,8 @@ alias gca='git commit --amend'
 alias gfix='git commit --amend --no-edit'
 alias gd='git diff'
 alias gds='git diff --staged'
-#  alias gl='git log --oneline -15'
-alias gl='git log --oneline --graph --decorate --all'
-alias glo='git log --oneline --graph --all -20'
+alias gl="git log --graph --color --all -20 --pretty=format:'%C(auto)%h%C(reset) %C(white)-%C(reset) %C(italic blue)%ad%C(reset) %C(italic cyan)(%ar)%C(reset)%C(auto)%d%C(reset)%n %C(white)⤷%C(reset) %s %C(241)- %aN <%aE>%C(reset)%n%w(0,7,7)%+(trailers:only,unfold)'"
+alias gll='git log --oneline --graph --decorate --all -20'
 alias gp='git push'
 alias gpl='git pull'
 alias gco='git checkout'
@@ -342,11 +341,6 @@ jump() {
 }
 
 marks() { ls -l "$MARKPATH" 2>/dev/null | sed 's/  / /g' | cut -d' ' -f9- | sed 's/ -> / → /'; }
-
-# Git: clone and cd
-gclone() {
-    git clone "$1" && cd "$(basename "$1" .git)"
-}
 
 # ============================================================================
 # PATH - Add user bins

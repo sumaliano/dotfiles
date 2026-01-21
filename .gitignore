@@ -31,3 +31,7 @@ tmp/
 
 # neovim lazy
 _config/nvim/lazy-lock.json
+
+# symbolic links
+_config/nvim/init.lua
+_vim/colors

@@ -7,7 +7,7 @@
     # email = your.email@example.com
 
 [core]
-    editor = vim
+    editor = nvim
     pager = less -FRX
     autocrlf = input
     whitespace = trailing-space,space-before-tab
@@ -25,75 +25,46 @@
 [fetch]
     prune = true
 
-[merge]
-    conflictstyle = diff3
-    tool = vimdiff
-
 [diff]
+    tool = nvimdiff
     colorMoved = default
     algorithm = histogram
 
-[rebase]
-    autoStash = true
+[difftool "nvimdiff"]
+    # -d starts nvim in diff mode
+    cmd = nvim -d "$LOCAL" "$REMOTE"
+
+[difftool]
+    prompt = false
+
+[merge]
+    tool = nvim4
+    conflictstyle = diff3
+
+[mergetool "nvim3"]
+    # 3-way: LOCAL | MERGED | REMOTE
+    cmd = nvim -d "$LOCAL" "$MERGED" "$REMOTE" -c "wincmd l"
+    trustExitCode = true
+
+[mergetool "nvim4"]
+    # 4-way: LOCAL | BASE | REMOTE (top)
+    #        MERGED (bottom)
+    cmd = nvim -d "$LOCAL" "$BASE" "$REMOTE" "$MERGED" -c "wincmd J"
+    trustExitCode = true
+
+[mergetool]
+    prompt = false
 
 [rerere]
     enabled = true
 
 [alias]
-    # Status
-    s = status -sb
-    st = status
-
-    # Commits
-    c = commit
-    cm = commit -m
-    ca = commit --amend
-    can = commit --amend --no-edit
-
-    # Branches
-    b = branch
-    ba = branch -a
-    bd = branch -d
-    bD = branch -D
-    co = checkout
-    cb = checkout -b
-    sw = switch
-    sc = switch -c
-
-    # Diff
-    d = diff
-    ds = diff --staged
-    dc = diff --cached
-
-    # Log (compact)
-    l = log --oneline -20
-    lg = log --oneline --graph --all -20
-    ll = log --pretty=format:'%C(yellow)%h%Creset %s %C(cyan)<%an>%Creset %C(green)(%cr)%Creset' -20
-    hist = log --pretty=format:'%h %ad | %s%d [%an]' --graph --date=short
-
-    # Stash
-    ss = stash
-    sp = stash pop
-    sl = stash list
-    sd = stash drop
-
-    # Remote
-    f = fetch --all --prune
-    pl = pull
-    ps = push
-    pf = push --force-with-lease
-
     # Undo
     undo = reset HEAD~1 --mixed
     unstage = reset HEAD --
     discard = checkout --
 
     # Utility
-    aliases = config --get-regexp alias
-    branches = branch -a
-    remotes = remote -v
-    tags = tag -l
-    last = log -1 HEAD --stat
     whoami = !git config user.name && git config user.email
 
     # Find
