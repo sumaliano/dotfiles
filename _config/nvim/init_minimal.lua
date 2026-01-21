@@ -9,7 +9,7 @@ g.maplocalleader = " "
 o.number = true
 o.relativenumber = true
 o.cursorline = true
-o.signcolumn = "yes"
+o.signcolumn = "auto"
 o.expandtab = true
 o.shiftwidth = 4
 o.tabstop = 4
@@ -100,6 +100,13 @@ map("n", "<F2>", function()
   end
 
   print("Auto-completion: " .. (auto_cmp and "ON" or "OFF"))
+end)
+
+-- Toggle line numbers (F3)
+map("n", "<F3>", function()
+  o.number = not o.number:get()
+  o.relativenumber = not o.relativenumber:get()
+  print("Line numbers: " .. (o.number:get() and "ON" or "OFF"))
 end)
 
 -- File explorer (netrw)
@@ -203,13 +210,27 @@ if vim.fn.executable("git") == 1 then
 
     local diff = vim.fn.systemlist({ "git", "diff", "-U0", "--", vim.api.nvim_buf_get_name(buf) })
     for _, line in ipairs(diff) do
-      local ns, nc = line:match("^@@.-+(%d+),?(%d*).-@@")
+      local os, oc, ns, nc = line:match("^@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
       if ns then
-        ns = tonumber(ns)
-        nc = tonumber(nc ~= "" and nc or 1)
-        local sign = line:match("^@@.-%-0,0") and "GitAdd" or "GitChange"
-        for l = ns, ns + math.max(0, nc - 1) do
-          vim.fn.sign_place(0, "git", sign, buf, { lnum = l, priority = 5 })
+        os, oc = tonumber(os), tonumber(oc ~= "" and oc or 1)
+        ns, nc = tonumber(ns), tonumber(nc ~= "" and nc or 1)
+
+        local sign
+        if oc == 0 and nc > 0 then
+          sign = "GitAdd"
+        elseif nc == 0 and oc > 0 then
+          sign = "GitDelete"
+        else
+          sign = "GitChange"
+        end
+
+        if nc > 0 then
+          for l = ns, ns + nc - 1 do
+            vim.fn.sign_place(0, "git", sign, buf, { lnum = l, priority = 5 })
+          end
+        else
+          -- Deletion: show on the line where deletion occurred
+          vim.fn.sign_place(0, "git", sign, buf, { lnum = ns, priority = 5 })
         end
       end
     end
@@ -313,6 +334,37 @@ if vim.fn.executable("git") == 1 then
       print("Failed")
     end
   end)
+
+  -- Hunk navigation
+  local function next_hunk()
+    local hunks = get_hunks()
+    if #hunks == 0 then return print("No hunks") end
+    local cur = vim.api.nvim_win_get_cursor(0)[1]
+    for _, h in ipairs(hunks) do
+      if h.start > cur then
+        vim.api.nvim_win_set_cursor(0, { h.start, 0 })
+        return
+      end
+    end
+    print("No more hunks")
+  end
+
+  local function prev_hunk()
+    local hunks = get_hunks()
+    if #hunks == 0 then return print("No hunks") end
+    local cur = vim.api.nvim_win_get_cursor(0)[1]
+    for i = #hunks, 1, -1 do
+      local h = hunks[i]
+      if h.start < cur then
+        vim.api.nvim_win_set_cursor(0, { h.start, 0 })
+        return
+      end
+    end
+    print("No more hunks")
+  end
+
+  map("n", "]h", next_hunk)
+  map("n", "[h", prev_hunk)
 
   -- Inline diff
   local ns = vim.api.nvim_create_namespace("inline_diff")
@@ -588,7 +640,7 @@ map("n", "<leader>?", function()
   print([[
 CUSTOM:   w/q/Q save/quit | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win | c config
 GIT:      gd diff/merge gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset | gb/gl blame/log
-HUNK:     hp preview | hs stage | hr reset | hi inline
-CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: r run | sw strip | st tab | F2 auto-cmp
+HUNK:     hp preview | hs stage | hr reset | hi inline | ]h/[h next/prev hunk
+CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: r run | sw strip | st tab | F2 auto-cmp | F3 numbers
 NATIVE:   gd/gD/grr/gri/K/grn/gra LSP | [d/]d [e/]e diag | ]c/[c diff | gc comment | <C-L> clear | ZZ quit]])
 end)
