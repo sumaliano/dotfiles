@@ -271,38 +271,50 @@ if vim.fn.executable("git") == 1 then
 
   local function update_signs(buf)
     local name = vim.api.nvim_buf_get_name(buf)
-    if vim.bo[buf].buftype ~= "" or name == "" or not vim.fn.filereadable(name) then return end
+    if vim.bo[buf].buftype ~= "" or name == "" then return end
     vim.fn.sign_unplace("git", { buffer = buf })
 
-    local diff = vim.fn.systemlist({ "git", "diff", "-U0", "--", name })
-    for _, line in ipairs(diff) do
-      local os, oc, ns, nc = line:match("^@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
-      if ns then
-        os, oc = tonumber(os), tonumber(oc ~= "" and oc or 1)
-        ns, nc = tonumber(ns), tonumber(nc ~= "" and nc or 1)
+    -- Get relative path for git
+    local rel = vim.fn.systemlist("git ls-files --full-name " .. vim.fn.shellescape(name))[1]
+    if not rel or rel == "" or vim.v.shell_error ~= 0 then return end
 
-        local sign
-        if oc == 0 and nc > 0 then
-          sign = "GitAdd"
-        elseif nc == 0 and oc > 0 then
-          sign = "GitDelete"
-        else
-          sign = "GitChange"
-        end
+    -- Get HEAD version
+    local head = vim.fn.system("git show HEAD:" .. rel)
+    if vim.v.shell_error ~= 0 then return end
 
-        if nc > 0 then
-          for l = ns, ns + nc - 1 do
-            vim.fn.sign_place(0, "git", sign, buf, { lnum = l, priority = 5 })
-          end
-        else
-          -- Deletion: show on the line where deletion occurred
-          vim.fn.sign_place(0, "git", sign, buf, { lnum = ns, priority = 5 })
+    -- Get buffer content
+    local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local buf_content = table.concat(buf_lines, "\n") .. "\n"
+
+    -- Compute diff using vim.diff (compares buffer to HEAD)
+    local hunks = vim.diff(head, buf_content, { result_type = "indices" })
+
+    for _, hunk in ipairs(hunks) do
+      local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
+
+      local sign
+      if old_count == 0 and new_count > 0 then
+        sign = "GitAdd"
+      elseif new_count == 0 and old_count > 0 then
+        sign = "GitDelete"
+      else
+        sign = "GitChange"
+      end
+
+      if new_count > 0 then
+        for l = new_start, new_start + new_count - 1 do
+          vim.fn.sign_place(0, "git", sign, buf, { lnum = l, priority = 5 })
         end
+      else
+        -- Deletion: place sign on nearest valid line
+        local line_count = vim.api.nvim_buf_line_count(buf)
+        local lnum = math.max(1, math.min(new_start, line_count))
+        vim.fn.sign_place(0, "git", sign, buf, { lnum = lnum, priority = 5 })
       end
     end
   end
 
-  vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave" }, {
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "TextChanged", "TextChangedI" }, {
     callback = function(ev)
       update_signs(ev.buf)
     end,
