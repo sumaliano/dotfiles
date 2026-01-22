@@ -759,21 +759,32 @@ if vim.fn.executable("git") == 1 then
     vim.fn.setqflist({}, "a", { title = "Git Log: " .. rel })
     vim.cmd("copen")
 
-    -- Map Enter to show commit diff
+    -- Map Enter to show commit diff (set directly on existing qf windows, and add a FileType fallback)
+    local function qf_enter()
+      local idx = vim.fn.line(".")
+      local item = vim.fn.getqflist()[idx]
+      if item and item.user_data then
+        local diff = vim.fn.systemlist("git show " .. item.user_data .. " -- " .. rel)
+        if #diff > 0 then
+          scratch(diff, "git")
+        end
+      end
+    end
+
+    -- Set mapping on any currently-open quickfix windows
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      if vim.api.nvim_buf_get_option(buf, "filetype") == "qf" then
+        map("n", "<CR>", qf_enter, { buffer = buf })
+      end
+    end
+
+    -- Fallback: in case quickfix is opened later, set mapping on FileType event
     vim.api.nvim_create_autocmd("FileType", {
       pattern = "qf",
       once = true,
-      callback = function()
-        map("n", "<CR>", function()
-          local idx = vim.fn.line(".")
-          local item = vim.fn.getqflist()[idx]
-          if item and item.user_data then
-            local diff = vim.fn.systemlist("git show " .. item.user_data .. " -- " .. git_file())
-            if #diff > 0 then
-              scratch(diff, "git")
-            end
-          end
-        end, { buffer = true })
+      callback = function(ev)
+        map("n", "<CR>", qf_enter, { buffer = ev.buf })
       end,
     })
   end)
