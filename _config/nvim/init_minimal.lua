@@ -388,11 +388,12 @@ if vim.fn.executable("git") == 1 then
   })
 
   -- Hunks
-  local function get_hunks()
+  local function get_hunks(staged)
     local rel = git_rel()
     if not rel then return {} end
 
-    local diff = vim.fn.systemlist("git diff -U0 -- " .. git_file())
+    local cmd = staged and "git diff --cached -U0 -- " or "git diff -U0 -- "
+    local diff = vim.fn.systemlist(cmd .. git_file())
     local hunks = {}
 
     for i, line in ipairs(diff) do
@@ -416,9 +417,9 @@ if vim.fn.executable("git") == 1 then
     return hunks
   end
 
-  local function hunk_at_cursor()
+  local function hunk_at_cursor(staged)
     local cur = vim.api.nvim_win_get_cursor(0)[1]
-    for _, h in ipairs(get_hunks()) do
+    for _, h in ipairs(get_hunks(staged)) do
       local e = h.count == 0 and h.start or (h.start + h.count - 1)
       if cur >= h.start and cur <= e then return h end
     end
@@ -459,7 +460,7 @@ if vim.fn.executable("git") == 1 then
   end)
 
   map("n", "<leader>ha", function()
-    local h = hunk_at_cursor()
+    local h = hunk_at_cursor(false)
     if not h then return print("No hunk") end
 
     vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, false))
@@ -470,7 +471,7 @@ if vim.fn.executable("git") == 1 then
   end)
 
   map("n", "<leader>hu", function()
-    local h = hunk_at_cursor()
+    local h = hunk_at_cursor(true) or hunk_at_cursor(false)
     if not h then return print("No hunk") end
 
     vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, true))
@@ -481,7 +482,7 @@ if vim.fn.executable("git") == 1 then
   end)
 
   map("n", "<leader>hr", function()
-    local h = hunk_at_cursor()
+    local h = hunk_at_cursor(false)
     if not h then return print("No hunk") end
 
     vim.fn.system("git apply --unidiff-zero -", make_patch(h, true))
@@ -496,7 +497,7 @@ if vim.fn.executable("git") == 1 then
   end)
 
   map("n", "<leader>hR", function()
-    local h = hunk_at_cursor()
+    local h = hunk_at_cursor(true) or hunk_at_cursor(false)
     if not h then return print("No hunk") end
 
     -- Unstage first, then reset
