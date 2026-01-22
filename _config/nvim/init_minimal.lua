@@ -269,6 +269,12 @@ if vim.fn.executable("git") == 1 then
   vim.api.nvim_set_hl(0, "GitLineChange", { bg = "#3b3520" })
   vim.api.nvim_set_hl(0, "GitLineDelete", { bg = "#3b1d1d" })
 
+  -- Vim diff mode highlights (for split diff view)
+  vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#1d3b2a" })
+  vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a20" })
+  vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#3b1d1d", fg = "#5c3030" })
+  vim.api.nvim_set_hl(0, "DiffText", { bg = "#3b3520" })
+
   vim.fn.sign_define("GitAdd", { text = "▎", texthl = "GitSignAdd" })
   vim.fn.sign_define("GitChange", { text = "▎", texthl = "GitSignChange" })
   vim.fn.sign_define("GitDelete", { text = "▁", texthl = "GitSignDelete" })
