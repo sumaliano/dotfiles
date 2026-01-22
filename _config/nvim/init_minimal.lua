@@ -261,26 +261,50 @@ if vim.fn.executable("git") == 1 then
     make_scratch(lines, ft, false)
   end
 
-  -- Signs (defined in git section, highlights set above)
-  vim.fn.sign_define("GitAdd", { text = "▎", texthl = "GitSignAdd", linehl = "", numhl = "GitSignAdd" })
-  vim.fn.sign_define("GitChange", { text = "▎", texthl = "GitSignChange", linehl = "", numhl = "GitSignChange" })
-  vim.fn.sign_define("GitDelete", { text = "▁", texthl = "GitSignDelete", linehl = "", numhl = "GitSignDelete" })
+  -- Signs with Claude Code-style colors
+  vim.api.nvim_set_hl(0, "GitSignAdd", { fg = "#2ea043", bold = true })
+  vim.api.nvim_set_hl(0, "GitSignChange", { fg = "#d29922", bold = true })
+  vim.api.nvim_set_hl(0, "GitSignDelete", { fg = "#f85149", bold = true })
+  vim.api.nvim_set_hl(0, "GitLineAdd", { bg = "#1d3b2a" })
+  vim.api.nvim_set_hl(0, "GitLineChange", { bg = "#3b3520" })
+  vim.api.nvim_set_hl(0, "GitLineDelete", { bg = "#3b1d1d" })
+
+  vim.fn.sign_define("GitAdd", { text = "▎", texthl = "GitSignAdd", linehl = "GitLineAdd" })
+  vim.fn.sign_define("GitChange", { text = "▎", texthl = "GitSignChange", linehl = "GitLineChange" })
+  vim.fn.sign_define("GitDelete", { text = "▁", texthl = "GitSignDelete", linehl = "GitLineDelete" })
   -- vim.fn.sign_define("GitAdd", { text = "+", texthl = "DiffAdd" })
   -- vim.fn.sign_define("GitChange", { text = "~", texthl = "DiffChange" })
   -- vim.fn.sign_define("GitDelete", { text = "_", texthl = "DiffDelete" })
 
-  local function update_signs(buf)
+  -- Cache HEAD content per buffer and debounce timer
+  local head_cache = {}
+  local debounce_timers = {}
+
+  local function refresh_head_cache(buf)
     local name = vim.api.nvim_buf_get_name(buf)
     if vim.bo[buf].buftype ~= "" or name == "" then return end
-    vim.fn.sign_unplace("git", { buffer = buf })
 
-    -- Get relative path for git
     local rel = vim.fn.systemlist("git ls-files --full-name " .. vim.fn.shellescape(name))[1]
-    if not rel or rel == "" or vim.v.shell_error ~= 0 then return end
+    if not rel or rel == "" or vim.v.shell_error ~= 0 then
+      head_cache[buf] = nil
+      return
+    end
 
-    -- Get HEAD version
     local head = vim.fn.system("git show HEAD:" .. rel)
-    if vim.v.shell_error ~= 0 then return end
+    if vim.v.shell_error ~= 0 then
+      head_cache[buf] = nil
+      return
+    end
+
+    head_cache[buf] = head
+  end
+
+  local function update_signs(buf)
+    if not vim.api.nvim_buf_is_valid(buf) then return end
+    local head = head_cache[buf]
+    if not head then return end
+
+    vim.fn.sign_unplace("git", { buffer = buf })
 
     -- Get buffer content
     local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -314,9 +338,39 @@ if vim.fn.executable("git") == 1 then
     end
   end
 
-  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "TextChanged", "TextChangedI" }, {
+  local function debounced_update(buf, delay)
+    if debounce_timers[buf] then
+      vim.fn.timer_stop(debounce_timers[buf])
+    end
+    debounce_timers[buf] = vim.fn.timer_start(delay, function()
+      debounce_timers[buf] = nil
+      vim.schedule(function() update_signs(buf) end)
+    end)
+  end
+
+  -- Refresh cache on buffer enter, write, and focus
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, {
     callback = function(ev)
+      refresh_head_cache(ev.buf)
       update_signs(ev.buf)
+    end,
+  })
+
+  -- Debounced updates on text changes (fast diff, no git calls)
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    callback = function(ev)
+      debounced_update(ev.buf, 150)
+    end,
+  })
+
+  -- Cleanup cache on buffer delete
+  vim.api.nvim_create_autocmd("BufDelete", {
+    callback = function(ev)
+      head_cache[ev.buf] = nil
+      if debounce_timers[ev.buf] then
+        vim.fn.timer_stop(debounce_timers[ev.buf])
+        debounce_timers[ev.buf] = nil
+      end
     end,
   })
 
