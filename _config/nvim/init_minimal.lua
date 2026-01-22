@@ -269,9 +269,9 @@ if vim.fn.executable("git") == 1 then
   vim.api.nvim_set_hl(0, "GitLineChange", { bg = "#3b3520" })
   vim.api.nvim_set_hl(0, "GitLineDelete", { bg = "#3b1d1d" })
 
-  vim.fn.sign_define("GitAdd", { text = "▎", texthl = "GitSignAdd", linehl = "GitLineAdd" })
-  vim.fn.sign_define("GitChange", { text = "▎", texthl = "GitSignChange", linehl = "GitLineChange" })
-  vim.fn.sign_define("GitDelete", { text = "▁", texthl = "GitSignDelete", linehl = "GitLineDelete" })
+  vim.fn.sign_define("GitAdd", { text = "▎", texthl = "GitSignAdd" })
+  vim.fn.sign_define("GitChange", { text = "▎", texthl = "GitSignChange" })
+  vim.fn.sign_define("GitDelete", { text = "▁", texthl = "GitSignDelete" })
   -- vim.fn.sign_define("GitAdd", { text = "+", texthl = "DiffAdd" })
   -- vim.fn.sign_define("GitChange", { text = "~", texthl = "DiffChange" })
   -- vim.fn.sign_define("GitDelete", { text = "_", texthl = "DiffDelete" })
@@ -511,28 +511,57 @@ if vim.fn.executable("git") == 1 then
       return print("Inline diff: OFF")
     end
 
-    local diff = vim.fn.systemlist("git diff -U0 -- " .. git_file())
-    if vim.v.shell_error ~= 0 then
-      return print("No git diff")
+    local head = head_cache[buf]
+    if not head then
+      return print("No git HEAD")
     end
 
+    -- Get buffer content and compute diff
+    local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+    local buf_content = table.concat(buf_lines, "\n") .. "\n"
+    local diff = vim.diff(head, buf_content, { result_type = "unified" })
+    if not diff or diff == "" then
+      return print("No changes")
+    end
+
+    local diff_lines = vim.split(diff, "\n")
     local i = 1
-    while i <= #diff do
-      local _, new_start = diff[i]:match("^@@.-%-(%d+),?%d*%s*%+(%d+),?%d*.-@@")
+    while i <= #diff_lines do
+      local old_start, old_count, new_start, new_count =
+        diff_lines[i]:match("^@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
       if new_start then
+        old_count = tonumber(old_count ~= "" and old_count or 1)
+        new_start = tonumber(new_start)
+        new_count = tonumber(new_count ~= "" and new_count or 1)
+
         local deleted = {}
         i = i + 1
-        while i <= #diff and not diff[i]:match("^@@") do
-          if diff[i]:match("^%-") and not diff[i]:match("^%-%-%-") then
-            local line = diff[i]:sub(2)
-            table.insert(deleted, { { "  " .. line, "DiffDeletedLine" } })
+        local added_lines = {}
+
+        while i <= #diff_lines and not diff_lines[i]:match("^@@") do
+          local line = diff_lines[i]
+          if line:match("^%-") then
+            table.insert(deleted, { { "  " .. line:sub(2), "GitLineDelete" } })
+          elseif line:match("^%+") then
+            table.insert(added_lines, true)
           end
           i = i + 1
         end
+
+        -- Show deleted lines as virtual text above
         if #deleted > 0 then
-          pcall(vim.api.nvim_buf_set_extmark, buf, ns, tonumber(new_start) - 1, 0, {
+          local mark_line = math.max(0, new_start - 1)
+          pcall(vim.api.nvim_buf_set_extmark, buf, ns, mark_line, 0, {
             virt_lines = deleted,
             virt_lines_above = true,
+          })
+        end
+
+        -- Highlight added/changed lines
+        local hl = old_count == 0 and "GitLineAdd" or "GitLineChange"
+        for l = new_start, new_start + new_count - 1 do
+          pcall(vim.api.nvim_buf_set_extmark, buf, ns, l - 1, 0, {
+            line_hl_group = hl,
           })
         end
       else
