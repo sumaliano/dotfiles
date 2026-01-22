@@ -1,45 +1,56 @@
--- Minimal Neovim Config (0.11+, plugin-free)
--- Native: gd gD grr gri gO K grn gra [d ]d <C-W>d gc gcc ]c [c do dp <C-L> Y Q ZZ
 
+-- Shortcuts
 local o, g, map = vim.opt, vim.g, vim.keymap.set
-g.mapleader = " "
-g.maplocalleader = " "
+g.mapleader, g.maplocalleader = " ", " "
 
--- Settings
-o.number = true
-o.relativenumber = true
-o.cursorline = true
-o.signcolumn = "auto"
-o.expandtab = true
-o.shiftwidth = 4
-o.tabstop = 4
-o.smartindent = true
-o.ignorecase = true
-o.smartcase = true
-o.hlsearch = true
-o.splitright = true
-o.splitbelow = true
-o.wrap = false
-o.scrolloff = 8
-o.swapfile = false
-o.backup = false
-o.updatetime = 300
-o.timeoutlen = 500
-o.completeopt = "menu,menuone,noselect"
-o.pumheight = 10
-o.list = true
+-- UI & Editing Settings
+for k, v in pairs {
+  number = true, relativenumber = true, cursorline = true, signcolumn = "auto",
+  expandtab = true, shiftwidth = 4, tabstop = 4, smartindent = true,
+  ignorecase = true, smartcase = true, hlsearch = true,
+  splitright = true, splitbelow = true, wrap = false, scrolloff = 8,
+  swapfile = false, backup = false, updatetime = 300, timeoutlen = 500,
+  completeopt = "menu,menuone,noselect", pumheight = 10, list = true,
+  mouse = "", showmode = false, laststatus = 2,
+} do o[k] = v end
 o.listchars = { tab = "| ", trail = ".", nbsp = "+" }
-o.mouse = ""
-o.showmode = false
-o.laststatus = 2
-o.diffopt:append({ "vertical", "linematch:60", "algorithm:histogram", "indent-heuristic", "internal" })
--- o.diffopt:append({ "vertical", "linematch:60", "algorithm:histogram" })
+o.diffopt:append { "vertical", "linematch:60", "algorithm:histogram", "indent-heuristic", "internal" }
 
-if vim.fn.executable("rg") == 1 then
-  vim.o.grepprg = "rg --vimgrep --smart-case"
-end
+-- Grep program
+if vim.fn.executable("rg") == 1 then o.grepprg = "rg --vimgrep --smart-case" end
 
+-- Colorscheme
 pcall(vim.cmd, "colorscheme retrobox")
+
+-- Statusline: mode | branch | file | flags | LSP | pos
+local cached_branch = ""
+vim.api.nvim_create_autocmd({ "BufEnter", "DirChanged" }, {
+  callback = function()
+    cached_branch = vim.fn.system("git branch --show-current 2>/dev/null"):gsub("\n", "")
+  end
+})
+
+local function statusline()
+  local mode_map = { n = "N", i = "I", v = "V", V = "VL", ["\22"] = "VB", c = "C", R = "R", t = "T" }
+  local mode = mode_map[vim.fn.mode()] or vim.fn.mode()
+  local file = vim.fn.expand("%:~:.")
+  if file == "" then file = "[No Name]" end
+  local flags = vim.bo.modified and " [+]" or (not vim.bo.modifiable and " [-]" or "")
+  local lsp = (#vim.lsp.get_clients { bufnr = 0 } > 0) and "LSP " or ""
+  return table.concat({ " ", mode, " ", cached_branch ~= "" and " " .. cached_branch or "", " ", file, flags, "%=", lsp, "%l:%c %p%% " }, "")
+end
+_G.statusline_fn = statusline
+o.statusline = "%!v:lua.statusline_fn()"
+
+-- LSP setup
+vim.lsp.enable { "bashls", "pyright", "clangd", "rust_analyzer", "jdtls" }
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(ev)
+    vim.bo[ev.buf].omnifunc = "v:lua.vim.lsp.omnifunc"
+    map("n", "gry", vim.lsp.buf.type_definition, { buffer = ev.buf })
+    map("n", "grf", function() vim.lsp.buf.format { async = true } end, { buffer = ev.buf })
+  end,
+})
 
 -- Statusline
 local cached_branch = ""
@@ -108,39 +119,33 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
--- Diagnostics (native: [d ]d <C-W>d)
-vim.diagnostic.config({
+
+-- Diagnostics
+vim.diagnostic.config {
   virtual_text = { prefix = ">" },
   float = { border = "rounded", source = true },
-})
+}
+map("n", "[e", function() vim.diagnostic.goto_prev { severity = vim.diagnostic.severity.ERROR } end)
+map("n", "]e", function() vim.diagnostic.goto_next { severity = vim.diagnostic.severity.ERROR } end)
 
-map("n", "[e", function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end)
-map("n", "]e", function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end)
 
--- Completion
+-- Completion mappings
 map("i", "<Tab>", function()
   if vim.fn.pumvisible() == 1 then return "<C-n>" end
   local col = vim.fn.col(".") - 1
   if col == 0 or vim.fn.getline("."):sub(col, col):match("%s") then return "<Tab>" end
   return vim.bo.omnifunc ~= "" and "<C-x><C-o>" or "<C-n>"
 end, { expr = true })
+map("i", "<S-Tab>", function() return vim.fn.pumvisible() == 1 and "<C-p>" or "<S-Tab>" end, { expr = true })
+map("i", "<CR>", function() return vim.fn.pumvisible() == 1 and "<C-y>" or "<CR>" end, { expr = true })
 
-map("i", "<S-Tab>", function()
-  return vim.fn.pumvisible() == 1 and "<C-p>" or "<S-Tab>"
-end, { expr = true })
-
-map("i", "<CR>", function()
-  return vim.fn.pumvisible() == 1 and "<C-y>" or "<CR>"
-end, { expr = true })
 
 -- Auto-trigger completion (toggle with F2)
 local auto_cmp_group = vim.api.nvim_create_augroup("AutoCmp", { clear = true })
 local auto_cmp = false
-
 map("n", "<F2>", function()
   auto_cmp = not auto_cmp
-  vim.api.nvim_clear_autocmds({ group = auto_cmp_group })
-
+  vim.api.nvim_clear_autocmds { group = auto_cmp_group }
   if auto_cmp then
     vim.api.nvim_create_autocmd("TextChangedI", {
       group = auto_cmp_group,
@@ -156,9 +161,9 @@ map("n", "<F2>", function()
       end,
     })
   end
-
   print("Auto-completion: " .. (auto_cmp and "ON" or "OFF"))
 end)
+
 
 -- Toggle line numbers (F3)
 map("n", "<F3>", function()
@@ -167,19 +172,17 @@ map("n", "<F3>", function()
   print("Line numbers: " .. (o.number:get() and "ON" or "OFF"))
 end)
 
--- File explorer (netrw)
-g.netrw_banner = 0
-g.netrw_liststyle = 3
 
+-- File explorer (netrw)
+g.netrw_banner, g.netrw_liststyle = 0, 3
 map("n", "<leader>e", "<cmd>Lexplore<cr>")
 map("n", "-", "<cmd>Explore<cr>")
 
--- File finder
+
+-- File finder helper
 local function ui_select(items, prompt, on_choice)
   if #items == 0 then return print("None found") end
-  vim.ui.select(items, { prompt = prompt }, function(c)
-    if c then on_choice(c) end
-  end)
+  vim.ui.select(items, { prompt = prompt }, function(c) if c then on_choice(c) end end)
 end
 
 map("n", "<leader>ff", function()
@@ -802,11 +805,36 @@ if vim.fn.executable("git") == 1 then
   map("n", "gL", function() resolve_conflict(0, "theirs") end)
 end
 
--- Keymaps
+
+-- Keymaps: navigation, buffer, clipboard, quickfix, replace, etc.
 map("n", "<Esc>", "<cmd>noh<cr>")
 map("n", "<leader>w", "<cmd>w<cr>")
 map("n", "<leader>q", "<cmd>q<cr>")
 map("n", "<leader>Q", "<cmd>qa<cr>")
+map("n", "Q", function()
+  for _, win in ipairs(vim.fn.getwininfo()) do if win.quickfix == 1 then vim.cmd("cclose"); return end end
+  if vim.fn.empty(vim.fn.getqflist()) == 1 then print("Quickfix empty") else vim.cmd("copen") end
+end)
+map("n", "<C-h>", "<C-w>h")
+map("n", "<C-j>", "<C-w>j")
+map("n", "<C-k>", "<C-w>k")
+map("n", "<C-l>", "<C-w>l")
+map("n", "<Tab>", "<cmd>bn<cr>")
+map("n", "<S-Tab>", "<cmd>bp<cr>")
+map("n", "<leader>bd", "<cmd>bd<cr>")
+map("n", "<leader>t", "<cmd>term<cr>")
+map("t", "<Esc><Esc>", "<C-\\><C-n>")
+map({ "n", "v" }, "<leader>y", '"+y')
+map({ "n", "v" }, "<leader>p", '"+p')
+map("v", "<", "<gv")
+map("v", ">", ">gv")
+map("n", "<A-j>", "<cmd>m .+1<cr>==")
+map("n", "<A-k>", "<cmd>m .-2<cr>==")
+map("v", "<A-j>", ":m '>+1<cr>gv=gv")
+map("v", "<A-k>", ":m '<-2<cr>gv=gv")
+map("n", "[q", "<cmd>cprev<cr>")
+map("n", "]q", "<cmd>cnext<cr>")
+map("n", "<leader>c", function() vim.cmd("e " .. vim.fn.stdpath("config") .. "/init_minimal.lua") end)
 
 -- Replace word under cursor or visual selection
 map("n", "<leader>r", function()
@@ -814,58 +842,12 @@ map("n", "<leader>r", function()
   vim.fn.feedkeys(":%s/\\<" .. word .. "\\>/" .. word .. "/gc", "n")
   vim.fn.feedkeys(string.rep("\b", #word + 3), "n")
 end)
-
 map("v", "<leader>r", function()
   vim.cmd('normal! "zy')
   local selection = vim.fn.getreg("z")
   local escaped = vim.fn.escape(selection, "\\/")
   vim.fn.feedkeys(":%s/\\V" .. escaped .. "/" .. selection .. "/gc", "n")
   vim.fn.feedkeys(string.rep("\b", #selection + 3), "n")
-end)
-
--- Quickfix toggle
-map("n", "Q", function()
-  for _, win in ipairs(vim.fn.getwininfo()) do
-    if win.quickfix == 1 then
-      vim.cmd("cclose")
-      return
-    end
-  end
-  if vim.fn.empty(vim.fn.getqflist()) == 1 then
-    print("Quickfix empty")
-  else
-    vim.cmd("copen")
-  end
-end)
-
-map("n", "<C-h>", "<C-w>h")
-map("n", "<C-j>", "<C-w>j")
-map("n", "<C-k>", "<C-w>k")
-map("n", "<C-l>", "<C-w>l")
-
-map("n", "<Tab>", "<cmd>bn<cr>")
-map("n", "<S-Tab>", "<cmd>bp<cr>")
-map("n", "<leader>bd", "<cmd>bd<cr>")
-
-map("n", "<leader>t", "<cmd>term<cr>")
-map("t", "<Esc><Esc>", "<C-\\><C-n>")
-
-map({ "n", "v" }, "<leader>y", '"+y')
-map({ "n", "v" }, "<leader>p", '"+p')
-
-map("v", "<", "<gv")
-map("v", ">", ">gv")
-
-map("n", "<A-j>", "<cmd>m .+1<cr>==")
-map("n", "<A-k>", "<cmd>m .-2<cr>==")
-map("v", "<A-j>", ":m '>+1<cr>gv=gv")
-map("v", "<A-k>", ":m '<-2<cr>gv=gv")
-
-map("n", "[q", "<cmd>cprev<cr>")
-map("n", "]q", "<cmd>cnext<cr>")
-
-map("n", "<leader>c", function()
-  vim.cmd("e " .. vim.fn.stdpath("config") .. "/init_minimal.lua")
 end)
 
 -- Run file
@@ -888,6 +870,7 @@ map("n", "<leader>r", function()
   end
 end)
 
+
 -- Utilities
 map("n", "<leader>sw", function()
   local v = vim.fn.winsaveview()
@@ -895,36 +878,24 @@ map("n", "<leader>sw", function()
   vim.fn.winrestview(v)
   print("Stripped whitespace")
 end)
-
 map("n", "<leader>st", function()
   local n = tonumber(vim.fn.input("Tab width: "))
-  if n then
-    vim.bo.tabstop = n
-    vim.bo.shiftwidth = n
-  end
+  if n then vim.bo.tabstop = n; vim.bo.shiftwidth = n end
 end)
-
 map("n", "<leader>bo", function()
-  local visible = {}
-  for _, w in ipairs(vim.api.nvim_list_wins()) do
-    visible[vim.api.nvim_win_get_buf(w)] = true
-  end
-
-  local closed = 0
+  local visible, closed = {}, 0
+  for _, w in ipairs(vim.api.nvim_list_wins()) do visible[vim.api.nvim_win_get_buf(w)] = true end
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_loaded(b) and not visible[b] and vim.bo[b].buftype == "" then
-      pcall(vim.api.nvim_buf_delete, b, {})
-      closed = closed + 1
+      pcall(vim.api.nvim_buf_delete, b, {}); closed = closed + 1
     end
   end
   print("Closed " .. closed .. " hidden buffers")
 end)
 
--- Autocommands
-vim.api.nvim_create_autocmd("TextYankPost", {
-  callback = function() vim.highlight.on_yank() end,
-})
 
+-- Autocommands
+vim.api.nvim_create_autocmd("TextYankPost", { callback = function() vim.highlight.on_yank() end })
 vim.api.nvim_create_autocmd("BufReadPost", {
   callback = function()
     local m = vim.api.nvim_buf_get_mark(0, '"')
@@ -933,21 +904,16 @@ vim.api.nvim_create_autocmd("BufReadPost", {
     end
   end,
 })
-
-vim.api.nvim_create_autocmd("TermClose", {
-  callback = function() vim.cmd("bd!") end,
-})
-
+vim.api.nvim_create_autocmd("TermClose", { callback = function() vim.cmd("bd!") end })
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "qf",
-  callback = function()
-    map("n", "q", "<cmd>cclose<cr>", { buffer = true })
-  end,
+  callback = function() map("n", "q", "<cmd>cclose<cr>", { buffer = true }) end,
 })
+
 
 -- Help
 map("n", "<leader>?", function()
-  print([[
+  print([[ 
 CUSTOM:   w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win
           <leader>r replace word/selection | c config | F2 auto-cmp | F3 numbers
 GIT:      gd diff/merge gD diff(tab) gi diff(inline) | gs/gC/gP status/commit/push | ga/gu stage/unstage
