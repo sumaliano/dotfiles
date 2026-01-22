@@ -300,7 +300,10 @@ if vim.fn.executable("git") == 1 then
       return
     end
 
-    local head = vim.fn.system("git show HEAD:" .. rel)
+    -- Compare against last commit
+    -- local head = vim.fn.system("git show HEAD:" .. rel)
+    -- Compare against index (:0:) to show only unstaged changes
+    local head = vim.fn.system("git show :0:" .. rel)
     if vim.v.shell_error ~= 0 then
       head_cache[buf] = nil
       return
@@ -455,12 +458,25 @@ if vim.fn.executable("git") == 1 then
     make_scratch(h.lines, "diff", false)
   end)
 
-  map("n", "<leader>hs", function()
+  map("n", "<leader>ha", function()
     local h = hunk_at_cursor()
     if not h then return print("No hunk") end
 
     vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, false))
     print(vim.v.shell_error == 0 and "Staged hunk" or "Failed")
+
+    refresh_head_cache(vim.api.nvim_get_current_buf())
+    update_signs(vim.api.nvim_get_current_buf())
+  end)
+
+  map("n", "<leader>hu", function()
+    local h = hunk_at_cursor()
+    if not h then return print("No hunk") end
+
+    vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, true))
+    print(vim.v.shell_error == 0 and "Unstaged hunk" or "Failed")
+
+    refresh_head_cache(vim.api.nvim_get_current_buf())
     update_signs(vim.api.nvim_get_current_buf())
   end)
 
@@ -471,7 +487,26 @@ if vim.fn.executable("git") == 1 then
     vim.fn.system("git apply --unidiff-zero -", make_patch(h, true))
     if vim.v.shell_error == 0 then
       vim.cmd("e!")
-      print("Reset hunk")
+      print("Reset hunk to index (unstaged)")
+      refresh_head_cache(vim.api.nvim_get_current_buf())
+      update_signs(vim.api.nvim_get_current_buf())
+    else
+      print("Failed")
+    end
+  end)
+
+  map("n", "<leader>hR", function()
+    local h = hunk_at_cursor()
+    if not h then return print("No hunk") end
+
+    -- Unstage first, then reset
+    vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, true))
+    vim.fn.system("git apply --unidiff-zero -", make_patch(h, true))
+    if vim.v.shell_error == 0 then
+      vim.cmd("e!")
+      print("Reset hunk to HEAD (all)")
+      refresh_head_cache(vim.api.nvim_get_current_buf())
+      update_signs(vim.api.nvim_get_current_buf())
     else
       print("Failed")
     end
@@ -512,7 +547,7 @@ if vim.fn.executable("git") == 1 then
   local ns = vim.api.nvim_create_namespace("inline_diff")
   local inline_on = {}
 
-  map("n", "<leader>hi", function()
+  map("n", "<leader>gi", function()
     local buf = vim.api.nvim_get_current_buf()
     inline_on[buf] = not inline_on[buf]
     vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
@@ -682,10 +717,20 @@ if vim.fn.executable("git") == 1 then
     update_signs(0)
   end)
 
-  map("n", "<leader>gR", function()
+  map("n", "<leader>gr", function()
     vim.fn.system("git checkout -- " .. git_file())
     vim.cmd("e!")
-    print("Reset")
+    print("Reset file to index (unstaged)")
+    refresh_head_cache(0)
+    update_signs(0)
+  end)
+
+  map("n", "<leader>gR", function()
+    vim.fn.system("git reset HEAD " .. git_file() .. " && git checkout -- " .. git_file())
+    vim.cmd("e!")
+    print("Reset file to HEAD (all)")
+    refresh_head_cache(0)
+    update_signs(0)
   end)
 
   map("n", "<leader>gb", function()
@@ -891,9 +936,9 @@ map("n", "<leader>?", function()
   print([[
 CUSTOM:   w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win
           <leader>r replace word/selection | c config | F2 auto-cmp | F3 numbers
-GIT:      gd diff/merge gD diff(tab) | gs/gC/gP status/commit/push | ga/gu stage/unstage | gR reset
-          gb blame | gl log(qf+Enter=diff) | gL global-log
-HUNK:     hp preview | hs stage | hr reset | hi inline | ]h/[h next/prev hunk
+GIT:      gd diff/merge gD diff(tab) gi diff(inline) | gs/gC/gP status/commit/push | ga/gu stage/unstage
+          gb blame | gl log(qf+Enter=diff) | gL global-log | gr/gR reset-file (index/HEAD)
+HUNK:     hp preview | ha/hu stage/unstage | hr/hR reset (index/HEAD) | ]c/[c nav
 CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: r run | sw strip | st tab
-NATIVE:   gd/gD/grr/gri/K/grn/gra LSP | [d/]d [e/]e diag | ]c/[c diff | gc comment | <C-L> clear | ZZ quit]])
+NATIVE:   gd/gD/grr/gri/K/grn/gra LSP | [d/]d [e/]e diag | gc comment | <C-L> clear | ZZ quit]])
 end)
