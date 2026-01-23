@@ -3,23 +3,42 @@
 local o, g, map = vim.opt, vim.g, vim.keymap.set
 g.mapleader, g.maplocalleader = " ", " "
 
--- UI & Editing Settings
 for k, v in pairs {
-  number = true, relativenumber = true, cursorline = true, signcolumn = "auto",
-  expandtab = true, shiftwidth = 4, tabstop = 4, smartindent = true,
-  ignorecase = true, smartcase = true, hlsearch = true,
-  splitright = true, splitbelow = true, wrap = false, scrolloff = 8,
-  swapfile = false, backup = false, updatetime = 300, timeoutlen = 500,
+  number = true,
+  relativenumber = true,
+  cursorline = true,
+  signcolumn = "auto",
+  expandtab = true,
+  shiftwidth = 4,
+  tabstop = 4,
+  smartindent = true,
+  ignorecase = true,
+  smartcase = true, 
+  hlsearch = true,
+  splitright = true, 
+  splitbelow = true, 
+  wrap = false, 
+  scrolloff = 8,
+  swapfile = false, 
+  backup = false, 
+  updatetime = 300, 
+  timeoutlen = 500,
   completeopt = "menu,menuone,noselect", pumheight = 10, list = true,
   mouse = "", showmode = false, laststatus = 2,
 } do o[k] = v end
 o.listchars = { tab = "| ", trail = ".", nbsp = "+" }
 o.diffopt:append { "vertical", "linematch:60", "algorithm:histogram", "indent-heuristic", "internal" }
+o.termguicolors = true
 
--- Grep program
+-- Ensure default runtime is in runtimepath for default colorschemes
+local default_runtime = vim.fn.stdpath('data') .. '/runtime'
+if not string.find(vim.o.runtimepath, default_runtime, 1, true) then
+  vim.o.runtimepath = default_runtime .. ',' .. vim.o.runtimepath
+end
+
+
 if vim.fn.executable("rg") == 1 then o.grepprg = "rg --vimgrep --smart-case" end
 
--- Colorscheme
 pcall(vim.cmd, "colorscheme retrobox")
 
 -- Statusline: mode | branch | file | flags | LSP | pos
@@ -273,6 +292,7 @@ if vim.fn.executable("git") == 1 then
     vim.api.nvim_set_hl(0, "GitLineChange", { bg = "#3b3520" })
     vim.api.nvim_set_hl(0, "GitLineDelete", { bg = "#3b1d1d" })
     -- Vim diff mode highlights (for split diff view)
+    -- GitHub/GitLab/Claude-style diff colors
     vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#1d3b2a" })
     vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a20" })
     vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#3b1d1d", fg = "#5c3030" })
