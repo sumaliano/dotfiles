@@ -216,14 +216,26 @@ if vim.fn.executable("git") == 1 then
 
   -- Unified git/diff color scheme (GitHub/Claude Code style)
   local function set_git_highlights()
-    -- Gutter signs
+    -- Unstaged changes (bright, prominent)
     vim.api.nvim_set_hl(0, "GitSignAdd", { fg = "#2ea043", bold = true })
     vim.api.nvim_set_hl(0, "GitSignChange", { fg = "#d29922", bold = true })
     vim.api.nvim_set_hl(0, "GitSignDelete", { fg = "#f85149", bold = true })
+
+    -- Staged changes (dimmer, same colors but less bold)
+    vim.api.nvim_set_hl(0, "GitSignAddStaged", { fg = "#1d6f2e" })
+    vim.api.nvim_set_hl(0, "GitSignChangeStaged", { fg = "#8a6616" })
+    vim.api.nvim_set_hl(0, "GitSignDeleteStaged", { fg = "#a03232" })
+
+    -- Both staged and unstaged (split indicator)
+    vim.api.nvim_set_hl(0, "GitSignAddBoth", { fg = "#2ea043", bg = "#1d6f2e" })
+    vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#8a6616" })
+    vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#a03232" })
+
     -- Line backgrounds (for inline diff and split views)
     vim.api.nvim_set_hl(0, "GitLineAdd", { bg = "#1d3b2a" })
     vim.api.nvim_set_hl(0, "GitLineChange", { bg = "#3b3520" })
     vim.api.nvim_set_hl(0, "GitLineDelete", { bg = "#3b1d1d" })
+
     -- Native diff mode (gd split view)
     vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#1d3b2a" })
     vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a20" })
@@ -234,13 +246,9 @@ if vim.fn.executable("git") == 1 then
   set_git_highlights()
   vim.api.nvim_create_autocmd("ColorScheme", { callback = set_git_highlights })
 
-  -- Define gutter signs (with staged variants)
-  vim.fn.sign_define("GitAdd", { text = "▎", texthl = "GitSignAdd" })
-  vim.fn.sign_define("GitChange", { text = "▎", texthl = "GitSignChange" })
-  vim.fn.sign_define("GitDelete", { text = "▁", texthl = "GitSignDelete" })
-  vim.fn.sign_define("GitAddStaged", { text = "▎", texthl = "GitSignAdd", linehl = "GitLineAdd" })
-  vim.fn.sign_define("GitChangeStaged", { text = "▎", texthl = "GitSignChange", linehl = "GitLineChange" })
-  vim.fn.sign_define("GitDeleteStaged", { text = "▁", texthl = "GitSignDelete", linehl = "GitLineDelete" })
+  -- Git gutter namespace for extmarks
+  local git_ns = vim.api.nvim_create_namespace("git_gutter")
+  local show_hunk_hints = true -- Toggle for virtual text hints
 
   -- Cache HEAD content per buffer and debounce timer
   local head_cache = {}
@@ -257,64 +265,226 @@ if vim.fn.executable("git") == 1 then
     head_cache[buf] = vim.v.shell_error == 0 and head or nil
   end
 
-  -- Toggle showing staged changes in gutter
-  local show_staged = false
-
+  -- Update git gutter with extmarks (shows both staged and unstaged)
   local function update_signs(buf)
     if not vim.api.nvim_buf_is_valid(buf) or not head_cache[buf] then return end
-    vim.fn.sign_unplace("git", { buffer = buf })
-    vim.fn.sign_unplace("git_staged", { buffer = buf })
 
-    -- Show unstaged changes (comparing working tree to index)
+    -- Clear existing marks
+    vim.api.nvim_buf_clear_namespace(buf, git_ns, 0, -1)
+
+    local rel = git_rel()
+    if not rel then return end
+
+    -- Get unstaged changes (working tree vs index)
     local buf_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
-    local hunks = vim.diff(head_cache[buf], buf_content, { result_type = "indices" })
+    local unstaged_hunks = vim.diff(head_cache[buf], buf_content, { result_type = "indices" })
 
-    for _, hunk in ipairs(hunks) do
+    -- Get staged changes (index vs HEAD)
+    local head_content = vim.fn.system("git show HEAD:" .. rel)
+    local index_content = head_cache[buf] -- This is index content
+    local staged_hunks = {}
+    if vim.v.shell_error == 0 then
+      staged_hunks = vim.diff(head_content, index_content, { result_type = "indices" })
+    end
+
+    -- Build map of line changes
+    local unstaged_lines = {}
+    local staged_lines = {}
+
+    -- Process unstaged hunks
+    for _, hunk in ipairs(unstaged_hunks) do
       local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
-      local sign = (old_count == 0 and new_count > 0) and "GitAdd" or
-                   (new_count == 0 and old_count > 0) and "GitDelete" or "GitChange"
+      local change_type = (old_count == 0 and new_count > 0) and "add" or
+                         (new_count == 0 and old_count > 0) and "delete" or "change"
 
       if new_count > 0 then
         for l = new_start, new_start + new_count - 1 do
-          vim.fn.sign_place(0, "git", sign, buf, { lnum = l, priority = 5 })
+          unstaged_lines[l] = change_type
         end
       else
+        -- Deletion at this line
         local lnum = math.max(1, math.min(new_start, vim.api.nvim_buf_line_count(buf)))
-        vim.fn.sign_place(0, "git", sign, buf, { lnum = lnum, priority = 5 })
+        unstaged_lines[lnum] = "delete"
       end
     end
 
-    -- Optionally show staged changes (comparing index to HEAD)
-    if show_staged then
-      local rel = git_rel()
-      if rel then
-        local head_content = vim.fn.system("git show HEAD:" .. rel)
-        local index_content = vim.fn.system("git show :0:" .. rel)
-        if vim.v.shell_error == 0 then
-          local staged_hunks = vim.diff(head_content, index_content, { result_type = "indices" })
-          for _, hunk in ipairs(staged_hunks) do
-            local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
-            local sign = (old_count == 0 and new_count > 0) and "GitAddStaged" or
-                        (new_count == 0 and old_count > 0) and "GitDeleteStaged" or "GitChangeStaged"
+    -- Process staged hunks
+    for _, hunk in ipairs(staged_hunks) do
+      local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
+      local change_type = (old_count == 0 and new_count > 0) and "add" or
+                         (new_count == 0 and old_count > 0) and "delete" or "change"
 
-            if new_count > 0 then
-              for l = new_start, new_start + new_count - 1 do
-                vim.fn.sign_place(0, "git_staged", sign, buf, { lnum = l, priority = 4 })
-              end
+      if new_count > 0 then
+        for l = new_start, new_start + new_count - 1 do
+          staged_lines[l] = change_type
+        end
+      else
+        local lnum = math.max(1, math.min(new_start, vim.api.nvim_buf_line_count(buf)))
+        staged_lines[lnum] = "delete"
+      end
+    end
+
+    -- Place extmarks for all changed lines
+    local all_lines = {}
+    for l, _ in pairs(unstaged_lines) do all_lines[l] = true end
+    for l, _ in pairs(staged_lines) do all_lines[l] = true end
+
+    for lnum, _ in pairs(all_lines) do
+      local unstaged = unstaged_lines[lnum]
+      local staged = staged_lines[lnum]
+
+      local sign_text, sign_hl
+
+      if unstaged and staged then
+        -- Both staged and unstaged changes on this line - use double symbol
+        local change_type = unstaged -- Use unstaged type for indicator
+        if change_type == "add" then
+          sign_text = "║"  -- Double vertical line
+          sign_hl = "GitSignAddBoth"
+        elseif change_type == "change" then
+          sign_text = "║"
+          sign_hl = "GitSignChangeBoth"
+        else -- delete
+          sign_text = "━"  -- Heavy horizontal line
+          sign_hl = "GitSignDeleteBoth"
+        end
+      elseif unstaged then
+        -- Only unstaged changes - use thin symbol
+        if unstaged == "add" then
+          sign_text = "│"  -- Thin vertical line
+          sign_hl = "GitSignAdd"
+        elseif unstaged == "change" then
+          sign_text = "│"
+          sign_hl = "GitSignChange"
+        else -- delete
+          sign_text = "▁"  -- Lower block
+          sign_hl = "GitSignDelete"
+        end
+      else
+        -- Only staged changes - use thick symbol
+        if staged == "add" then
+          sign_text = "┃"  -- Thick vertical line
+          sign_hl = "GitSignAddStaged"
+        elseif staged == "change" then
+          sign_text = "┃"
+          sign_hl = "GitSignChangeStaged"
+        else -- delete
+          sign_text = "▔"  -- Upper block
+          sign_hl = "GitSignDeleteStaged"
+        end
+      end
+
+      -- Place extmark with sign
+      pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, lnum - 1, 0, {
+        sign_text = sign_text,
+        sign_hl_group = sign_hl,
+        priority = 10,
+      })
+    end
+
+    -- Add virtual text hints for hunk boundaries (first line of each contiguous hunk)
+    if show_hunk_hints then
+      local prev_lnum = 0
+      local sorted_lines = {}
+      for l in pairs(all_lines) do table.insert(sorted_lines, l) end
+      table.sort(sorted_lines)
+
+      for _, lnum in ipairs(sorted_lines) do
+        -- Check if this is the start of a new hunk (gap > 1 from previous)
+        if lnum > prev_lnum + 1 or prev_lnum == 0 then
+          -- Count consecutive lines in this hunk
+          local hunk_size = 1
+          for i = lnum + 1, vim.api.nvim_buf_line_count(buf) do
+            if all_lines[i] then
+              hunk_size = hunk_size + 1
+            else
+              break
             end
           end
+
+          -- Add virtual text on first line of hunk
+          local unstaged = unstaged_lines[lnum]
+          local staged = staged_lines[lnum]
+          local virt_text = ""
+
+          if unstaged and staged then
+            virt_text = string.format("  [%d lines • staged + unstaged]", hunk_size)
+          elseif unstaged then
+            virt_text = string.format("  [%d lines • unstaged]", hunk_size)
+          else
+            virt_text = string.format("  [%d lines • staged]", hunk_size)
+          end
+
+          pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, lnum - 1, 0, {
+            virt_text = { { virt_text, "Comment" } },
+            virt_text_pos = "eol",
+            priority = 1,
+          })
         end
+        prev_lnum = lnum
       end
     end
   end
 
-  -- Toggle staged changes visibility
-  map("n", "<leader>gv", function()
-    show_staged = not show_staged
+  -- Toggle hunk hints
+  map("n", "<leader>gh", function()
+    show_hunk_hints = not show_hunk_hints
     local buf = vim.api.nvim_get_current_buf()
     update_signs(buf)
-    print("Show staged changes: " .. (show_staged and "ON" or "OFF"))
+    print("Hunk hints: " .. (show_hunk_hints and "ON" or "OFF"))
   end)
+
+  -- Git gutter legend/info
+  map("n", "<leader>gv", function()
+    local info = {
+      "=== Git Gutter Legend ===",
+      "",
+      "The gutter ALWAYS shows both staged and unstaged changes using different symbols:",
+      "",
+      "Symbol Meanings:",
+      "  │  Thin line      = Unstaged changes only (working tree ≠ index)",
+      "  ┃  Thick line     = Staged changes only (index ≠ HEAD)",
+      "  ║  Double line    = BOTH staged AND unstaged (partial staging)",
+      "",
+      "  ▁  Lower bar      = Unstaged deletion",
+      "  ▔  Upper bar      = Staged deletion",
+      "  ━  Heavy line     = Both staged and unstaged deletion",
+      "",
+      "Colors:",
+      "  Green   = Added lines",
+      "  Orange  = Modified/changed lines",
+      "  Red     = Deleted lines",
+      "",
+      "Examples:",
+      "  │ green    = Line added, not yet staged",
+      "  ┃ green    = Line added and staged",
+      "  ║ green    = Line added, staged, then modified again",
+      "  │ orange   = Line modified, not yet staged",
+      "  ┃ orange   = Line modified and staged",
+      "  ▁ red      = Line deleted, not yet staged",
+      "",
+      "Workflow:",
+      "  1. Edit file         → │ appears (unstaged)",
+      "  2. Stage with 'ha'   → ┃ appears (staged)",
+      "  3. Edit again        → ║ appears (both!)",
+      "  4. View with 'gi'    → See inline diff",
+      "",
+      "Commands:",
+      "  gi  = Toggle inline diff (shows deleted lines as virtual text)",
+      "  gh  = Toggle inline hunk hints (size/status)",
+      "  ha  = Stage hunk under cursor",
+      "  hu  = Unstage hunk under cursor",
+      "  hA  = Stage all hunks in file",
+      "  hU  = Unstage all hunks in file",
+      "  ]c  = Jump to next hunk",
+      "  [c  = Jump to previous hunk",
+      "  hp  = Preview hunk in floating window",
+    }
+
+    diff_tab(info, "markdown")
+    print("Git gutter legend (q=quit)")
+  end)
+
 
   local function debounced_update(buf, delay)
     if debounce_timers[buf] then vim.fn.timer_stop(debounce_timers[buf]) end
@@ -432,15 +602,24 @@ if vim.fn.executable("git") == 1 then
   end
 
   map("n", "<leader>ha", function()
-    hunk_op(false, function(h) return vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, false)); return vim.v.shell_error end, "Staged hunk")
+    hunk_op(false, function(h)
+      vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, false))
+      return vim.v.shell_error
+    end, "Staged hunk")
   end)
 
   map("n", "<leader>hu", function()
-    hunk_op(nil, function(h) return vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, true)); return vim.v.shell_error end, "Unstaged hunk")
+    hunk_op(nil, function(h)
+      vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, true))
+      return vim.v.shell_error
+    end, "Unstaged hunk")
   end)
 
   map("n", "<leader>hr", function()
-    hunk_op(false, function(h) return vim.fn.system("git apply --unidiff-zero -", make_patch(h, true)); return vim.v.shell_error end, "Reset hunk to index", true)
+    hunk_op(false, function(h)
+      vim.fn.system("git apply --unidiff-zero -", make_patch(h, true))
+      return vim.v.shell_error
+    end, "Reset hunk to index", true)
   end)
 
   map("n", "<leader>hR", function()
@@ -499,47 +678,112 @@ if vim.fn.executable("git") == 1 then
     print("No more hunks")
   end)
 
-  -- Inline diff with virtual text
-  local ns, inline_on = vim.api.nvim_create_namespace("inline_diff"), {}
+  -- Inline diff with virtual text - shows deleted/changed lines as virtual text
+  local inline_ns = vim.api.nvim_create_namespace("inline_diff")
+  local inline_on = {}
 
-  local function toggle_inline_diff(buf, state)
-    inline_on[buf] = state
-    vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-    print("Inline diff: " .. (state and "ON (q to toggle)" or "OFF"))
-  end
-
-  map("n", "<leader>gi", function()
+  map("n", "gi", function()
     local buf = vim.api.nvim_get_current_buf()
-    if inline_on[buf] then return toggle_inline_diff(buf, false) end
+
+    -- Toggle off if already on
+    if inline_on[buf] then
+      inline_on[buf] = false
+      vim.api.nvim_buf_clear_namespace(buf, inline_ns, 0, -1)
+      print("Inline diff: OFF")
+      return
+    end
 
     local head = head_cache[buf]
-    if not head then return print("No git HEAD") end
+    if not head then return print("No git HEAD (not tracked or no changes staged)") end
 
-    local diff = vim.diff(head, table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n", { result_type = "unified" })
-    if not diff or diff == "" then return print("No changes") end
+    local buf_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
+    local diff = vim.diff(head, buf_content, { result_type = "unified" })
+
+    if not diff or diff == "" then
+      return print("No changes to show")
+    end
 
     local diff_lines = vim.split(diff, "\n")
-    for i, line in ipairs(diff_lines) do
+    local i = 1
+
+    while i <= #diff_lines do
+      local line = diff_lines[i]
       local old_start, old_count, new_start, new_count = line:match("^@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
-      if new_start then
-        old_count, new_start, new_count = tonumber(old_count ~= "" and old_count or 1), tonumber(new_start), tonumber(new_count ~= "" and new_count or 1)
-        local deleted = {}
-        for j = i + 1, #diff_lines do
-          if diff_lines[j]:match("^@@") then break end
-          if diff_lines[j]:match("^%-") then table.insert(deleted, { { "  " .. diff_lines[j]:sub(2), "GitLineDelete" } }) end
+
+      if old_start then
+        old_start = tonumber(old_start)
+        old_count = tonumber(old_count ~= "" and old_count or 1)
+        new_start = tonumber(new_start)
+        new_count = tonumber(new_count ~= "" and new_count or 1)
+
+        -- Collect deleted lines and added lines
+        local deleted_lines = {}
+        local added_lines = {}
+        i = i + 1
+
+        while i <= #diff_lines and not diff_lines[i]:match("^@@") do
+          local dl = diff_lines[i]
+          if dl:match("^%-") and not dl:match("^%-%-%-") then
+            -- Deleted line
+            table.insert(deleted_lines, dl:sub(2))
+          elseif dl:match("^%+") and not dl:match("^%+%+%+") then
+            -- Added line (these are already in the buffer)
+            table.insert(added_lines, true)
+          end
+          i = i + 1
         end
-        if #deleted > 0 then pcall(vim.api.nvim_buf_set_extmark, buf, ns, math.max(0, new_start - 1), 0, { virt_lines = deleted, virt_lines_above = true }) end
-        for l = new_start, new_start + new_count - 1 do
-          pcall(vim.api.nvim_buf_set_extmark, buf, ns, l - 1, 0, { line_hl_group = old_count == 0 and "GitLineAdd" or "GitLineChange" })
+
+        -- Show deleted lines as virtual text above the change location
+        if #deleted_lines > 0 then
+          local virt_lines = {}
+          for _, dline in ipairs(deleted_lines) do
+            table.insert(virt_lines, { { "  - " .. dline, "DiffDelete" } })
+          end
+
+          -- Place virtual lines above the first affected line
+          local mark_line = math.max(0, new_start - 1)
+          pcall(vim.api.nvim_buf_set_extmark, buf, inline_ns, mark_line, 0, {
+            virt_lines = virt_lines,
+            virt_lines_above = true,
+          })
         end
+
+        -- Highlight added/changed lines in the buffer
+        if new_count > 0 then
+          local hl_group = old_count == 0 and "DiffAdd" or "DiffChange"
+          for l = new_start, new_start + new_count - 1 do
+            pcall(vim.api.nvim_buf_set_extmark, buf, inline_ns, l - 1, 0, {
+              line_hl_group = hl_group,
+              sign_text = old_count == 0 and "+" or "~",
+              sign_hl_group = old_count == 0 and "DiffAdd" or "DiffChange",
+            })
+          end
+        end
+
+        -- For pure deletions (no new lines), show at the deletion point
+        if new_count == 0 and #deleted_lines > 0 then
+          local mark_line = math.min(new_start, vim.api.nvim_buf_line_count(buf) - 1)
+          mark_line = math.max(0, mark_line)
+          pcall(vim.api.nvim_buf_set_extmark, buf, inline_ns, mark_line, 0, {
+            sign_text = "-",
+            sign_hl_group = "DiffDelete",
+          })
+        end
+      else
+        i = i + 1
       end
     end
-    toggle_inline_diff(buf, true)
-  end)
 
-  vim.api.nvim_create_autocmd("BufEnter", { callback = function(ev)
-    if inline_on[ev.buf] then map("n", "q", function() toggle_inline_diff(ev.buf, false) end, { buffer = ev.buf }) end
-  end })
+    inline_on[buf] = true
+    print("Inline diff: ON (press 'gi' or 'q' to toggle off)")
+
+    -- Set up 'q' to toggle off in this buffer
+    vim.keymap.set("n", "q", function()
+      inline_on[buf] = false
+      vim.api.nvim_buf_clear_namespace(buf, inline_ns, 0, -1)
+      print("Inline diff: OFF")
+    end, { buffer = buf, silent = true })
+  end)
 
   -- Git commands
 
@@ -985,12 +1229,14 @@ map("n", "<leader>?", function()
   print([[
 CUSTOM:   w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win
           r replace | R run | c config | F2 auto-cmp | F3 numbers | sw strip | st tab
-GIT DIFF: gd split(2-way/3-way) | gD tab | gi inline(virtual) | hp hunk-preview(+stats) | q=quit-diff
+GIT DIFF: gd split(2-way/3-way) | gD tab | gi inline-diff(toggle) | hp hunk-preview(+stats) | q=quit-diff
 GIT NAV:  ]c/[c hunk | ]f/[f changed-file | ]e/[e errors | ]q/[q quickfix
 GIT FILE: gs interactive-status(Enter ga/gu) | ga/gu stage/unstage | gr/gR reset(index/HEAD)
-GIT VIEW: gS summary | gv toggle-staged-signs | gp conflict-preview | gC/gP commit/push
+GIT VIEW: gS summary | gv gutter-legend | gh toggle-hints | gp conflict-preview | gC/gP commit/push
 GIT HIST: gb blame | gl file-log(Enter=show) | gL repo-log
 HUNK OPS: ha/hu stage/unstage-hunk | hA/hU stage/unstage-all-hunks | hr/hR reset-hunk(index/HEAD)
 CONFLICT: gH/gJ/gL resolve(ours/base/theirs) | gh/gl diffget(left/right) in 3-way | gp preview-options
-LSP/DIAG: gd/gD/grr/gri/K/grn/gra LSP | gry/grf type/format]])
+LSP/DIAG: gd/gD/grr/gri/K/grn/gra LSP | gry/grf type/format
+
+GIT GUTTER: Symbols: │=unstaged ┃=staged ║=both | Colors: green=add orange=change red=delete | gi=inline-diff]])
 end)
