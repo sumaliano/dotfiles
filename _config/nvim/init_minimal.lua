@@ -434,58 +434,6 @@ if vim.fn.executable("git") == 1 then
     print("Hunk hints: " .. (show_hunk_hints and "ON" or "OFF"))
   end)
 
-  -- Git gutter legend/info
-  map("n", "<leader>gv", function()
-    local info = {
-      "=== Git Gutter Legend ===",
-      "",
-      "The gutter ALWAYS shows both staged and unstaged changes using different symbols:",
-      "",
-      "Symbol Meanings:",
-      "  │  Thin line      = Unstaged changes only (working tree ≠ index)",
-      "  ┃  Thick line     = Staged changes only (index ≠ HEAD)",
-      "  ║  Double line    = BOTH staged AND unstaged (partial staging)",
-      "",
-      "  ▁  Lower bar      = Unstaged deletion",
-      "  ▔  Upper bar      = Staged deletion",
-      "  ━  Heavy line     = Both staged and unstaged deletion",
-      "",
-      "Colors:",
-      "  Green   = Added lines",
-      "  Orange  = Modified/changed lines",
-      "  Red     = Deleted lines",
-      "",
-      "Examples:",
-      "  │ green    = Line added, not yet staged",
-      "  ┃ green    = Line added and staged",
-      "  ║ green    = Line added, staged, then modified again",
-      "  │ orange   = Line modified, not yet staged",
-      "  ┃ orange   = Line modified and staged",
-      "  ▁ red      = Line deleted, not yet staged",
-      "",
-      "Workflow:",
-      "  1. Edit file         → │ appears (unstaged)",
-      "  2. Stage with 'ha'   → ┃ appears (staged)",
-      "  3. Edit again        → ║ appears (both!)",
-      "  4. View with 'gi'    → See inline diff",
-      "",
-      "Commands:",
-      "  gi  = Toggle inline diff (shows deleted lines as virtual text)",
-      "  gh  = Toggle inline hunk hints (size/status)",
-      "  ha  = Stage hunk under cursor",
-      "  hu  = Unstage hunk under cursor",
-      "  hA  = Stage all hunks in file",
-      "  hU  = Unstage all hunks in file",
-      "  ]c  = Jump to next hunk",
-      "  [c  = Jump to previous hunk",
-      "  hp  = Preview hunk in floating window",
-    }
-
-    diff_tab(info, "markdown")
-    print("Git gutter legend (q=quit)")
-  end)
-
-
   local function debounced_update(buf, delay)
     if debounce_timers[buf] then vim.fn.timer_stop(debounce_timers[buf]) end
     debounce_timers[buf] = vim.fn.timer_start(delay, function()
@@ -628,40 +576,6 @@ if vim.fn.executable("git") == 1 then
       vim.fn.system("git apply --unidiff-zero -", make_patch(h, true))
       return vim.v.shell_error
     end, "Reset hunk to HEAD", true)
-  end)
-
-  -- Stage all hunks in file
-  map("n", "<leader>hA", function()
-    local hunks = get_hunks(false)
-    if #hunks == 0 then return print("No hunks") end
-
-    local count = 0
-    for _, h in ipairs(hunks) do
-      vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, false))
-      if vim.v.shell_error == 0 then count = count + 1 end
-    end
-
-    local buf = vim.api.nvim_get_current_buf()
-    refresh_head_cache(buf)
-    update_signs(buf)
-    print("Staged " .. count .. "/" .. #hunks .. " hunks")
-  end)
-
-  -- Unstage all hunks in file
-  map("n", "<leader>hU", function()
-    local hunks = get_hunks(true)
-    if #hunks == 0 then return print("No staged hunks") end
-
-    local count = 0
-    for _, h in ipairs(hunks) do
-      vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, true))
-      if vim.v.shell_error == 0 then count = count + 1 end
-    end
-
-    local buf = vim.api.nvim_get_current_buf()
-    refresh_head_cache(buf)
-    update_signs(buf)
-    print("Unstaged " .. count .. "/" .. #hunks .. " hunks")
   end)
 
   -- Hunk navigation
@@ -929,7 +843,7 @@ if vim.fn.executable("git") == 1 then
     if vim.v.shell_error ~= 0 then return print("Failed") end
     if reload then vim.cmd("e!") end
     local buf = vim.api.nvim_get_current_buf()
-    if refresh_cache then refresh_head_cache(buf) end
+    refresh_head_cache(buf)
     update_signs(buf)
     print(msg)
   end
@@ -978,10 +892,10 @@ if vim.fn.executable("git") == 1 then
       end,
     })
   end)
-  map("n", "<leader>ga", function() git_file_op("git add", "Staged") end)
-  map("n", "<leader>gu", function() git_file_op("git restore --staged", "Unstaged") end)
-  map("n", "<leader>gr", function() git_file_op("git restore", "Reset to index", true, true) end)
-  map("n", "<leader>gR", function() git_file_op("git restore --staged " .. git_file() .. " && git restore", "Reset to HEAD", true, true) end)
+  map("n", "<leader>ga", function() git_file_op("git add", "Staged", false) end)
+  map("n", "<leader>gu", function() git_file_op("git restore --staged", "Unstaged", false) end)
+  map("n", "<leader>gr", function() git_file_op("git restore", "Reset to index", true) end)
+  map("n", "<leader>gR", function() git_file_op("git restore --staged " .. git_file() .. " && git restore", "Reset to HEAD", true) end)
 
   map("n", "<leader>gb", function()
     local blame = vim.fn.systemlist("git blame --date=short " .. git_file())
