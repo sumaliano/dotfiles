@@ -54,36 +54,6 @@ if vim.fn.executable("rg") == 1 then o.grepprg = "rg --vimgrep --smart-case" end
 
 pcall(vim.cmd, "colorscheme retrobox")
 
--- Statusline: mode | branch | file | flags | LSP | pos
-local cached_branch = ""
-vim.api.nvim_create_autocmd({ "BufEnter", "DirChanged" }, {
-  callback = function()
-    cached_branch = vim.fn.system("git branch --show-current 2>/dev/null"):gsub("\n", "")
-  end
-})
-
-local function statusline()
-  local mode_map = { n = "N", i = "I", v = "V", V = "VL", ["\22"] = "VB", c = "C", R = "R", t = "T" }
-  local mode = mode_map[vim.fn.mode()] or vim.fn.mode()
-  local file = vim.fn.expand("%:~:.")
-  if file == "" then file = "[No Name]" end
-  local flags = vim.bo.modified and " [+]" or (not vim.bo.modifiable and " [-]" or "")
-  local lsp = (#vim.lsp.get_clients { bufnr = 0 } > 0) and "LSP " or ""
-  return table.concat({ " ", mode, " ", cached_branch ~= "" and " " .. cached_branch or "", " ", file, flags, "%=", lsp, "%l:%c %p%% " }, "")
-end
-_G.statusline_fn = statusline
-o.statusline = "%!v:lua.statusline_fn()"
-
--- LSP setup
-vim.lsp.enable { "bashls", "pyright", "clangd", "rust_analyzer", "jdtls" }
-vim.api.nvim_create_autocmd("LspAttach", {
-  callback = function(ev)
-    vim.bo[ev.buf].omnifunc = "v:lua.vim.lsp.omnifunc"
-    map("n", "gry", vim.lsp.buf.type_definition, { buffer = ev.buf })
-    map("n", "grf", function() vim.lsp.buf.format { async = true } end, { buffer = ev.buf })
-  end,
-})
-
 -- Statusline
 local cached_branch = ""
 local function update_branch()
@@ -91,46 +61,14 @@ local function update_branch()
 end
 
 local function statusline()
-  local mode_map = {
-    n = "N", i = "I", v = "V", V = "VL", ["\22"] = "VB",
-    c = "C", R = "R", t = "T"
-  }
-
-  local parts = {}
-
-  -- Mode
+  local mode_map = { n = "N", i = "I", v = "V", V = "VL", ["\22"] = "VB", c = "C", R = "R", t = "T" }
   local mode = mode_map[vim.fn.mode()] or vim.fn.mode()
-  table.insert(parts, " " .. mode .. " ")
-
-  -- Git branch
-  if cached_branch ~= "" then
-    table.insert(parts, " " .. cached_branch)
-  end
-
-  -- File path
   local file = vim.fn.expand("%:~:.")
   if file == "" then file = "[No Name]" end
-  table.insert(parts, " " .. file)
-
-  -- Modified flag
-  if vim.bo.modified then
-    table.insert(parts, " [+]")
-  elseif not vim.bo.modifiable then
-    table.insert(parts, " [-]")
-  end
-
-  -- Right side
-  table.insert(parts, "%=")
-
-  -- LSP status
-  if #vim.lsp.get_clients({ bufnr = 0 }) > 0 then
-    table.insert(parts, "LSP ")
-  end
-
-  -- Position
-  table.insert(parts, "%l:%c %p%% ")
-
-  return table.concat(parts, "")
+  local flags = vim.bo.modified and " [+]" or (not vim.bo.modifiable and " [-]" or "")
+  local branch = cached_branch ~= "" and " " .. cached_branch or ""
+  local lsp = #vim.lsp.get_clients({ bufnr = 0 }) > 0 and "LSP " or ""
+  return " " .. mode .. " " .. branch .. " " .. file .. flags .. "%=" .. lsp .. "%l:%c %p%% "
 end
 
 vim.api.nvim_create_autocmd({ "BufEnter", "DirChanged" }, {
@@ -161,7 +99,7 @@ map("n", "[e", function() vim.diagnostic.goto_prev { severity = vim.diagnostic.s
 map("n", "]e", function() vim.diagnostic.goto_next { severity = vim.diagnostic.severity.ERROR } end)
 
 
--- Completion mappings
+-- Completion
 map("i", "<Tab>", function()
   if vim.fn.pumvisible() == 1 then return "<C-n>" end
   local col = vim.fn.col(".") - 1
@@ -199,8 +137,7 @@ end)
 
 -- Toggle line numbers (F3)
 map("n", "<F3>", function()
-  o.number = not o.number:get()
-  o.relativenumber = not o.relativenumber:get()
+  o.number, o.relativenumber = not o.number:get(), not o.relativenumber:get()
   print("Line numbers: " .. (o.number:get() and "ON" or "OFF"))
 end)
 
@@ -211,28 +148,20 @@ map("n", "<leader>e", "<cmd>Lexplore<cr>")
 map("n", "-", "<cmd>Explore<cr>")
 
 
--- File finder helper
-local function ui_select(items, prompt, on_choice)
+-- File finder
+local function ui_sel(items, prompt, on_choice)
   if #items == 0 then return print("None found") end
   vim.ui.select(items, { prompt = prompt }, function(c) if c then on_choice(c) end end)
 end
 
 map("n", "<leader>ff", function()
-  local cmd = vim.fn.executable("fd") == 1
-    and "fd -tf -H -E.git"
-    or "find . -type f ! -path '*/.git/*'"
-  ui_select(vim.fn.systemlist(cmd), "File:", function(f)
-    vim.cmd("e " .. vim.fn.fnameescape(f))
-  end)
+  local cmd = vim.fn.executable("fd") == 1 and "fd -tf -H -E.git" or "find . -type f ! -path '*/.git/*'"
+  ui_sel(vim.fn.systemlist(cmd), "File:", function(f) vim.cmd("e " .. vim.fn.fnameescape(f)) end)
 end)
 
 map("n", "<leader>fr", function()
-  local recent = vim.tbl_filter(function(f)
-    return vim.fn.filereadable(f) == 1
-  end, vim.v.oldfiles)
-  ui_select(vim.list_slice(recent, 1, 30), "Recent:", function(f)
-    vim.cmd("e " .. f)
-  end)
+  local recent = vim.tbl_filter(function(f) return vim.fn.filereadable(f) == 1 end, vim.v.oldfiles)
+  ui_sel(vim.list_slice(recent, 1, 30), "Recent:", function(f) vim.cmd("e " .. f) end)
 end)
 
 map("n", "<leader>fb", function()
@@ -242,9 +171,7 @@ map("n", "<leader>fb", function()
       table.insert(bufs, vim.api.nvim_buf_get_name(b))
     end
   end
-  ui_select(bufs, "Buffer:", function(f)
-    vim.cmd("e " .. f)
-  end)
+  ui_sel(bufs, "Buffer:", function(f) vim.cmd("e " .. f) end)
 end)
 
 map("n", "<leader>fg", function()
@@ -258,45 +185,25 @@ map("n", "<leader><leader>", "<C-^>")
 
 -- Git
 if vim.fn.executable("git") == 1 then
-  local function git_file()
-    return vim.fn.shellescape(vim.api.nvim_buf_get_name(0))
-  end
-
+  local function git_file() return vim.fn.shellescape(vim.api.nvim_buf_get_name(0)) end
   local function git_rel()
     local r = vim.fn.systemlist("git ls-files --full-name " .. git_file())[1]
     return (r and r ~= "" and vim.v.shell_error == 0) and r or nil
   end
-
   local function close_scratch()
     for _, win in ipairs(vim.api.nvim_list_wins()) do
       local buf = vim.api.nvim_win_get_buf(win)
-      if vim.api.nvim_buf_is_valid(buf) and vim.b[buf].is_scratch then
-        pcall(vim.api.nvim_win_close, win, false)
-      end
+      if vim.api.nvim_buf_is_valid(buf) and vim.b[buf].is_scratch then pcall(vim.api.nvim_win_close, win, false) end
     end
   end
-
   local function make_scratch(lines, ft, diff_mode)
     vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
-    vim.bo.buftype = "nofile"
-    vim.bo.bufhidden = "wipe"
-    vim.b.is_scratch = true
-    -- if ft then vim.bo.filetype = ft end
-    -- Always set filetype to 'diff' for scratch diff windows
+    vim.bo.buftype, vim.bo.bufhidden, vim.b.is_scratch, vim.bo.modifiable = "nofile", "wipe", true, false
     vim.bo.filetype = "diff"
-    if diff_mode then
-      vim.cmd("diffthis")
-      vim.bo.modifiable = false
-    else
-      vim.bo.modifiable = false
-    end
+    if diff_mode then vim.cmd("diffthis") end
     map("n", "q", close_scratch, { buffer = true })
   end
-
-  local function scratch(lines, ft)
-    vim.cmd("tabnew")
-    make_scratch(lines, ft, false)
-  end
+  local function scratch(lines, ft) vim.cmd("tabnew"); make_scratch(lines, ft, false) end
 
   -- Signs with Claude Code-style colors
   local function set_git_highlights()
@@ -552,35 +459,18 @@ if vim.fn.executable("git") == 1 then
   end)
 
   -- Hunk navigation
-  local function next_hunk()
-    local hunks = get_hunks()
+  map("n", "]c", function()
+    local hunks, cur = get_hunks(), vim.api.nvim_win_get_cursor(0)[1]
     if #hunks == 0 then return print("No hunks") end
-    local cur = vim.api.nvim_win_get_cursor(0)[1]
-    for _, h in ipairs(hunks) do
-      if h.start > cur then
-        vim.api.nvim_win_set_cursor(0, { h.start, 0 })
-        return
-      end
-    end
+    for _, h in ipairs(hunks) do if h.start > cur then return vim.api.nvim_win_set_cursor(0, { h.start, 0 }) end end
     print("No more hunks")
-  end
-
-  local function prev_hunk()
-    local hunks = get_hunks()
+  end)
+  map("n", "[c", function()
+    local hunks, cur = get_hunks(), vim.api.nvim_win_get_cursor(0)[1]
     if #hunks == 0 then return print("No hunks") end
-    local cur = vim.api.nvim_win_get_cursor(0)[1]
-    for i = #hunks, 1, -1 do
-      local h = hunks[i]
-      if h.start < cur then
-        vim.api.nvim_win_set_cursor(0, { h.start, 0 })
-        return
-      end
-    end
+    for i = #hunks, 1, -1 do if hunks[i].start < cur then return vim.api.nvim_win_set_cursor(0, { hunks[i].start, 0 }) end end
     print("No more hunks")
-  end
-
-  map("n", "]c", next_hunk)
-  map("n", "[c", prev_hunk)
+  end)
 
   -- Inline diff
   local ns = vim.api.nvim_create_namespace("inline_diff")
@@ -659,27 +549,16 @@ if vim.fn.executable("git") == 1 then
   -- Git commands
 
   local function resolve_conflict(buf, choice)
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    local cur = vim.api.nvim_win_get_cursor(0)[1]
-    local s, m, e, f
+    local lines, cur, s, m, e, f = vim.api.nvim_buf_get_lines(buf, 0, -1, false), vim.api.nvim_win_get_cursor(0)[1]
     for i = cur, 1, -1 do if lines[i]:match("^<<<<<<<") then s = i; break end end
     if not s then return print("Not in conflict") end
     for i = s, #lines do
-      if lines[i]:match("^|||||||") then m = i
-      elseif lines[i]:match("^=======") then e = i
-      elseif lines[i]:match("^>>>>>>>") then f = i; break end
+      if lines[i]:match("^|||||||") then m = i elseif lines[i]:match("^=======") then e = i elseif lines[i]:match("^>>>>>>>") then f = i; break end
     end
     if not e or not f then return print("Malformed conflict") end
+    local a, b = choice == "ours" and { s + 1, (m or e) - 1 } or choice == "theirs" and { e + 1, f - 1 } or (m and { m + 1, e - 1 } or nil)
+    if not a then return print("No base section") end
     local result = {}
-    local a, b
-    if choice == "ours" then
-      a, b = s + 1, (m or e) - 1
-    elseif choice == "theirs" then
-      a, b = e + 1, f - 1
-    elseif choice == "base" then
-      if not m then return print("No base section") end
-      a, b = m + 1, e - 1
-    end
     for i = a, b do table.insert(result, lines[i]) end
     vim.api.nvim_buf_set_lines(buf, s - 1, f, false, result)
   end
@@ -781,50 +660,28 @@ if vim.fn.executable("git") == 1 then
   map("n", "<leader>gl", function()
     local rel = git_rel()
     if not rel then return print("Not tracked") end
-
     local log = vim.fn.systemlist("git log --oneline -100 -- " .. git_file())
     if #log == 0 then return print("No history") end
-
-    -- Populate quickfix with commits
     local qf = {}
     for _, line in ipairs(log) do
       local hash = line:match("^(%w+)")
-      if hash then
-        table.insert(qf, { text = line, user_data = hash })
-      end
+      if hash then table.insert(qf, { text = line, user_data = hash }) end
     end
     vim.fn.setqflist(qf, "r")
     vim.fn.setqflist({}, "a", { title = "Git Log: " .. rel })
     vim.cmd("copen")
-
-    -- Map Enter to show commit diff (set directly on existing qf windows, and add a FileType fallback)
     local function qf_enter()
-      local idx = vim.fn.line(".")
-      local item = vim.fn.getqflist()[idx]
+      local item = vim.fn.getqflist()[vim.fn.line(".")]
       if item and item.user_data then
         local diff = vim.fn.systemlist("git show " .. item.user_data .. " -- " .. rel)
-        if #diff > 0 then
-          scratch(diff, "git")
-        end
+        if #diff > 0 then scratch(diff, "git") end
       end
     end
-
-    -- Set mapping on any currently-open quickfix windows
     for _, win in ipairs(vim.api.nvim_list_wins()) do
       local buf = vim.api.nvim_win_get_buf(win)
-      if vim.api.nvim_buf_get_option(buf, "filetype") == "qf" then
-        map("n", "<CR>", qf_enter, { buffer = buf })
-      end
+      if vim.api.nvim_buf_get_option(buf, "filetype") == "qf" then map("n", "<CR>", qf_enter, { buffer = buf }) end
     end
-
-    -- Fallback: in case quickfix is opened later, set mapping on FileType event
-    vim.api.nvim_create_autocmd("FileType", {
-      pattern = "qf",
-      once = true,
-      callback = function(ev)
-        map("n", "<CR>", qf_enter, { buffer = ev.buf })
-      end,
-    })
+    vim.api.nvim_create_autocmd("FileType", { pattern = "qf", once = true, callback = function(ev) map("n", "<CR>", qf_enter, { buffer = ev.buf }) end })
   end)
 
   map("n", "<leader>gL", function()
@@ -886,44 +743,26 @@ map("v", "<leader>r", function()
 end)
 
 -- Run file
-map("n", "<leader>r", function()
-  local ft = vim.bo.filetype
+map("n", "<leader>R", function()
   local file = vim.fn.shellescape(vim.fn.expand("%:p"))
-  local cmds = {
-    python = "python3 " .. file,
-    sh = "bash " .. file,
-    bash = "bash " .. file,
-    lua = "lua " .. file,
-    c = "gcc " .. file .. " -o /tmp/a.out && /tmp/a.out",
-    rust = "cargo run",
-  }
-  local cmd = cmds[ft]
-  if cmd then
-    vim.cmd("terminal " .. cmd)
-  else
-    print("No run command for: " .. ft)
-  end
+  local cmds = { python = "python3 " .. file, sh = "bash " .. file, bash = "bash " .. file, lua = "lua " .. file, c = "gcc " .. file .. " -o /tmp/a.out && /tmp/a.out", rust = "cargo run" }
+  local cmd = cmds[vim.bo.filetype]
+  if cmd then vim.cmd("terminal " .. cmd) else print("No run command for: " .. vim.bo.filetype) end
 end)
 
 
 -- Utilities
 map("n", "<leader>sw", function()
-  local v = vim.fn.winsaveview()
-  vim.cmd([[%s/\s\+$//e]])
-  vim.fn.winrestview(v)
-  print("Stripped whitespace")
+  local v = vim.fn.winsaveview(); vim.cmd([[%s/\s\+$//e]]); vim.fn.winrestview(v); print("Stripped whitespace")
 end)
 map("n", "<leader>st", function()
-  local n = tonumber(vim.fn.input("Tab width: "))
-  if n then vim.bo.tabstop = n; vim.bo.shiftwidth = n end
+  local n = tonumber(vim.fn.input("Tab width: ")); if n then vim.bo.tabstop, vim.bo.shiftwidth = n, n end
 end)
 map("n", "<leader>bo", function()
   local visible, closed = {}, 0
   for _, w in ipairs(vim.api.nvim_list_wins()) do visible[vim.api.nvim_win_get_buf(w)] = true end
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) and not visible[b] and vim.bo[b].buftype == "" then
-      pcall(vim.api.nvim_buf_delete, b, {}); closed = closed + 1
-    end
+    if vim.api.nvim_buf_is_loaded(b) and not visible[b] and vim.bo[b].buftype == "" then pcall(vim.api.nvim_buf_delete, b, {}); closed = closed + 1 end
   end
   print("Closed " .. closed .. " hidden buffers")
 end)
@@ -931,29 +770,22 @@ end)
 
 -- Autocommands
 vim.api.nvim_create_autocmd("TextYankPost", { callback = function() vim.highlight.on_yank() end })
-vim.api.nvim_create_autocmd("BufReadPost", {
-  callback = function()
-    local m = vim.api.nvim_buf_get_mark(0, '"')
-    if m[1] > 0 and m[1] <= vim.api.nvim_buf_line_count(0) then
-      pcall(vim.api.nvim_win_set_cursor, 0, m)
-    end
-  end,
-})
+vim.api.nvim_create_autocmd("BufReadPost", { callback = function()
+  local m = vim.api.nvim_buf_get_mark(0, '"')
+  if m[1] > 0 and m[1] <= vim.api.nvim_buf_line_count(0) then pcall(vim.api.nvim_win_set_cursor, 0, m) end
+end })
 vim.api.nvim_create_autocmd("TermClose", { callback = function() vim.cmd("bd!") end })
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "qf",
-  callback = function() map("n", "q", "<cmd>cclose<cr>", { buffer = true }) end,
-})
+vim.api.nvim_create_autocmd("FileType", { pattern = "qf", callback = function() map("n", "q", "<cmd>cclose<cr>", { buffer = true }) end })
 
 
 -- Help
 map("n", "<leader>?", function()
-  print([[ 
+  print([[
 CUSTOM:   w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win
-          <leader>r replace word/selection | c config | F2 auto-cmp | F3 numbers
+          r replace word/selection | R run | c config | F2 auto-cmp | F3 numbers
 GIT:      gd diff/merge gD diff(tab) gi diff(inline) | gs/gC/gP status/commit/push | ga/gu stage/unstage
           gb blame | gl log(qf+Enter=diff) | gL global-log | gr/gR reset-file (index/HEAD)
 HUNK:     hp preview | ha/hu stage/unstage | hr/hR reset (index/HEAD) | ]c/[c nav
-CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: r run | sw strip | st tab
+CONFLICT: gH/gJ/gL resolve block (ours/base/theirs) | MISC: sw strip | st tab
 NATIVE:   gd/gD/grr/gri/K/grn/gra LSP | [d/]d [e/]e diag | gc comment | <C-L> clear | ZZ quit]])
 end)
