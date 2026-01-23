@@ -1,3 +1,12 @@
+-- :G command: alias for any git command
+vim.api.nvim_create_user_command('G', function(opts)
+  local git_cmd = table.concat(opts.fargs, ' ')
+  if git_cmd == '' then
+    print('Usage: :G <git-args>')
+    return
+  end
+  vim.cmd('terminal git ' .. git_cmd)
+end, { nargs = '+', complete = 'shellcmd' })
 
 -- Shortcuts
 local o, g, map = vim.opt, vim.g, vim.keymap.set
@@ -23,12 +32,16 @@ for k, v in pairs {
   backup = false, 
   updatetime = 300, 
   timeoutlen = 500,
-  completeopt = "menu,menuone,noselect", pumheight = 10, list = true,
-  mouse = "", showmode = false, laststatus = 2,
+  completeopt = "menu,menuone,noselect", 
+  pumheight = 10, 
+  list = true,
+  mouse = "", 
+  showmode = false, 
+  laststatus = 2,
+  termguicolors = true
 } do o[k] = v end
 o.listchars = { tab = "| ", trail = ".", nbsp = "+" }
 o.diffopt:append { "vertical", "linematch:60", "algorithm:histogram", "indent-heuristic", "internal" }
-o.termguicolors = true
 
 -- Ensure default runtime is in runtimepath for default colorschemes
 local default_runtime = vim.fn.stdpath('data') .. '/runtime'
@@ -268,7 +281,9 @@ if vim.fn.executable("git") == 1 then
     vim.bo.buftype = "nofile"
     vim.bo.bufhidden = "wipe"
     vim.b.is_scratch = true
-    if ft then vim.bo.filetype = ft end
+    -- if ft then vim.bo.filetype = ft end
+    -- Always set filetype to 'diff' for scratch diff windows
+    vim.bo.filetype = "diff"
     if diff_mode then
       vim.cmd("diffthis")
       vim.bo.modifiable = false
