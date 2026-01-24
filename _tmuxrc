@@ -1,137 +1,98 @@
 # =========================================================
-# Modern, Portable, Vim-Friendly tmux Configuration
-# Minimal • Fast • SSH-safe • Neovim-aware • Plugin-Free
+# Robust, Native-Leaning tmux Configuration
 # =========================================================
 
-# ====================
-# Prefix
-# ====================
+# --------------------
+# Essentials
+# --------------------
 unbind C-b
 set -g prefix C-a
 bind C-a send-prefix
 
-# ====================
-# Terminal & Performance
-# ====================
-set -g default-terminal "tmux-256color"
-set -ga terminal-overrides ",xterm-256color:Tc"
-
-# Fast escape locally, safe over SSH
-if-shell '[ -n "$SSH_CONNECTION" ]' \
-  'set -sg escape-time 10' \
-  'set -sg escape-time 0'
-
-set -g history-limit 50000
-setw -g aggressive-resize on
-set -g focus-events on
-
-# ====================
-# Indexing & Behavior
-# ====================
+set -g mouse on
 set -g base-index 1
 setw -g pane-base-index 1
 set -g renumber-windows on
-set -g allow-rename off
-set -g mouse on
 
-# ====================
-# Core Bindings
-# ====================
-# Reload config and display message
-bind r source-file ~/.tmux.conf \; display "󰑓 Config Reloaded!"
-
-# Clear history and screen
-bind C-k send-keys C-l \; clear-history
-
-# Zoom toggle (Maximize pane)
-bind m resize-pane -Z
-
-# ====================
-# Panes – Splits
-# ====================
-unbind '"'
-unbind %
-bind | split-window -h -c "#{pane_current_path}"
-bind - split-window -v -c "#{pane_current_path}"
-
-# Equalize panes (Standard ergonomic binding)
-bind = select-layout even-horizontal
-bind + select-layout even-vertical
-
-# Kill pane with confirmation
-bind x confirm-before -p "Kill pane #P? (y/n)" kill-pane
-
-# ====================
-# Smart Vim / Neovim Navigation (NO PREFIX)
-# ====================
-# Works with the code snippets provided earlier in Vim/Nvim 
-is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE '^[^TXZ ]+ +(\\S+\\/)?g?(view|n?vim?x?|fzf)(diff)?$'"
+# --------------------
+# The "Smart Navigation" (The only major non-native part)
+# --------------------
+is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE '^[^TXZ ]+ +(\\S+\\/)?g?(view|n?vim?x?|fzf|ranger)(diff)?$'"
 
 bind-key -n 'C-h' if-shell "$is_vim" 'send-keys C-h' 'select-pane -L'
 bind-key -n 'C-j' if-shell "$is_vim" 'send-keys C-j' 'select-pane -D'
 bind-key -n 'C-k' if-shell "$is_vim" 'send-keys C-k' 'select-pane -U'
 bind-key -n 'C-l' if-shell "$is_vim" 'send-keys C-l' 'select-pane -R'
 
-# Restore Clear Screen (since we took over C-l)
+# --------------------
+# Clearing the Screen (The Native Way)
+# --------------------
+# Instead of a new shortcut, we keep it simple:
+# To clear screen: Prefix, then Ctrl-l. 
+# This "sends" the Ctrl-l through tmux to the shell.
 bind C-l send-keys 'C-l'
-# ====================
-# Pane Resizing (PREFIX + Shift + HJKL)
-# ====================
-bind -r H resize-pane -L 5
-bind -r J resize-pane -D 5
-bind -r K resize-pane -U 5
-bind -r L resize-pane -R 5
 
 # ====================
-# Pane Positioning (PREFIX + Ctrl + hjkl)
+# Panes – Splits & Layouts
 # ====================
-# Physically swap the pane position with the neighbor in that direction
+# unbind '"'
+# unbind %
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+
+# =========================================================
+# Directional "Tiling" Move (Iterative Dragging)
+# =========================================================
+
+# Use swap-pane instead of join-pane for a predictable "grid" feel.
+# -d keeps focus on the current "slot" while the content moves.
 bind -r C-h swap-pane -d -t '{left-of}'
 bind -r C-j swap-pane -d -t '{down-of}'
 bind -r C-k swap-pane -d -t '{up-of}'
 bind -r C-l swap-pane -d -t '{right-of}'
 
-# Rotate panes inside the window
-bind -r C-r rotate-window
+# LEARN THESE NATIVE DEFAULTS INSTEAD:
+# Prefix + {  -> Move pane left/up
+# Prefix + }  -> Move pane right/down
 
-# ====================
-# Windows
-# ====================
-bind Tab last-window
-bind -r C-p select-window -t :-
-bind -r C-n select-window -t :+
+# 4. Predictable Layout Toggling
+# Instead of moving panes manually, you toggle the "Template".
+# Hitting Space flips the screen between Vertical and Horizontal tiling.
+# bind -n C-Space next-layout
+bind Space next-layout
 
-# Swap windows left/right in the status bar
-bind -r < swap-window -d -t -1
-bind -r > swap-window -d -t +1
+# 7. The "Equalize" Key
+# If things ever look 'weird', hit '=' to make all panes the same size.
+#
+#bind = select-layout tiled
+bind = select-layout -E \; display "Panes equalized"
 
-# ====================
-# Copy Mode (Vim Style)
-# ====================
-setw -g mode-keys vi
-set -g set-clipboard on
+bind -r C-n rotate-window  # Rotate Forward
+bind -r C-p rotate-window -D # Rotate Backward
 
-bind -T copy-mode-vi v     send -X begin-selection
-bind -T copy-mode-vi C-v   send -X rectangle-toggle
-bind -T copy-mode-vi y     send -X copy-selection-and-cancel
-bind -T copy-mode-vi L     send -X end-of-line
-bind -T copy-mode-vi H     send -X start-of-line
+# 3. The "Promotion" Logic (This is the 'Move' secret)
+# Instead of moving panes to 'edges', you promote them to the Master Slot.
+# This is 100% predictable: the pane you are in becomes the BIG one.
+bind -r Enter swap-pane -t 1 \; select-pane -t 1
 
-# ====================
-# Status Bar (Modern & Minimal)
-# ====================
-set -g status-position bottom
-set -g status-style 'bg=default fg=white' # Transparent bg
+# Force "Master/Stack" Layout
+bind v select-layout main-vertical \; resize-pane -t :.1 -x "60%"
+bind h select-layout main-horizontal \; resize-pane -t :.1 -y "60%"
 
-set -g status-left "#[fg=blue,bold]#S #[fg=brightblack]| "
-set -g status-left-length 20
+# =========================================================
+# Repeatable Resizing (One of the few things worth overriding)
+# =========================================================
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
 
-set -g status-right "#[fg=brightblack]#[fg=white]%H:%M #[fg=brightblack]| #[fg=magenta]#h "
-set -g status-right-length 50
+# --------------------
+# Maintenance & Style
+# --------------------
+bind r source-file ~/.tmux.conf \; display "Config Reloaded"
 
-setw -g window-status-format "#[fg=brightblack] #I:#W "
-setw -g window-status-current-format "#[fg=cyan,bold] #I:#W#{?window_zoomed_flag, 🔍,} "
-
-set -g pane-border-style 'fg=brightblack'
-set -g pane-active-border-style 'fg=blue'
-set -g message-style 'bg=blue fg=black bold'
+set -g status-style 'bg=default fg=white'
+set -g status-left "#[fg=blue,bold]#S "
+set -g status-right "#[fg=magenta]#h #[fg=white]%H:%M"
+setw -g window-status-current-format "#[fg=cyan,bold][#I:#W]"
