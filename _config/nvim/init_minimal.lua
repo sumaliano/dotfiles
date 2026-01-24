@@ -462,17 +462,40 @@ if vim.fn.executable("git") == 1 then
     local buf_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
     local buf_line_count = vim.api.nvim_buf_line_count(buf)
 
-    -- Compute changes using cached content
-    local all_hunks = vim.diff(cache.head, buf_content, { result_type = "indices" })
+    -- Unstaged changes: INDEX vs working tree (working tree line numbers)
     local unstaged_hunks = vim.diff(cache.index, buf_content, { result_type = "indices" })
-
-    local all_changed_lines = hunks_to_lines(all_hunks, buf_line_count)
     local unstaged_lines = hunks_to_lines(unstaged_hunks, buf_line_count)
 
-    -- Staged = all changed minus unstaged
+    -- Staged changes: HEAD vs INDEX (index line numbers)
+    local staged_hunks = vim.diff(cache.head, cache.index, { result_type = "indices" })
+    local index_line_count = select(2, cache.index:gsub("\n", "\n")) + 1
+    local staged_in_index = hunks_to_lines(staged_hunks, index_line_count)
+
+    -- Map staged changes from INDEX line space to working tree line space
     local staged_lines = {}
-    for lnum, change_type in pairs(all_changed_lines) do
-      if not unstaged_lines[lnum] then staged_lines[lnum] = change_type end
+    for index_lnum, change_type in pairs(staged_in_index) do
+      -- Calculate offset: sum of (new_count - old_count) for all hunks ending before this line
+      local offset = 0
+      for _, h in ipairs(unstaged_hunks) do
+        local old_start, old_count, new_count = h[1], h[2], h[4]
+        local old_end = old_start + math.max(0, old_count - 1)
+        if old_end < index_lnum then
+          -- Hunk ends before this line, apply full offset
+          offset = offset + (new_count - old_count)
+        elseif old_start <= index_lnum and index_lnum <= old_end then
+          -- We're inside this hunk - line may have moved or been deleted
+          -- Map proportionally within the hunk
+          local pos_in_hunk = index_lnum - old_start
+          if new_count > 0 then
+            offset = offset + pos_in_hunk  -- Approximate position in new
+          end
+          break
+        end
+      end
+      local working_lnum = index_lnum + offset
+      if working_lnum >= 1 and working_lnum <= buf_line_count then
+        staged_lines[working_lnum] = change_type
+      end
     end
 
     -- Build display lines based on mode
