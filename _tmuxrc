@@ -1,160 +1,201 @@
-# Modern Tmux Configuration
-# Minimal, fast, vim-friendly, works on SSH
+# =========================================================
+# Modern, Portable, Vim-Friendly tmux Configuration
+# Minimal • Fast • SSH-safe • Neovim-aware
+# =========================================================
 
 # ====================
-# General Settings
+# Prefix
 # ====================
 
-# Use C-a as prefix (like screen, familiar)
+# Use C-a as prefix (screen-style)
 unbind C-b
 set -g prefix C-a
 bind C-a send-prefix
 
-# Terminal - fallback friendly
-set -g default-terminal "screen-256color"
-set -ga terminal-overrides ",xterm-256color:Tc,tmux-256color:Tc"
+# ====================
+# Terminal & Performance
+# ====================
 
-# Fast escape time (important for vim)
-set -sg escape-time 0
+# Truecolor, safe defaults
+set -g default-terminal "tmux-256color"
+set -ga terminal-overrides ",*:Tc"
 
-# Increase scrollback buffer
+# Fast escape locally, safe over SSH
+if-shell '[ -n "$SSH_CONNECTION" ]' \
+  'set -sg escape-time 10' \
+  'set -sg escape-time 0'
+
+# Increase scrollback
 set -g history-limit 50000
 
-# Aggressive resize (useful when multiple clients)
+# Resize panes aggressively with multiple clients
 setw -g aggressive-resize on
 
-# Start window/pane numbering at 1 (not 0)
-set -g base-index 1
-setw -g pane-base-index 1
-
-# Renumber windows when one is closed
-set -g renumber-windows on
-
-# Enable mouse support (optional, useful for scrolling)
-set -g mouse on
-
-# Focus events enabled for vim autoread
+# Focus events (important for Neovim autoread)
 set -g focus-events on
 
 # ====================
-# Key Bindings
+# Indexing & Behavior
 # ====================
 
-# Reload config with r
+# Start windows/panes at 1
+set -g base-index 1
+setw -g pane-base-index 1
+
+# Renumber windows automatically
+set -g renumber-windows on
+
+# Disable auto window renaming (better for Neovim)
+set -g allow-rename off
+
+# Enable mouse (scrolling + selection)
+set -g mouse on
+
+# ====================
+# Key Bindings – Core
+# ====================
+
+# Reload config
 bind r source-file ~/.tmux.conf \; display "Config reloaded!"
 
-# Better split bindings (more intuitive)
-bind | split-window -h -c "#{pane_current_path}"
-bind - split-window -v -c "#{pane_current_path}"
+# Clear screen + tmux history
+bind C-k send-keys C-l \; clear-history
+
+# Last window toggle
+bind Tab last-window
+
+# ====================
+# Panes – Splits
+# ====================
+
+# Better splits (preserve cwd)
 unbind '"'
 unbind %
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
 
-# Vim-like pane navigation
-bind h select-pane -L
-bind j select-pane -D
-bind k select-pane -U
-bind l select-pane -R
+# Quick layouts
+bind = select-layout even-horizontal
+bind + select-layout even-vertical
 
-# Vim-like pane resizing
+# Kill pane without prompt
+bind x kill-pane
+
+# ====================
+# Smart Vim / Neovim Pane Navigation
+# ====================
+
+# Detect vim or neovim in pane
+is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE 'n?vim$'"
+
+# Seamless navigation (no prefix)
+bind -n C-h if-shell "$is_vim" 'send-keys C-h' 'select-pane -L'
+bind -n C-j if-shell "$is_vim" 'send-keys C-j' 'select-pane -D'
+bind -n C-k if-shell "$is_vim" 'send-keys C-k' 'select-pane -U'
+bind -n C-l if-shell "$is_vim" 'send-keys C-l' 'select-pane -R'
+
+# Pane resizing (repeatable, prefix-based)
 bind -r H resize-pane -L 5
 bind -r J resize-pane -D 5
 bind -r K resize-pane -U 5
 bind -r L resize-pane -R 5
 
+# ====================
+# Windows
+# ====================
+
 # Window navigation
 bind -r C-h select-window -t :-
 bind -r C-l select-window -t :+
 
-# Copy mode vi bindings (tmux 2.4+, fallback for older versions)
+# Swap windows
+bind -r < swap-window -t -1 \; select-window -t -1
+bind -r > swap-window -t +1 \; select-window -t +1
+
+# ====================
+# Copy Mode (Vim Style)
+# ====================
+
 setw -g mode-keys vi
 
-# Modern bindings (tmux 2.4+)
-bind -T copy-mode-vi 'v' send -X begin-selection 2>/dev/null || bind -t vi-copy 'v' begin-selection
-bind -T copy-mode-vi 'V' send -X select-line 2>/dev/null || bind -t vi-copy 'V' select-line
-bind -T copy-mode-vi 'C-v' send -X rectangle-toggle 2>/dev/null || bind -t vi-copy 'C-v' rectangle-toggle
-bind -T copy-mode-vi 'y' send -X copy-selection-and-cancel 2>/dev/null || bind -t vi-copy 'y' copy-selection
-bind -T copy-mode-vi Escape send -X cancel 2>/dev/null || bind -t vi-copy Escape cancel
+bind -T copy-mode-vi v     send -X begin-selection
+bind -T copy-mode-vi V     send -X select-line
+bind -T copy-mode-vi C-v   send -X rectangle-toggle
+bind -T copy-mode-vi y     send -X copy-selection-and-cancel
+bind -T copy-mode-vi Escape send -X cancel
 
-# Clipboard - works across systems (OSC52 for SSH, xclip/pbcopy locally)
-# OSC52 allows copying through SSH without X forwarding (tmux 2.6+)
-set -s set-clipboard on 2>/dev/null || set -g set-clipboard on
-# Copy to system clipboard if available
-if-shell "command -v xclip" "bind -T copy-mode-vi y send -X copy-pipe-and-cancel 'xclip -sel clip -i'" ""
-if-shell "command -v pbcopy" "bind -T copy-mode-vi y send -X copy-pipe-and-cancel 'pbcopy'" ""
-if-shell "command -v wl-copy" "bind -T copy-mode-vi y send -X copy-pipe-and-cancel 'wl-copy'" ""
+# ====================
+# Clipboard (Local + SSH / OSC52)
+# ====================
 
-# Quick session management
+# Enable tmux clipboard integration
+set -g set-clipboard on
+
+# Use system clipboard when available
+if-shell 'command -v xclip >/dev/null 2>&1' \
+  'bind -T copy-mode-vi y send -X copy-pipe-and-cancel "xclip -selection clipboard -in"'
+
+if-shell 'command -v wl-copy >/dev/null 2>&1' \
+  'bind -T copy-mode-vi y send -X copy-pipe-and-cancel "wl-copy"'
+
+if-shell 'command -v pbcopy >/dev/null 2>&1' \
+  'bind -T copy-mode-vi y send -X copy-pipe-and-cancel "pbcopy"'
+
+# ====================
+# Sessions
+# ====================
+
+# New or attach session
 bind S command-prompt -p "New session:" "new-session -A -s '%%'"
+
+# Kill current session
 bind K confirm-before -p "Kill session #S? (y/n)" "kill-session"
 
-# Swap windows
-bind -r < swap-window -t -1\; select-window -t -1
-bind -r > swap-window -t +1\; select-window -t +1
-
-# Synchronize panes toggle (type in all panes at once)
-bind a setw synchronize-panes\; display "Sync #{?pane_synchronized,ON,OFF}"
-
-# Quick pane layouts
-bind = select-layout even-horizontal
-bind + select-layout even-vertical
-
-# Last window toggle
-bind Tab last-window
-
-# Clear screen and history
-bind C-k send-keys C-l \; clear-history
-
 # ====================
-# Status Bar (minimal for performance)
+# Pane Synchronization
 # ====================
 
-# Update status bar every 10 seconds (less CPU on remote)
+bind a setw synchronize-panes \; display "Sync #{?pane_synchronized,ON,OFF}"
+
+# ====================
+# Status Bar (Minimal & Fast)
+# ====================
+
+set -g status on
 set -g status-interval 10
-
-# Status bar position
 set -g status-position bottom
 
-# Status bar colors (clean, minimal)
 set -g status-style 'bg=black fg=white'
 
-# Left status: session
 set -g status-left-length 20
 set -g status-left '#[fg=green,bold]#S #[fg=white]| '
 
-# Right status: hostname and time
 set -g status-right-length 40
 set -g status-right '#[fg=cyan]#h #[fg=white]%H:%M'
 
-# Window status format (minimal)
 setw -g window-status-format ' #I:#W '
-setw -g window-status-current-format '#[fg=cyan,bold] #I:#W* '
+setw -g window-status-current-format '#[fg=cyan,bold] #I:#W#{?pane_synchronized, 🔁,} '
 
-# Pane border colors
+# Pane borders
 set -g pane-border-style 'fg=brightblack'
 set -g pane-active-border-style 'fg=cyan'
 
-# Message colors
+# Messages
 set -g message-style 'bg=black fg=yellow bold'
 
 # ====================
 # Activity Monitoring
 # ====================
 
-# Monitor for activity
 setw -g monitor-activity on
 set -g visual-activity off
 
 # ====================
-# Optional Plugins
+# Plugins (Optional, Disabled)
 # ====================
 
-# Uncomment to use TPM (Tmux Plugin Manager)
-# Install TPM: git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-
-# Plugin list (commented out by default, minimal setup)
 # set -g @plugin 'tmux-plugins/tpm'
 # set -g @plugin 'tmux-plugins/tmux-resurrect'
 # set -g @plugin 'tmux-plugins/tmux-continuum'
-
-# Initialize TPM (keep this at the very bottom)
 # run '~/.tmux/plugins/tpm/tpm'
+
