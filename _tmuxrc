@@ -1,13 +1,10 @@
 # =========================================================
 # Modern, Portable, Vim-Friendly tmux Configuration
-# Minimal • Fast • SSH-safe • Neovim-aware
 # =========================================================
 
 # ====================
 # Prefix
 # ====================
-
-# Use C-a as prefix (screen-style)
 unbind C-b
 set -g prefix C-a
 bind C-a send-prefix
@@ -15,86 +12,61 @@ bind C-a send-prefix
 # ====================
 # Terminal & Performance
 # ====================
-
-# Truecolor, safe defaults
 set -g default-terminal "tmux-256color"
-set -ga terminal-overrides ",*:Tc"
+set -ga terminal-overrides ",xterm-256color:Tc" # Improved compatibility
 
 # Fast escape locally, safe over SSH
 if-shell '[ -n "$SSH_CONNECTION" ]' \
   'set -sg escape-time 10' \
   'set -sg escape-time 0'
 
-# Increase scrollback
 set -g history-limit 50000
-
-# Resize panes aggressively with multiple clients
 setw -g aggressive-resize on
-
-# Focus events (important for Neovim autoread)
 set -g focus-events on
 
 # ====================
 # Indexing & Behavior
 # ====================
-
-# Start windows/panes at 1
 set -g base-index 1
 setw -g pane-base-index 1
-
-# Renumber windows automatically
 set -g renumber-windows on
-
-# Disable auto window renaming (better for Neovim)
 set -g allow-rename off
-
-# Enable mouse (scrolling + selection)
 set -g mouse on
 
 # ====================
-# Key Bindings – Core
+# Core Bindings
 # ====================
-
 # Reload config
-bind r source-file ~/.tmux.conf \; display "Config reloaded!"
-
-# Clear screen + tmux history
+bind r source-file ~/.tmux.conf \; display "Refreshed tmux config"
+# Clear screen and history
 bind C-k send-keys C-l \; clear-history
-
-# Last window toggle
-bind Tab last-window
+# Zoom pane (Huge for productivity)
+bind z resize-pane -Z
 
 # ====================
 # Panes – Splits
 # ====================
-
-# Better splits (preserve cwd)
 unbind '"'
 unbind %
 bind | split-window -h -c "#{pane_current_path}"
 bind - split-window -v -c "#{pane_current_path}"
 
-# Quick layouts
-bind = select-layout even-horizontal
-bind + select-layout even-vertical
-
-# Kill pane without prompt
-bind x kill-pane
-
 # ====================
-# Smart Vim / Neovim Pane Navigation
+# Smart Vim / Neovim Navigation (NO PREFIX)
 # ====================
+# Smart pane switching with awareness of Vim splits.
+is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE '^[^TXZ ]+ +(\\S+\\/)?g?(view|n?vim?x?)(diff)?$'"
 
-# Detect vim or neovim in pane
-is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE 'n?vim$'"
+bind-key -n 'C-h' if-shell "$is_vim" 'send-keys C-h' 'select-pane -L'
+bind-key -n 'C-j' if-shell "$is_vim" 'send-keys C-j' 'select-pane -D'
+bind-key -n 'C-k' if-shell "$is_vim" 'send-keys C-k' 'select-pane -U'
+bind-key -n 'C-l' if-shell "$is_vim" 'send-keys C-l' 'select-pane -R'
 
-# Seamless navigation (no prefix)
-bind -n C-h if-shell "$is_vim" 'send-keys C-h' 'select-pane -L'
-bind -n C-j if-shell "$is_vim" 'send-keys C-j' 'select-pane -D'
-bind -n C-k if-shell "$is_vim" 'send-keys C-k' 'select-pane -U'
-bind -n C-l if-shell "$is_vim" 'send-keys C-l' 'select-pane -R'
-
-# Pane resizing (repeatable, prefix-based)
+# Restore Clear Screen (since we took over C-l)
+bind C-l send-keys 'C-l'
+# ====================
+# Pane Resizing (PREFIX + HJKL)
+# ====================
 bind -r H resize-pane -L 5
 bind -r J resize-pane -D 5
 bind -r K resize-pane -U 5
@@ -103,99 +75,46 @@ bind -r L resize-pane -R 5
 # ====================
 # Windows
 # ====================
-
-# Window navigation
+bind Tab last-window
 bind -r C-h select-window -t :-
 bind -r C-l select-window -t :+
 
-# Swap windows
-bind -r < swap-window -t -1 \; select-window -t -1
-bind -r > swap-window -t +1 \; select-window -t +1
+# Re-order windows with Ctrl+Shift+Arrow
+bind-key -n C-S-Left swap-window -t -1\; select-window -t -1
+bind-key -n C-S-Right swap-window -t +1\; select-window -t +1
 
 # ====================
 # Copy Mode (Vim Style)
 # ====================
-
 setw -g mode-keys vi
-
 bind -T copy-mode-vi v     send -X begin-selection
-bind -T copy-mode-vi V     send -X select-line
 bind -T copy-mode-vi C-v   send -X rectangle-toggle
 bind -T copy-mode-vi y     send -X copy-selection-and-cancel
-bind -T copy-mode-vi Escape send -X cancel
+bind -T copy-mode-vi L     send -X end-of-line
+bind -T copy-mode-vi H     send -X start-of-line
 
-# ====================
-# Clipboard (Local + SSH / OSC52)
-# ====================
-
-# Enable tmux clipboard integration
+# Clipboard (OSC52 is handled by set-clipboard on)
 set -g set-clipboard on
 
-# Use system clipboard when available
-if-shell 'command -v xclip >/dev/null 2>&1' \
-  'bind -T copy-mode-vi y send -X copy-pipe-and-cancel "xclip -selection clipboard -in"'
-
-if-shell 'command -v wl-copy >/dev/null 2>&1' \
-  'bind -T copy-mode-vi y send -X copy-pipe-and-cancel "wl-copy"'
-
-if-shell 'command -v pbcopy >/dev/null 2>&1' \
-  'bind -T copy-mode-vi y send -X copy-pipe-and-cancel "pbcopy"'
-
 # ====================
-# Sessions
+# Status Bar (Clean & Modern)
 # ====================
-
-# New or attach session
-bind S command-prompt -p "New session:" "new-session -A -s '%%'"
-
-# Kill current session
-bind K confirm-before -p "Kill session #S? (y/n)" "kill-session"
-
-# ====================
-# Pane Synchronization
-# ====================
-
-bind a setw synchronize-panes \; display "Sync #{?pane_synchronized,ON,OFF}"
-
-# ====================
-# Status Bar (Minimal & Fast)
-# ====================
-
-set -g status on
-set -g status-interval 10
+set -g status-interval 5
 set -g status-position bottom
+set -g status-style 'bg=default' # Transparent background
 
-set -g status-style 'bg=black fg=white'
-
+# Left: Session name
+set -g status-left "#[fg=blue,bold] #S #[fg=brightblack]| "
 set -g status-left-length 20
-set -g status-left '#[fg=green,bold]#S #[fg=white]| '
 
-set -g status-right-length 40
-set -g status-right '#[fg=cyan]#h #[fg=white]%H:%M'
+# Right: Hostname, Clock
+set -g status-right "#[fg=brightblack] #[fg=white]%H:%M #[fg=brightblack]| #[fg=magenta]#h "
+set -g status-right-length 50
 
-setw -g window-status-format ' #I:#W '
-setw -g window-status-current-format '#[fg=cyan,bold] #I:#W#{?pane_synchronized, 🔁,} '
+# Window Tabs
+setw -g window-status-format "#[fg=brightblack] #I:#W "
+setw -g window-status-current-format "#[fg=cyan,bold] #I:#W#{?window_zoomed_flag, 🔍,} "
 
-# Pane borders
 set -g pane-border-style 'fg=brightblack'
-set -g pane-active-border-style 'fg=cyan'
-
-# Messages
-set -g message-style 'bg=black fg=yellow bold'
-
-# ====================
-# Activity Monitoring
-# ====================
-
-setw -g monitor-activity on
-set -g visual-activity off
-
-# ====================
-# Plugins (Optional, Disabled)
-# ====================
-
-# set -g @plugin 'tmux-plugins/tpm'
-# set -g @plugin 'tmux-plugins/tmux-resurrect'
-# set -g @plugin 'tmux-plugins/tmux-continuum'
-# run '~/.tmux/plugins/tpm/tpm'
-
+set -g pane-active-border-style 'fg=blue'
+set -g message-style 'bg=blue fg=black bold'

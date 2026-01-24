@@ -1203,6 +1203,20 @@ if vim.fn.executable("git") == 1 then
   })
 end
 
+local function nvim_tmux_nav(direction)
+    local win = vim.api.nvim_get_current_win()
+    vim.cmd('wincmd ' .. direction)
+    -- If the window didn't change, we are at the edge; jump to Tmux
+    if win == vim.api.nvim_get_current_win() then
+        local tmux_dir = {h = 'L', j = 'D', k = 'U', l = 'R'}
+        vim.fn.system('tmux select-pane -' .. tmux_dir[direction])
+    end
+end
+
+vim.keymap.set('n', '<C-h>', function() nvim_tmux_nav('h') end)
+vim.keymap.set('n', '<C-j>', function() nvim_tmux_nav('j') end)
+vim.keymap.set('n', '<C-k>', function() nvim_tmux_nav('k') end)
+vim.keymap.set('n', '<C-l>', function() nvim_tmux_nav('l') end)
 
 -- Keymaps: navigation, buffer, clipboard, quickfix
 map("n", "<Esc>", "<cmd>noh<cr>")
@@ -1215,10 +1229,10 @@ map("n", "Q", function()
   end
   if vim.fn.empty(vim.fn.getqflist()) == 1 then print("Quickfix empty") else vim.cmd("copen") end
 end)
-map("n", "<C-h>", "<C-w>h")
-map("n", "<C-j>", "<C-w>j")
-map("n", "<C-k>", "<C-w>k")
-map("n", "<C-l>", "<C-w>l")
+-- map("n", "<C-h>", "<C-w>h")
+-- map("n", "<C-j>", "<C-w>j")
+-- map("n", "<C-k>", "<C-w>k")
+-- map("n", "<C-l>", "<C-w>l")
 map("n", "<Tab>", "<cmd>bn<cr>")
 map("n", "<S-Tab>", "<cmd>bp<cr>")
 map("n", "<leader>bd", "<cmd>bd<cr>")
