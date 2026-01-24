@@ -210,21 +210,39 @@ if vim.fn.executable("git") == 1 then
     return vim.v.shell_error == 0 and lines or {}
   end
 
+  -- Fetch content at a git reference (HEAD, :0:, :2:, :3:, or commit hash)
+  local function git_show(ref, rel)
+    return git_cmd_lines("git show " .. ref .. ":" .. rel)
+  end
+
+  local function git_show_str(ref, rel)
+    return git_cmd("git show " .. ref .. ":" .. rel)
+  end
+
+  -- Apply a patch with options
+  local function git_apply(patch, opts)
+    opts = opts or {}
+    local cmd = "git apply"
+    if opts.cached then cmd = cmd .. " --cached" end
+    if opts.reverse then cmd = cmd .. " --reverse" end
+    cmd = cmd .. " --unidiff-zero -"
+    return git_cmd(cmd, patch) ~= nil
+  end
+
   -- Per-buffer git path caching
   local function get_buf_git_info(buf)
     buf = buf or vim.api.nvim_get_current_buf()
     local name = vim.api.nvim_buf_get_name(buf)
     if name == "" then return nil end
 
-    -- Return cached if valid
     local cached = buf_git_cache[buf]
     if cached and cached.name == name then
       return cached
     end
 
-    -- Compute and cache
-    local rel = vim.fn.systemlist("git ls-files --full-name " .. vim.fn.shellescape(name))[1]
-    if not rel or rel == "" or vim.v.shell_error ~= 0 then
+    local lines = git_cmd_lines("git ls-files --full-name " .. vim.fn.shellescape(name))
+    local rel = lines[1]
+    if not rel or rel == "" then
       buf_git_cache[buf] = nil
       return nil
     end
@@ -237,7 +255,6 @@ if vim.fn.executable("git") == 1 then
     return buf_git_cache[buf]
   end
 
-  -- Convenience accessors (use cached values)
   local function git_file(buf)
     local info = get_buf_git_info(buf)
     return info and info.file or vim.fn.shellescape(vim.api.nvim_buf_get_name(buf or 0))
@@ -246,6 +263,20 @@ if vim.fn.executable("git") == 1 then
   local function git_rel(buf)
     local info = get_buf_git_info(buf)
     return info and info.rel or nil
+  end
+
+  -- Forward declarations for refresh_buf (defined after update functions)
+  local refresh_content_cache, update_signs, update_inline_diff, update_diff_split
+
+  -- Refresh all git state for a buffer
+  local function refresh_buf(buf, opts)
+    buf = buf or vim.api.nvim_get_current_buf()
+    opts = opts or {}
+    if opts.reload then vim.cmd("e!") end
+    refresh_content_cache(buf)
+    update_signs(buf)
+    if inline_on[buf] then update_inline_diff(buf) end
+    update_diff_split(buf)
   end
 
   -- ══════════════════════════════════════════════════════════════════════════════
@@ -284,57 +315,40 @@ if vim.fn.executable("git") == 1 then
   end
 
   -- Update diff split with new reference content
-  local function update_diff_split(work_buf)
-    if not diff_state[work_buf] then return end
+  update_diff_split = function(work_buf)
+    local state = diff_state[work_buf]
+    if not state then return end
 
-    local ref_buf = diff_state[work_buf].ref_buf
-    local ref_win = diff_state[work_buf].ref_win
-
-    -- Check if ref window and buffer are still valid
-    if not vim.api.nvim_win_is_valid(ref_win) or not vim.api.nvim_buf_is_valid(ref_buf) then
+    if not vim.api.nvim_win_is_valid(state.ref_win) or not vim.api.nvim_buf_is_valid(state.ref_buf) then
       diff_state[work_buf] = nil
       return
     end
 
-    -- Get updated reference content
     local rel = git_rel()
     if not rel then return end
 
-    local base
-    if git_diff_mode == "all" then
-      base = vim.fn.systemlist("git show HEAD:" .. rel)
-    else
-      base = vim.fn.systemlist("git show :0:" .. rel)
-    end
-
+    local ref = git_diff_mode == "all" and "HEAD" or ":0"
+    local base = git_show(ref, rel)
     if #base == 0 then return end
 
-    -- Save current window
     local current_win = vim.api.nvim_get_current_win()
 
-    -- Update the reference buffer content
-    vim.api.nvim_buf_set_option(ref_buf, "modifiable", true)
-    vim.api.nvim_buf_set_lines(ref_buf, 0, -1, false, base)
-    vim.api.nvim_buf_set_option(ref_buf, "modifiable", false)
+    vim.api.nvim_buf_set_option(state.ref_buf, "modifiable", true)
+    vim.api.nvim_buf_set_lines(state.ref_buf, 0, -1, false, base)
+    vim.api.nvim_buf_set_option(state.ref_buf, "modifiable", false)
 
-    -- Schedule diff recomputation to run after buffer updates settle
     vim.schedule(function()
-      if not vim.api.nvim_win_is_valid(ref_win) then return end
+      if not vim.api.nvim_win_is_valid(state.ref_win) then return end
 
-      -- Force vim to recompute the diff by toggling diff mode
-      vim.api.nvim_set_current_win(ref_win)
-      vim.cmd("diffoff!")
-      vim.cmd("diffthis")
+      vim.api.nvim_set_current_win(state.ref_win)
+      vim.cmd("diffoff! | diffthis")
 
-      -- Find and refresh work window
       local work_wins = vim.fn.win_findbuf(work_buf)
       if #work_wins > 0 then
         vim.api.nvim_set_current_win(work_wins[1])
-        vim.cmd("diffoff!")
-        vim.cmd("diffthis")
+        vim.cmd("diffoff! | diffthis")
       end
 
-      -- Restore original window
       if vim.api.nvim_win_is_valid(current_win) then
         vim.api.nvim_set_current_win(current_win)
       end
@@ -377,7 +391,7 @@ if vim.fn.executable("git") == 1 then
   -- GIT: Content Cache (Index + HEAD)
   -- ══════════════════════════════════════════════════════════════════════════════
 
-  local function refresh_content_cache(buf)
+  refresh_content_cache = function(buf)
     local name = vim.api.nvim_buf_get_name(buf)
     if vim.bo[buf].buftype ~= "" or name == "" then
       content_cache[buf] = nil
@@ -390,13 +404,9 @@ if vim.fn.executable("git") == 1 then
       return
     end
 
-    -- Fetch both index and HEAD content
-    local index = git_cmd("git show :0:" .. rel)
-    local head = git_cmd("git show HEAD:" .. rel)
-
     content_cache[buf] = {
-      index = index,
-      head = head,
+      index = git_show_str(":0", rel),
+      head = git_show_str("HEAD", rel),
     }
   end
 
@@ -404,138 +414,81 @@ if vim.fn.executable("git") == 1 then
   -- GIT: Gutter Signs
   -- ══════════════════════════════════════════════════════════════════════════════
 
-  -- Update git gutter with extmarks (shows both staged and unstaged)
-  local function update_signs(buf)
+  -- Convert diff hunks to line map { [lnum] = "add"|"change"|"delete" }
+  local function hunks_to_lines(hunks, max_lines)
+    local lines = {}
+    for _, hunk in ipairs(hunks) do
+      local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
+      local change_type = (old_count == 0 and new_count > 0) and "add" or
+                         (new_count == 0 and old_count > 0) and "delete" or "change"
+      if new_count > 0 then
+        for l = new_start, new_start + new_count - 1 do
+          lines[l] = change_type
+        end
+      else
+        lines[math.max(1, math.min(new_start, max_lines))] = "delete"
+      end
+    end
+    return lines
+  end
+
+  -- Get sign text and highlight for a line's git state
+  local function get_sign_for_line(unstaged, staged)
+    if unstaged and staged then
+      local t = unstaged == "delete" and "━" or "║"
+      local hl = unstaged == "add" and "GitSignAddBoth" or
+                 unstaged == "change" and "GitSignChangeBoth" or "GitSignDeleteBoth"
+      return t, hl
+    elseif unstaged then
+      local t = unstaged == "add" and "│" or unstaged == "change" and "│" or "▁"
+      local hl = unstaged == "add" and "GitSignAdd" or
+                 unstaged == "change" and "GitSignChange" or "GitSignDelete"
+      return t, hl
+    else
+      local t = staged == "add" and "┃" or staged == "change" and "┃" or "▔"
+      local hl = staged == "add" and "GitSignAddStaged" or
+                 staged == "change" and "GitSignChangeStaged" or "GitSignDeleteStaged"
+      return t, hl
+    end
+  end
+
+  update_signs = function(buf)
     local cache = content_cache[buf]
     if not vim.api.nvim_buf_is_valid(buf) or not cache then return end
+    if not cache.head or not cache.index then return end
 
-    -- Clear existing marks
     vim.api.nvim_buf_clear_namespace(buf, git_ns, 0, -1)
-
-    local rel = git_rel(buf)
-    if not rel then return end
 
     local buf_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
     local buf_line_count = vim.api.nvim_buf_line_count(buf)
 
-    -- Use cached content
-    local head_content = cache.head
-    local index_content = cache.index
-    if not head_content or not index_content then return end
+    -- Compute changes using cached content
+    local all_hunks = vim.diff(cache.head, buf_content, { result_type = "indices" })
+    local unstaged_hunks = vim.diff(cache.index, buf_content, { result_type = "indices" })
 
-    -- Compute all changes in WORKING TREE line number space
-    -- 1. All changes from HEAD (work vs HEAD)
-    local all_changes_hunks = vim.diff(head_content, buf_content, { result_type = "indices" })
-    -- 2. Unstaged changes (index vs work)
-    local unstaged_hunks = vim.diff(index_content, buf_content, { result_type = "indices" })
+    local all_changed_lines = hunks_to_lines(all_hunks, buf_line_count)
+    local unstaged_lines = hunks_to_lines(unstaged_hunks, buf_line_count)
 
-    -- Build line maps
-    local unstaged_lines = {}
-    local all_changed_lines = {}
-
-    -- Process unstaged hunks (index vs work)
-    for _, hunk in ipairs(unstaged_hunks) do
-      local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
-      local change_type = (old_count == 0 and new_count > 0) and "add" or
-                         (new_count == 0 and old_count > 0) and "delete" or "change"
-
-      if new_count > 0 then
-        for l = new_start, new_start + new_count - 1 do
-          unstaged_lines[l] = change_type
-        end
-      else
-        local lnum = math.max(1, math.min(new_start, buf_line_count))
-        unstaged_lines[lnum] = "delete"
-      end
-    end
-
-    -- Process all changed lines from HEAD (HEAD vs work)
-    for _, hunk in ipairs(all_changes_hunks) do
-      local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
-      local change_type = (old_count == 0 and new_count > 0) and "add" or
-                         (new_count == 0 and old_count > 0) and "delete" or "change"
-
-      if new_count > 0 then
-        for l = new_start, new_start + new_count - 1 do
-          all_changed_lines[l] = change_type
-        end
-      else
-        local lnum = math.max(1, math.min(new_start, buf_line_count))
-        all_changed_lines[lnum] = "delete"
-      end
-    end
-
-    -- Staged lines = all changed - unstaged
+    -- Staged = all changed minus unstaged
     local staged_lines = {}
     for lnum, change_type in pairs(all_changed_lines) do
-      if not unstaged_lines[lnum] then
-        staged_lines[lnum] = change_type
-      end
+      if not unstaged_lines[lnum] then staged_lines[lnum] = change_type end
     end
 
     -- Build display lines based on mode
     local display_lines = {}
-
     if git_diff_mode == "all" then
-      -- Show both staged and unstaged (all changes from HEAD)
-      for l, _ in pairs(unstaged_lines) do display_lines[l] = true end
-      for l, _ in pairs(staged_lines) do display_lines[l] = true end
-    else -- "unstaged"
-      -- Show only unstaged changes
-      for l, _ in pairs(unstaged_lines) do display_lines[l] = true end
+      for l in pairs(unstaged_lines) do display_lines[l] = true end
+      for l in pairs(staged_lines) do display_lines[l] = true end
+    else
+      for l in pairs(unstaged_lines) do display_lines[l] = true end
     end
 
-    -- Place extmarks for display lines
-    for lnum, _ in pairs(display_lines) do
-      local unstaged = unstaged_lines[lnum]
-      local staged = staged_lines[lnum]
-
-      local sign_text, sign_hl
-
-      if unstaged and staged then
-        -- Both staged and unstaged changes on this line - use double symbol
-        local change_type = unstaged -- Use unstaged type for indicator
-        if change_type == "add" then
-          sign_text = "║"  -- Double vertical line
-          sign_hl = "GitSignAddBoth"
-        elseif change_type == "change" then
-          sign_text = "║"
-          sign_hl = "GitSignChangeBoth"
-        else -- delete
-          sign_text = "━"  -- Heavy horizontal line
-          sign_hl = "GitSignDeleteBoth"
-        end
-      elseif unstaged then
-        -- Only unstaged changes - use thin symbol
-        if unstaged == "add" then
-          sign_text = "│"  -- Thin vertical line
-          sign_hl = "GitSignAdd"
-        elseif unstaged == "change" then
-          sign_text = "│"
-          sign_hl = "GitSignChange"
-        else -- delete
-          sign_text = "▁"  -- Lower block
-          sign_hl = "GitSignDelete"
-        end
-      else
-        -- Only staged changes - use thick symbol
-        if staged == "add" then
-          sign_text = "┃"  -- Thick vertical line
-          sign_hl = "GitSignAddStaged"
-        elseif staged == "change" then
-          sign_text = "┃"
-          sign_hl = "GitSignChangeStaged"
-        else -- delete
-          sign_text = "▔"  -- Upper block
-          sign_hl = "GitSignDeleteStaged"
-        end
-      end
-
-      -- Place extmark with sign
+    -- Place extmarks
+    for lnum in pairs(display_lines) do
+      local sign_text, sign_hl = get_sign_for_line(unstaged_lines[lnum], staged_lines[lnum])
       pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, lnum - 1, 0, {
-        sign_text = sign_text,
-        sign_hl_group = sign_hl,
-        priority = 10,
+        sign_text = sign_text, sign_hl_group = sign_hl, priority = 10,
       })
     end
 
@@ -645,17 +598,12 @@ if vim.fn.executable("git") == 1 then
     local rel = git_rel()
     if not rel then return {} end
 
-    -- Get hunks based on mode or explicit staged parameter
-    local git_cmd
-    if staged ~= nil then
-      -- Explicit parameter for staging operations
-      git_cmd = staged and "git diff --cached -U0 -- " or "git diff -U0 -- "
-    else
-      -- Use current diff mode for navigation
-      git_cmd = git_diff_mode == "all" and "git diff HEAD -U0 -- " or "git diff -U0 -- "
-    end
+    -- Build diff command based on mode or explicit staged parameter
+    local diff_cmd = staged ~= nil
+      and (staged and "git diff --cached -U0 -- " or "git diff -U0 -- ")
+      or (git_diff_mode == "all" and "git diff HEAD -U0 -- " or "git diff -U0 -- ")
 
-    local diff = vim.fn.systemlist(git_cmd .. git_file())
+    local diff = git_cmd_lines(diff_cmd .. git_file())
     local hunks = {}
 
     for i, line in ipairs(diff) do
@@ -733,68 +681,35 @@ if vim.fn.executable("git") == 1 then
   end)
 
   -- Unified hunk operation helper
-  local function hunk_op(staged, cmd, msg, reload)
+  local function hunk_op(staged, opts, msg)
     local h = staged == nil and (hunk_at_cursor(true) or hunk_at_cursor(false)) or hunk_at_cursor(staged)
     if not h then return print("No hunk") end
-    local result = cmd(h)
-    if result == 0 then
-      if reload then vim.cmd("e!") end
-      local buf = vim.api.nvim_get_current_buf()
-      refresh_content_cache(buf)
-      update_signs(buf)
-      if inline_on[buf] then update_inline_diff(buf) end
-      update_diff_split(buf)
+    if git_apply(make_patch(h, false), opts) then
+      refresh_buf(nil, { reload = opts.reload })
       print(msg)
     else
       print("Failed")
     end
   end
 
-  -- Stage hunk: apply unstaged hunk to index
-  map("n", "<leader>ha", function()
-    hunk_op(false, function(h)
-      vim.fn.system("git apply --cached --unidiff-zero -", make_patch(h, false))
-      return vim.v.shell_error
-    end, "Staged hunk")
-  end)
+  map("n", "<leader>ha", function() hunk_op(false, { cached = true }, "Staged hunk") end)
+  map("n", "<leader>hu", function() hunk_op(true, { cached = true, reverse = true }, "Unstaged hunk") end)
+  map("n", "<leader>hr", function() hunk_op(false, { reverse = true, reload = true }, "Reset hunk to index") end)
 
-  -- Unstage hunk: reverse staged hunk from index
-  map("n", "<leader>hu", function()
-    hunk_op(true, function(h)
-      vim.fn.system("git apply --cached --reverse --unidiff-zero -", make_patch(h, false))
-      return vim.v.shell_error
-    end, "Unstaged hunk")
-  end)
-
-  -- Reset hunk to index: reverse unstaged hunk from working tree
-  map("n", "<leader>hr", function()
-    hunk_op(false, function(h)
-      vim.fn.system("git apply --reverse --unidiff-zero -", make_patch(h, false))
-      return vim.v.shell_error
-    end, "Reset hunk to index", true)
-  end)
-
-  -- Reset hunk to HEAD: reverse from both index and working tree
   map("n", "<leader>hR", function()
-    local h = hunk_at_cursor(false)  -- Get unstaged hunk
+    local h = hunk_at_cursor(false)
     if not h then return print("No hunk") end
 
-    -- Reverse from working tree
-    vim.fn.system("git apply --reverse --unidiff-zero -", make_patch(h, false))
-    if vim.v.shell_error ~= 0 then return print("Failed") end
-
-    -- Also reverse any staged version
-    local h_staged = hunk_at_cursor(true)
-    if h_staged then
-      vim.fn.system("git apply --cached --reverse --unidiff-zero -", make_patch(h_staged, false))
+    if not git_apply(make_patch(h, false), { reverse = true }) then
+      return print("Failed")
     end
 
-    vim.cmd("e!")
-    local buf = vim.api.nvim_get_current_buf()
-    refresh_content_cache(buf)
-    update_signs(buf)
-    if inline_on[buf] then update_inline_diff(buf) end
-    update_diff_split(buf)
+    local h_staged = hunk_at_cursor(true)
+    if h_staged then
+      git_apply(make_patch(h_staged, false), { cached = true, reverse = true })
+    end
+
+    refresh_buf(nil, { reload = true })
     print("Reset hunk to HEAD")
   end)
 
@@ -1009,10 +924,8 @@ if vim.fn.executable("git") == 1 then
     local rel = git_rel()
     if not rel then return print("Not tracked") end
 
-    -- Check for merge conflict
-    local ours = vim.fn.systemlist("git show :2:" .. rel .. " 2>/dev/null")
-    local theirs = vim.fn.systemlist("git show :3:" .. rel .. " 2>/dev/null")
-
+    -- Check for merge conflict (3-way merge)
+    local ours, theirs = git_show(":2", rel), git_show(":3", rel)
     if #ours > 0 and #theirs > 0 then
       vim.cmd("tabnew " .. vim.fn.fnameescape(vim.api.nvim_buf_get_name(0)))
       local work_buf = vim.api.nvim_get_current_buf()
@@ -1036,39 +949,29 @@ if vim.fn.executable("git") == 1 then
     end
 
     -- Normal diff based on mode
-    local base, label
-    if git_diff_mode == "all" then
-      base = vim.fn.systemlist("git show HEAD:" .. rel)
-      label = "HEAD"
-    else -- "unstaged"
-      base = vim.fn.systemlist("git show :0:" .. rel)
-      label = "INDEX"
-    end
-
+    local ref = git_diff_mode == "all" and "HEAD" or ":0"
+    local label = git_diff_mode == "all" and "HEAD" or "INDEX"
+    local base = git_show(ref, rel)
     if #base == 0 then return print("No " .. label) end
+
     local work_buf = vim.api.nvim_get_current_buf()
     diff_split(base, vim.bo.filetype)
-    local ref_buf = vim.api.nvim_get_current_buf()
-    local ref_win = vim.api.nvim_get_current_win()
+    diff_state[work_buf] = { ref_buf = vim.api.nvim_get_current_buf(), ref_win = vim.api.nvim_get_current_win() }
     vim.cmd("wincmd p | diffthis")
-
-    -- Track diff state for updates
-    diff_state[work_buf] = { ref_buf = ref_buf, ref_win = ref_win }
-
     map("n", "q", close_diff, { buffer = work_buf })
     print("Diff: " .. label .. " | CURRENT - ]c/[c=nav q=quit")
   end)
 
   map("n", "<leader>gD", function()
-    if not git_rel() then return print("Not tracked") end
+    local rel = git_rel()
+    if not rel then return print("Not tracked") end
 
-    local git_cmd = git_diff_mode == "all" and "git diff HEAD -- " or "git diff -- "
-    local diff = vim.fn.systemlist(git_cmd .. git_file())
+    local cmd = git_diff_mode == "all" and "git diff HEAD -- " or "git diff -- "
+    local diff = git_cmd_lines(cmd .. git_file())
     if #diff == 0 then return print("No changes") end
 
     diff_tab(diff, "diff")
-    local label = git_diff_mode == "all" and "all changes" or "unstaged only"
-    print("Unified diff (" .. label .. ") - q=quit")
+    print("Unified diff (" .. (git_diff_mode == "all" and "all changes" or "unstaged only") .. ") - q=quit")
   end)
 
   -- ══════════════════════════════════════════════════════════════════════════════
@@ -1076,39 +979,35 @@ if vim.fn.executable("git") == 1 then
   -- ══════════════════════════════════════════════════════════════════════════════
 
   local function git_file_op(cmd, msg, reload)
-    vim.fn.system(cmd .. " " .. git_file())
-    if vim.v.shell_error ~= 0 then return print("Failed") end
-    if reload then vim.cmd("e!") end
-    local buf = vim.api.nvim_get_current_buf()
-    refresh_content_cache(buf)
-    update_signs(buf)
-    if inline_on[buf] then update_inline_diff(buf) end
-    update_diff_split(buf)
+    if not git_cmd(cmd .. " " .. git_file()) then return print("Failed") end
+    refresh_buf(nil, { reload = reload })
     print(msg)
   end
 
   -- Git status with interactive file navigation
+  local function get_status_text(code)
+    if code:match("M") then return "[Modified]"
+    elseif code:match("A") then return "[Added]"
+    elseif code:match("D") then return "[Deleted]"
+    elseif code:match("R") then return "[Renamed]"
+    elseif code:match("?") then return "[Untracked]"
+    else return "[Changed]" end
+  end
+
   map("n", "<leader>gs", function()
-    local status = vim.fn.systemlist("git status --porcelain")
+    local status = git_cmd_lines("git status --porcelain")
     if #status == 0 then return print("No changes") end
 
     local qf = {}
     for _, line in ipairs(status) do
-      local status_code = line:sub(1, 2)
-      local file = line:sub(4)
-      local status_text = status_code:match("M") and "[Modified]" or
-                         status_code:match("A") and "[Added]" or
-                         status_code:match("D") and "[Deleted]" or
-                         status_code:match("R") and "[Renamed]" or
-                         status_code:match("?") and "[Untracked]" or "[Changed]"
-      table.insert(qf, { filename = file, lnum = 1, text = status_text .. " " .. file })
+      local code, file = line:sub(1, 2), line:sub(4)
+      table.insert(qf, { filename = file, lnum = 1, text = get_status_text(code) .. " " .. file })
     end
 
     vim.fn.setqflist(qf, "r")
     vim.fn.setqflist({}, "a", { title = "Git Status (Enter=open | ga=stage | gu=unstage)" })
     vim.cmd("copen")
 
-    -- Add mappings for quickfix window
     vim.api.nvim_create_autocmd("FileType", {
       pattern = "qf",
       once = true,
@@ -1116,7 +1015,7 @@ if vim.fn.executable("git") == 1 then
         map("n", "ga", function()
           local item = vim.fn.getqflist()[vim.fn.line(".")]
           if item and item.filename then
-            vim.fn.system("git add " .. vim.fn.shellescape(item.filename))
+            git_cmd("git add " .. vim.fn.shellescape(item.filename))
             print("Staged: " .. item.filename)
           end
         end, { buffer = ev.buf })
@@ -1124,7 +1023,7 @@ if vim.fn.executable("git") == 1 then
         map("n", "gu", function()
           local item = vim.fn.getqflist()[vim.fn.line(".")]
           if item and item.filename then
-            vim.fn.system("git restore --staged " .. vim.fn.shellescape(item.filename))
+            git_cmd("git restore --staged " .. vim.fn.shellescape(item.filename))
             print("Unstaged: " .. item.filename)
           end
         end, { buffer = ev.buf })
@@ -1137,7 +1036,7 @@ if vim.fn.executable("git") == 1 then
   map("n", "<leader>gR", function() git_file_op("git restore --staged " .. git_file() .. " && git restore", "Reset to HEAD", true) end)
 
   map("n", "<leader>gb", function()
-    local blame = vim.fn.systemlist("git blame --date=short " .. git_file())
+    local blame = git_cmd_lines("git blame --date=short " .. git_file())
     if #blame == 0 then return print("Not tracked") end
     diff_tab(blame, "git")
     print("Git blame (q=quit)")
@@ -1146,8 +1045,10 @@ if vim.fn.executable("git") == 1 then
   map("n", "<leader>gl", function()
     local rel = git_rel()
     if not rel then return print("Not tracked") end
-    local log = vim.fn.systemlist("git log --oneline -100 -- " .. git_file())
+
+    local log = git_cmd_lines("git log --oneline -100 -- " .. git_file())
     if #log == 0 then return print("No history") end
+
     local qf = {}
     for _, line in ipairs(log) do
       local hash = line:match("^(%w+)")
@@ -1157,22 +1058,21 @@ if vim.fn.executable("git") == 1 then
     vim.fn.setqflist({}, "a", { title = "Git Log: " .. rel })
     vim.cmd("copen")
     print("File history (Enter=show-commit q=close)")
+
     local function qf_enter()
       local item = vim.fn.getqflist()[vim.fn.line(".")]
       if item and item.user_data then
-        local diff = vim.fn.systemlist("git show " .. item.user_data .. " -- " .. rel)
+        local diff = git_cmd_lines("git show " .. item.user_data .. " -- " .. rel)
         if #diff > 0 then diff_tab(diff, "git") end
       end
     end
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      local buf = vim.api.nvim_win_get_buf(win)
-      if vim.api.nvim_buf_get_option(buf, "filetype") == "qf" then map("n", "<CR>", qf_enter, { buffer = buf }) end
-    end
-    vim.api.nvim_create_autocmd("FileType", { pattern = "qf", once = true, callback = function(ev) map("n", "<CR>", qf_enter, { buffer = ev.buf }) end })
+    vim.api.nvim_create_autocmd("FileType", { pattern = "qf", once = true, callback = function(ev)
+      map("n", "<CR>", qf_enter, { buffer = ev.buf })
+    end })
   end)
 
   map("n", "<leader>gL", function()
-    local log = vim.fn.systemlist("git log --oneline -50")
+    local log = git_cmd_lines("git log --oneline -50")
     if #log == 0 then return print("No commits") end
     diff_tab(log, "git")
     print("Git log (q=quit)")
@@ -1182,50 +1082,31 @@ if vim.fn.executable("git") == 1 then
   map("n", "<leader>gS", function()
     local summary = {}
 
-    -- Branch info
-    local branch = vim.fn.system("git branch --show-current 2>/dev/null"):gsub("\n", "")
-    if branch ~= "" then
-      table.insert(summary, "Branch: " .. branch)
-    end
+    local branch = (git_cmd("git branch --show-current") or ""):gsub("\n", "")
+    if branch ~= "" then table.insert(summary, "Branch: " .. branch) end
 
-    -- Commit info
-    local last_commit = vim.fn.system("git log -1 --oneline 2>/dev/null"):gsub("\n", "")
-    if last_commit ~= "" then
-      table.insert(summary, "Last commit: " .. last_commit)
-    end
+    local last_commit = (git_cmd("git log -1 --oneline") or ""):gsub("\n", "")
+    if last_commit ~= "" then table.insert(summary, "Last commit: " .. last_commit) end
 
     table.insert(summary, "")
     table.insert(summary, "=== Current File ===")
 
-    -- Current file status
-    local file = vim.api.nvim_buf_get_name(0)
-    if file ~= "" then
-      local rel = vim.fn.systemlist("git ls-files --full-name " .. vim.fn.shellescape(file))[1]
-      if rel and rel ~= "" then
-        table.insert(summary, "File: " .. rel)
+    local rel = git_rel()
+    if rel then
+      table.insert(summary, "File: " .. rel)
+      table.insert(summary, "Unstaged hunks: " .. #get_hunks(false))
+      table.insert(summary, "Staged hunks: " .. #get_hunks(true))
 
-        -- Count hunks
-        local hunks_unstaged = get_hunks(false)
-        local hunks_staged = get_hunks(true)
-
-        table.insert(summary, "Unstaged hunks: " .. #hunks_unstaged)
-        table.insert(summary, "Staged hunks: " .. #hunks_staged)
-
-        -- File status
-        local status = vim.fn.system("git status --porcelain " .. vim.fn.shellescape(file)):gsub("\n", "")
-        if status ~= "" then
-          table.insert(summary, "Status: " .. status)
-        end
-      else
-        table.insert(summary, "File: Not tracked")
-      end
+      local status = (git_cmd("git status --porcelain " .. git_file()) or ""):gsub("\n", "")
+      if status ~= "" then table.insert(summary, "Status: " .. status) end
+    else
+      table.insert(summary, "File: Not tracked")
     end
 
     table.insert(summary, "")
     table.insert(summary, "=== Repository Status ===")
 
-    -- Overall stats
-    local status_lines = vim.fn.systemlist("git status --porcelain")
+    local status_lines = git_cmd_lines("git status --porcelain")
     local modified, added, deleted, untracked = 0, 0, 0, 0
     for _, line in ipairs(status_lines) do
       local code = line:sub(1, 2)
@@ -1258,11 +1139,9 @@ if vim.fn.executable("git") == 1 then
   local changed_files_index = 1
 
   local function refresh_changed_files()
-    local status = vim.fn.systemlist("git status --porcelain")
     changed_files_cache = {}
-    for _, line in ipairs(status) do
-      local file = line:sub(4)
-      table.insert(changed_files_cache, file)
+    for _, line in ipairs(git_cmd_lines("git status --porcelain")) do
+      table.insert(changed_files_cache, line:sub(4))
     end
   end
 

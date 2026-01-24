@@ -1,5 +1,6 @@
 # =========================================================
 # Modern, Portable, Vim-Friendly tmux Configuration
+# Minimal • Fast • SSH-safe • Neovim-aware • Plugin-Free
 # =========================================================
 
 # ====================
@@ -13,7 +14,7 @@ bind C-a send-prefix
 # Terminal & Performance
 # ====================
 set -g default-terminal "tmux-256color"
-set -ga terminal-overrides ",xterm-256color:Tc" # Improved compatibility
+set -ga terminal-overrides ",xterm-256color:Tc"
 
 # Fast escape locally, safe over SSH
 if-shell '[ -n "$SSH_CONNECTION" ]' \
@@ -36,12 +37,14 @@ set -g mouse on
 # ====================
 # Core Bindings
 # ====================
-# Reload config
-bind r source-file ~/.tmux.conf \; display "Refreshed tmux config"
-# Clear screen and history
+# Reload config and display message
+bind r source-file ~/.tmux.conf \; display "󰑓 Config Reloaded!"
+
+# Clear history and screen
 bind C-k send-keys C-l \; clear-history
-# Zoom pane (Huge for productivity)
-bind z resize-pane -Z
+
+# Zoom toggle (Maximize pane)
+bind m resize-pane -Z
 
 # ====================
 # Panes – Splits
@@ -51,21 +54,26 @@ unbind %
 bind | split-window -h -c "#{pane_current_path}"
 bind - split-window -v -c "#{pane_current_path}"
 
+# Equalize panes (Standard ergonomic binding)
+bind = select-layout even-horizontal
+bind + select-layout even-vertical
+
+# Kill pane with confirmation
+bind x confirm-before -p "Kill pane #P? (y/n)" kill-pane
+
 # ====================
 # Smart Vim / Neovim Navigation (NO PREFIX)
 # ====================
-# Smart pane switching with awareness of Vim splits.
-is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE '^[^TXZ ]+ +(\\S+\\/)?g?(view|n?vim?x?)(diff)?$'"
+# Works with the code snippets provided earlier in Vim/Nvim 
+is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE '^[^TXZ ]+ +(\\S+\\/)?g?(view|n?vim?x?|fzf)(diff)?$'"
 
 bind-key -n 'C-h' if-shell "$is_vim" 'send-keys C-h' 'select-pane -L'
 bind-key -n 'C-j' if-shell "$is_vim" 'send-keys C-j' 'select-pane -D'
 bind-key -n 'C-k' if-shell "$is_vim" 'send-keys C-k' 'select-pane -U'
 bind-key -n 'C-l' if-shell "$is_vim" 'send-keys C-l' 'select-pane -R'
 
-# Restore Clear Screen (since we took over C-l)
-bind C-l send-keys 'C-l'
 # ====================
-# Pane Resizing (PREFIX + HJKL)
+# Pane Resizing (PREFIX + Shift + HJKL)
 # ====================
 bind -r H resize-pane -L 5
 bind -r J resize-pane -D 5
@@ -73,45 +81,52 @@ bind -r K resize-pane -U 5
 bind -r L resize-pane -R 5
 
 # ====================
+# Pane Positioning (PREFIX + Ctrl + hjkl)
+# ====================
+# Physically swap the pane position with the neighbor in that direction
+bind -r C-h swap-pane -d -t '{left-of}'
+bind -r C-j swap-pane -d -t '{down-of}'
+bind -r C-k swap-pane -d -t '{up-of}'
+bind -r C-l swap-pane -d -t '{right-of}'
+
+# Rotate panes inside the window
+bind -r C-r rotate-window
+
+# ====================
 # Windows
 # ====================
 bind Tab last-window
-bind -r C-h select-window -t :-
-bind -r C-l select-window -t :+
+bind -r C-p select-window -t :-
+bind -r C-n select-window -t :+
 
-# Re-order windows with Ctrl+Shift+Arrow
-bind-key -n C-S-Left swap-window -t -1\; select-window -t -1
-bind-key -n C-S-Right swap-window -t +1\; select-window -t +1
+# Swap windows left/right in the status bar
+bind -r < swap-window -d -t -1
+bind -r > swap-window -d -t +1
 
 # ====================
 # Copy Mode (Vim Style)
 # ====================
 setw -g mode-keys vi
+set -g set-clipboard on
+
 bind -T copy-mode-vi v     send -X begin-selection
 bind -T copy-mode-vi C-v   send -X rectangle-toggle
 bind -T copy-mode-vi y     send -X copy-selection-and-cancel
 bind -T copy-mode-vi L     send -X end-of-line
 bind -T copy-mode-vi H     send -X start-of-line
 
-# Clipboard (OSC52 is handled by set-clipboard on)
-set -g set-clipboard on
-
 # ====================
-# Status Bar (Clean & Modern)
+# Status Bar (Modern & Minimal)
 # ====================
-set -g status-interval 5
 set -g status-position bottom
-set -g status-style 'bg=default' # Transparent background
+set -g status-style 'bg=default fg=white' # Transparent bg
 
-# Left: Session name
-set -g status-left "#[fg=blue,bold] #S #[fg=brightblack]| "
+set -g status-left "#[fg=blue,bold]#S #[fg=brightblack]| "
 set -g status-left-length 20
 
-# Right: Hostname, Clock
-set -g status-right "#[fg=brightblack] #[fg=white]%H:%M #[fg=brightblack]| #[fg=magenta]#h "
+set -g status-right "#[fg=brightblack]#[fg=white]%H:%M #[fg=brightblack]| #[fg=magenta]#h "
 set -g status-right-length 50
 
-# Window Tabs
 setw -g window-status-format "#[fg=brightblack] #I:#W "
 setw -g window-status-current-format "#[fg=cyan,bold] #I:#W#{?window_zoomed_flag, 🔍,} "
 
