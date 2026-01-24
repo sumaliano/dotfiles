@@ -696,23 +696,6 @@ if vim.fn.executable("git") == 1 then
   map("n", "<leader>hu", function() hunk_op(true, { cached = true, reverse = true }, "Unstaged hunk") end)
   map("n", "<leader>hr", function() hunk_op(false, { reverse = true, reload = true }, "Reset hunk to index") end)
 
-  map("n", "<leader>hR", function()
-    local h = hunk_at_cursor(false)
-    if not h then return print("No hunk") end
-
-    if not git_apply(make_patch(h, false), { reverse = true }) then
-      return print("Failed")
-    end
-
-    local h_staged = hunk_at_cursor(true)
-    if h_staged then
-      git_apply(make_patch(h_staged, false), { cached = true, reverse = true })
-    end
-
-    refresh_buf(nil, { reload = true })
-    print("Reset hunk to HEAD")
-  end)
-
   -- Hunk navigation
   map("n", "]c", function()
     local hunks, cur = get_hunks(), vim.api.nvim_win_get_cursor(0)[1]
@@ -1033,7 +1016,6 @@ if vim.fn.executable("git") == 1 then
   map("n", "<leader>ga", function() git_file_op("git add", "Staged", false) end)
   map("n", "<leader>gu", function() git_file_op("git restore --staged", "Unstaged", false) end)
   map("n", "<leader>gr", function() git_file_op("git restore", "Reset to index", true) end)
-  map("n", "<leader>gR", function() git_file_op("git restore --staged " .. git_file() .. " && git restore", "Reset to HEAD", true) end)
 
   map("n", "<leader>gb", function()
     local blame = git_cmd_lines("git blame --date=short " .. git_file())
@@ -1277,10 +1259,10 @@ CUSTOM:   w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip 
           r replace | R run | c config | F2 auto-cmp | F3 numbers | sw strip | st tab
 GIT DIFF: gd split(2-way/3-way) | gD tab | gi inline-diff | gm mode(all/unstaged) | q=quit-diff
 GIT NAV:  ]c/[c hunk | ]f/[f changed-file | ]e/[e errors | ]q/[q quickfix
-GIT FILE: gs interactive-status(Enter ga/gu) | ga/gu stage/unstage | gr/gR reset(index/HEAD)
+GIT FILE: gs interactive-status(Enter ga/gu) | ga/gu stage/unstage | gr reset(soft)
 GIT VIEW: gS summary | gh toggle-hints | gp conflict-preview | gC/gP commit/push
 GIT HIST: gb blame | gl file-log(Enter=show) | gL repo-log
-HUNK OPS: ha/hu stage/unstage-hunk | hr/hR reset-hunk(index/HEAD)
+HUNK OPS: ha/hu stage/unstage-hunk | hr reset-hunk(soft)
 CONFLICT: gH/gJ/gL resolve(ours/base/theirs) | gh/gl diffget(left/right) in 3-way | gp preview-options
 LSP/DIAG: gd/gD/grr/gri/K/grn/gra LSP | gry/grf type/format
 
