@@ -1,4 +1,4 @@
--- :G command: alias for any git command
+-- :G command: alias for any git command (refreshes git signs on exit)
 vim.api.nvim_create_user_command('G', function(opts)
   local git_cmd = table.concat(opts.fargs, ' ')
   if git_cmd == '' then
@@ -6,6 +6,8 @@ vim.api.nvim_create_user_command('G', function(opts)
     return
   end
   vim.cmd('terminal git ' .. git_cmd)
+  -- Mark this buffer as a git command terminal for refresh on close
+  vim.b.is_git_terminal = true
 end, { nargs = '+', complete = 'shellcmd' })
 
 -- Shortcuts
@@ -611,6 +613,22 @@ if vim.fn.executable("git") == 1 then
     inline_on[ev.buf] = nil
     diff_state[ev.buf] = nil
     if debounce_timers[ev.buf] then vim.fn.timer_stop(debounce_timers[ev.buf]); debounce_timers[ev.buf] = nil end
+  end })
+
+  -- Refresh git signs when a :G terminal closes
+  vim.api.nvim_create_autocmd("TermClose", { callback = function(ev)
+    if not vim.b[ev.buf].is_git_terminal then return end
+    -- Schedule refresh after terminal buffer is cleaned up
+    vim.schedule(function()
+      for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "" then
+          refresh_content_cache(buf)
+          update_signs(buf)
+          if inline_on[buf] then update_inline_diff(buf) end
+        end
+      end
+    end)
   end })
 
   -- ══════════════════════════════════════════════════════════════════════════════
