@@ -241,79 +241,89 @@ if vim.fn.executable("git") == 1 then
     local function update_signs(buf)
         buf = buf or vim.api.nvim_get_current_buf()
         local c = cache[buf]
-        if not c or not vim.api.nvim_buf_is_valid(buf) then return end
+        if not (c and c.index and c.head and vim.api.nvim_buf_is_valid(buf)) then return end
 
         vim.api.nvim_buf_clear_namespace(buf, git_ns, 0, -1)
-
-        local buf_text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
         local line_count = vim.api.nvim_buf_line_count(buf)
+        local buf_text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
 
-        -- Compute diffs (all positions are in BUFFER coordinates)
-        local function diff_to_lines(base)
-            local lines = {}
-            if not base or base == "" then return lines end
-            for _, h in ipairs(vim.diff(base, buf_text, { result_type = "indices" }) or {}) do
-                local old_n, new_start, new_n = h[2], h[3], h[4]
-                local t = old_n == 0 and "add" or new_n == 0 and "del" or "change"
-                if new_n > 0 then
-                    for l = new_start, new_start + new_n - 1 do lines[l] = t end
-                else
-                    lines[math.max(1, math.min(new_start, line_count))] = "del"
+        -- 1. Get raw diffs
+        local staged_diffs = vim.diff(c.head, c.index, { result_type = "indices" }) or {}
+        local unstaged_diffs = vim.diff(c.index, buf_text, { result_type = "indices" }) or {}
+
+        local signs = {} -- [line] = { s = type, u = type }
+
+        -- 2. Apply Unstaged Diffs (These are already in Buffer coordinates)
+        for _, h in ipairs(unstaged_diffs) do
+            local old_n, new_start, new_n = h[2], h[3], h[4]
+            local t = old_n == 0 and "add" or new_n == 0 and "del" or "change"
+            -- For 'del', we mark the line where the content was removed
+            local range_n = math.max(new_n, 1)
+            for i = 0, range_n - 1 do
+                local l = new_start + i
+                if l <= line_count then
+                    signs[l] = signs[l] or {}
+                    signs[l].u = t
                 end
             end
-            return lines
         end
 
-        local all = diff_to_lines(c.head)      -- HEAD vs buffer
-        local unstaged = diff_to_lines(c.index) -- INDEX vs buffer
+        -- 3. Apply Staged Diffs (Transforming Index -> Buffer coordinates)
+        for _, s_hunk in ipairs(staged_diffs) do
+            local s_start, s_old_n, s_new_start, s_new_n = s_hunk[1], s_hunk[2], s_hunk[3], s_hunk[4]
+            local t = s_old_n == 0 and "add" or s_new_n == 0 and "del" or "change"
 
-        local staged = {}
-        for l, t in pairs(all) do
-            -- A line is 'staged' if it differs from HEAD, 
-            -- UNLESS that difference is exactly the same as the unstaged difference.
-            if not unstaged[l] or all[l] ~= unstaged[l] then 
-                staged[l] = t 
+            -- Calculate the "Shifted" position in the current buffer
+            local shifted_start = s_new_start
+            for _, u_hunk in ipairs(unstaged_diffs) do
+                local u_start, u_old_n, _, u_new_n = u_hunk[1], u_hunk[2], u_hunk[3], u_hunk[4]
+
+                if u_start < s_new_start then
+                    -- This unstaged hunk happened ABOVE our staged hunk
+                    -- If it was an addition, it pushed our staged hunk DOWN
+                    -- If it was a deletion, it pulled our staged hunk UP
+                    shifted_start = shifted_start + (u_new_n - u_old_n)
+                elseif u_start < s_new_start + s_new_n then
+                    -- Overlap: The unstaged change is happening INSIDE the staged change
+                    -- We don't shift the start, but the lines inside will naturally 
+                    -- be marked as "Both" by the logic below.
+                end
+            end
+
+            -- Mark the shifted lines
+            local range_n = math.max(s_new_n, 1)
+            for i = 0, range_n - 1 do
+                local l = shifted_start + i
+                if l > 0 and l <= line_count then
+                    signs[l] = signs[l] or {}
+                    signs[l].s = t
+                end
             end
         end
 
-        -- Highlight definitions
-        local hl = {
-            add = "GitSignAdd", change = "GitSignChange", del = "GitSignDelete",
-            add_s = "GitSignAddStaged", change_s = "GitSignChangeStaged", del_s = "GitSignDeleteStaged",
-            add_b = "GitSignAddBoth", change_b = "GitSignChangeBoth", del_b = "GitSignDeleteBoth",
-        }
-        -- │ = unstaged, ┃ = staged, ║ = both
-        local sign = {
-            -- add = "│", change = "│", del = "▁",
-            -- add_s = "┃", change_s = "┃", del_s = "▔",
-            -- add_b = "║", change_b = "║", del_b = "━",
-            add = " +", change = " ~", del = " -",
-            add_s = "+ ", change_s = "~ ", del_s = "- ",
-            add_b = "++", change_b = "~~", del_b = "--",
-        }
-
-        -- Place signs (always show truth, regardless of diff_mode)
-        local placed = {}
-        for l, t in pairs(unstaged) do
-            if staged[l] then
-                -- Both staged and unstaged on this line
-                pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
-                    sign_text = sign[t .. "_b"], sign_hl_group = hl[t .. "_b"], priority = 10
-                })
-                placed[l] = true
-            else
-                -- Unstaged only
-                pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
-                    sign_text = sign[t], sign_hl_group = hl[t], priority = 10
-                })
-                placed[l] = true
+        -- 4. Final Placement
+        for l, data in pairs(signs) do
+            local res_type, suffix = "add", ""
+            if data.u and data.s then 
+                res_type, suffix = data.u, "_b" 
+            elseif data.s then 
+                res_type, suffix = data.s, "_s" 
+            else 
+                res_type = data.u 
             end
-        end
-        for l, t in pairs(staged) do
-            if not placed[l] then
-                -- Staged only
+
+            local key = res_type .. suffix
+            local sign_text = ({
+                add = " +", change = " ~", del = " -",
+                add_s = "+ ", change_s = "~ ", del_s = "- ",
+                add_b = "++", change_b = "~~", del_b = "--",
+            })[key]
+
+            if sign_text then
                 pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
-                    sign_text = sign[t .. "_s"], sign_hl_group = hl[t .. "_s"], priority = 10
+                    sign_text = sign_text,
+                    sign_hl_group = "GitSign" .. key:gsub("^%l", string.upper),
+                    priority = 10
                 })
             end
         end
