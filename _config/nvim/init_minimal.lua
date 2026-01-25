@@ -211,17 +211,26 @@ if vim.fn.executable("git") == 1 then
   -- ────────────────────────────────────────────────────────────────────────────
 
   local function refresh_cache(buf)
-    buf = buf or vim.api.nvim_get_current_buf()
-    local rel = get_rel_path(buf)
-    if not rel then
-      cache[buf] = nil
-      return nil
-    end
-    cache[buf] = {
-      head = git("git show HEAD:" .. rel) or "",
-      index = git("git show :0:" .. rel) or "",
-    }
-    return cache[buf]
+      buf = buf or vim.api.nvim_get_current_buf()
+
+      -- Ensure we are working with a valid, loaded buffer
+      if not vim.api.nvim_buf_is_valid(buf) then return nil end
+
+      local rel = get_rel_path(buf)
+      if not rel or rel == "" then
+          cache[buf] = nil
+          return nil
+      end
+
+      local head_content = git("git show HEAD:" .. vim.fn.shellescape(rel))
+      local index_content = git("git show :0:" .. vim.fn.shellescape(rel))
+
+      cache[buf] = {
+          -- Using nil instead of "" might help you detect 'untracked' status later
+          head = head_content or "",
+          index = index_content or "",
+      }
+      return cache[buf]
   end
 
   -- ────────────────────────────────────────────────────────────────────────────
@@ -258,10 +267,13 @@ if vim.fn.executable("git") == 1 then
     local all = diff_to_lines(c.head)      -- HEAD vs buffer
     local unstaged = diff_to_lines(c.index) -- INDEX vs buffer
 
-    -- Staged = in HEAD diff but not in INDEX diff
     local staged = {}
     for l, t in pairs(all) do
-      if not unstaged[l] then staged[l] = t end
+        -- A line is 'staged' if it differs from HEAD, 
+        -- UNLESS that difference is exactly the same as the unstaged difference.
+        if not unstaged[l] or all[l] ~= unstaged[l] then 
+            staged[l] = t 
+        end
     end
 
     -- Highlight definitions

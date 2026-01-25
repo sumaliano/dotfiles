@@ -90,3 +90,8 @@ set -g status-style 'bg=default fg=white'
 set -g status-left "#[fg=blue,bold]#S "
 set -g status-right "#[fg=magenta]#h #[fg=white]%H:%M"
 setw -g window-status-current-format "#[fg=cyan,bold][#I:#W]"
+
+
+# Plugins:
+
+
