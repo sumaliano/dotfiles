@@ -37,8 +37,8 @@ bind C-l send-keys 'C-l'
 # ====================
 # unbind '"'
 # unbind %
-bind | split-window -h -c "#{pane_current_path}"
-bind - split-window -v -c "#{pane_current_path}"
+# bind | split-window -h -c "#{pane_current_path}"
+# bind - split-window -v -c "#{pane_current_path}"
 
 # =========================================================
 # Directional "Tiling" Move (Iterative Dragging)
@@ -54,12 +54,6 @@ bind -r C-l swap-pane -d -t '{right-of}'
 # LEARN THESE NATIVE DEFAULTS INSTEAD:
 # Prefix + {  -> Move pane left/up
 # Prefix + }  -> Move pane right/down
-
-# 4. Predictable Layout Toggling
-# Instead of moving panes manually, you toggle the "Template".
-# Hitting Space flips the screen between Vertical and Horizontal tiling.
-# bind -n C-Space next-layout
-bind Space next-layout
 
 # 7. The "Equalize" Key
 # If things ever look 'weird', hit '=' to make all panes the same size.

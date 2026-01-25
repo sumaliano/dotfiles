@@ -1,15 +1,3 @@
--- :G command: alias for any git command (refreshes git signs on exit)
-vim.api.nvim_create_user_command('G', function(opts)
-  local git_cmd = table.concat(opts.fargs, ' ')
-  if git_cmd == '' then
-    print('Usage: :G <git-args>')
-    return
-  end
-  vim.cmd('terminal git ' .. git_cmd)
-  -- Mark this buffer as a git command terminal for refresh on close
-  vim.b.is_git_terminal = true
-end, { nargs = '+', complete = 'shellcmd' })
-
 -- Shortcuts
 local o, g, map = vim.opt, vim.g, vim.keymap.set
 g.mapleader, g.maplocalleader = " ", " "
@@ -179,1021 +167,466 @@ end)
 map("n", "<leader><leader>", "<C-^>")
 
 -- ══════════════════════════════════════════════════════════════════════════════
--- GIT: State & Configuration
+-- GIT INTEGRATION
 -- ══════════════════════════════════════════════════════════════════════════════
 if vim.fn.executable("git") == 1 then
-  -- Namespaces
-  local git_ns = vim.api.nvim_create_namespace("git_gutter")
-  local inline_ns = vim.api.nvim_create_namespace("inline_diff")
 
-  -- Configuration state
-  local git_diff_mode = "all"  -- "all" (git diff HEAD) or "unstaged" (git diff)
-  local show_hunk_hints = false
+  local git_ns = vim.api.nvim_create_namespace("git")
+  local cache = {}           -- [buf] = { head = "...", index = "..." }
+  local diff_bufs = {}       -- [work_buf] = { buf = N, win = N }
+  local timers = {}
 
-  -- Per-buffer caches
-  local buf_git_cache = {}   -- { [buf] = { name, rel, file } }
-  local content_cache = {}   -- { [buf] = { index, head, ts } }
-  local inline_on = {}
-  local debounce_timers = {}
-  local diff_state = {}      -- { [work_buf] = { ref_buf, ref_win } }
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Git Commands
+  -- ────────────────────────────────────────────────────────────────────────────
 
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Helpers
-  -- ══════════════════════════════════════════════════════════════════════════════
-
-  -- Execute git command, return result or nil on error
-  local function git_cmd(cmd, input)
-    local result = input and vim.fn.system(cmd, input) or vim.fn.system(cmd)
-    return vim.v.shell_error == 0 and result or nil
+  local function git(cmd, stdin)
+    local out = stdin and vim.fn.system(cmd, stdin) or vim.fn.system(cmd)
+    return vim.v.shell_error == 0 and out or nil
   end
 
-  local function git_cmd_lines(cmd)
-    local lines = vim.fn.systemlist(cmd)
-    return vim.v.shell_error == 0 and lines or {}
+  local function git_lines(cmd)
+    local out = vim.fn.systemlist(cmd)
+    return vim.v.shell_error == 0 and out or {}
   end
 
-  -- Fetch content at a git reference (HEAD, :0:, :2:, :3:, or commit hash)
-  local function git_show(ref, rel)
-    return git_cmd_lines("git show " .. ref .. ":" .. rel)
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- File Info
+  -- ────────────────────────────────────────────────────────────────────────────
+
+  local function get_rel_path(buf)
+    local name = vim.api.nvim_buf_get_name(buf or 0)
+    if name == "" or vim.bo[buf or 0].buftype ~= "" then return nil end
+    local rel = git_lines("git ls-files --full-name " .. vim.fn.shellescape(name))[1]
+    return (rel and rel ~= "") and rel or nil
   end
 
-  local function git_show_str(ref, rel)
-    return git_cmd("git show " .. ref .. ":" .. rel)
+  local function get_escaped_path(buf)
+    return vim.fn.shellescape(vim.api.nvim_buf_get_name(buf or 0))
   end
 
-  -- Apply a patch with options
-  local function git_apply(patch, opts)
-    opts = opts or {}
-    local cmd = "git apply"
-    if opts.cached then cmd = cmd .. " --cached" end
-    if opts.reverse then cmd = cmd .. " --reverse" end
-    cmd = cmd .. " --unidiff-zero -"
-    return git_cmd(cmd, patch) ~= nil
-  end
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Content Cache (for vim.diff based sign display)
+  -- ────────────────────────────────────────────────────────────────────────────
 
-  -- Per-buffer git path caching
-  local function get_buf_git_info(buf)
+  local function refresh_cache(buf)
     buf = buf or vim.api.nvim_get_current_buf()
-    local name = vim.api.nvim_buf_get_name(buf)
-    if name == "" then return nil end
-
-    local cached = buf_git_cache[buf]
-    if cached and cached.name == name then
-      return cached
-    end
-
-    local lines = git_cmd_lines("git ls-files --full-name " .. vim.fn.shellescape(name))
-    local rel = lines[1]
-    if not rel or rel == "" then
-      buf_git_cache[buf] = nil
+    local rel = get_rel_path(buf)
+    if not rel then
+      cache[buf] = nil
       return nil
     end
-
-    buf_git_cache[buf] = {
-      name = name,
-      rel = rel,
-      file = vim.fn.shellescape(name),
+    cache[buf] = {
+      head = git("git show HEAD:" .. rel) or "",
+      index = git("git show :0:" .. rel) or "",
     }
-    return buf_git_cache[buf]
+    return cache[buf]
   end
 
-  local function git_file(buf)
-    local info = get_buf_git_info(buf)
-    return info and info.file or vim.fn.shellescape(vim.api.nvim_buf_get_name(buf or 0))
-  end
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Signs: Compute and display gutter signs
+  -- Uses vim.diff on BUFFER content for responsive updates
+  -- ────────────────────────────────────────────────────────────────────────────
 
-  local function git_rel(buf)
-    local info = get_buf_git_info(buf)
-    return info and info.rel or nil
-  end
-
-  -- Forward declarations for refresh_buf (defined after update functions)
-  local refresh_content_cache, update_signs, update_inline_diff, update_diff_split
-
-  -- Refresh all git state for a buffer
-  local function refresh_buf(buf, opts)
+  local function update_signs(buf)
     buf = buf or vim.api.nvim_get_current_buf()
-    opts = opts or {}
-    if opts.reload then vim.cmd("e!") end
-    refresh_content_cache(buf)
-    update_signs(buf)
-    if inline_on[buf] then update_inline_diff(buf) end
-    update_diff_split(buf)
-  end
-
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Diff Window Management
-  -- ══════════════════════════════════════════════════════════════════════════════
-
-  -- Unified diff window management
-  local function close_diff()
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      local buf = vim.api.nvim_win_get_buf(win)
-      if vim.api.nvim_buf_is_valid(buf) and vim.b[buf].is_diff then
-        pcall(vim.api.nvim_win_close, win, false)
-      end
-    end
-    vim.cmd("diffoff!")
-    diff_state = {}  -- Clear diff tracking
-  end
-
-  local function make_diff_buf(lines, ft)
-    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
-    vim.bo.buftype, vim.bo.bufhidden, vim.b.is_diff, vim.bo.modifiable = "nofile", "wipe", true, false
-    vim.bo.filetype = ft or "diff"
-    map("n", "q", close_diff, { buffer = true })
-  end
-
-  local function diff_tab(lines, ft)
-    vim.cmd("tabnew")
-    make_diff_buf(lines, ft)
-  end
-
-  local function diff_split(lines, ft)
-    vim.cmd("vnew")
-    make_diff_buf(lines, ft)
-    vim.cmd("diffthis")
-    vim.wo.foldcolumn = "0"
-  end
-
-  -- Update diff split with new reference content
-  update_diff_split = function(work_buf)
-    local state = diff_state[work_buf]
-    if not state then return end
-
-    if not vim.api.nvim_win_is_valid(state.ref_win) or not vim.api.nvim_buf_is_valid(state.ref_buf) then
-      diff_state[work_buf] = nil
-      return
-    end
-
-    local rel = git_rel()
-    if not rel then return end
-
-    local ref = git_diff_mode == "all" and "HEAD" or ":0"
-    local base = git_show(ref, rel)
-    if #base == 0 then return end
-
-    local current_win = vim.api.nvim_get_current_win()
-
-    vim.api.nvim_buf_set_option(state.ref_buf, "modifiable", true)
-    vim.api.nvim_buf_set_lines(state.ref_buf, 0, -1, false, base)
-    vim.api.nvim_buf_set_option(state.ref_buf, "modifiable", false)
-
-    vim.schedule(function()
-      if not vim.api.nvim_win_is_valid(state.ref_win) then return end
-
-      vim.api.nvim_set_current_win(state.ref_win)
-      vim.cmd("diffoff! | diffthis")
-
-      local work_wins = vim.fn.win_findbuf(work_buf)
-      if #work_wins > 0 then
-        vim.api.nvim_set_current_win(work_wins[1])
-        vim.cmd("diffoff! | diffthis")
-      end
-
-      if vim.api.nvim_win_is_valid(current_win) then
-        vim.api.nvim_set_current_win(current_win)
-      end
-    end)
-  end
-
-  -- Unified git/diff color scheme (GitHub/Claude Code style)
-  local function set_git_highlights()
-    -- Unstaged changes (bright, prominent)
-    vim.api.nvim_set_hl(0, "GitSignAdd", { fg = "#2ea043", bold = true })
-    vim.api.nvim_set_hl(0, "GitSignChange", { fg = "#d29922", bold = true })
-    vim.api.nvim_set_hl(0, "GitSignDelete", { fg = "#f85149", bold = true })
-
-    -- Staged changes (dimmer, same colors but less bold)
-    vim.api.nvim_set_hl(0, "GitSignAddStaged", { fg = "#1d6f2e" })
-    vim.api.nvim_set_hl(0, "GitSignChangeStaged", { fg = "#8a6616" })
-    vim.api.nvim_set_hl(0, "GitSignDeleteStaged", { fg = "#a03232" })
-
-    -- Both staged and unstaged (split indicator)
-    vim.api.nvim_set_hl(0, "GitSignAddBoth", { fg = "#2ea043", bg = "#1d6f2e" })
-    vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#8a6616" })
-    vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#a03232" })
-
-    -- Line backgrounds (for inline diff and split views)
-    vim.api.nvim_set_hl(0, "GitLineAdd", { bg = "#1d3b2a" })
-    vim.api.nvim_set_hl(0, "GitLineChange", { bg = "#3b3520" })
-    vim.api.nvim_set_hl(0, "GitLineDelete", { bg = "#3b1d1d" })
-
-    -- Native diff mode (gd split view)
-    vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#1d3b2a" })
-    vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a20" })
-    vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#3b1d1d", fg = "#5c3030" })
-    vim.api.nvim_set_hl(0, "DiffText", { bg = "#3b3520", bold = true })
-  end
-
-  set_git_highlights()
-  vim.api.nvim_create_autocmd("ColorScheme", { callback = set_git_highlights })
-
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Content Cache (Index + HEAD)
-  -- ══════════════════════════════════════════════════════════════════════════════
-
-  refresh_content_cache = function(buf)
-    local name = vim.api.nvim_buf_get_name(buf)
-    if vim.bo[buf].buftype ~= "" or name == "" then
-      content_cache[buf] = nil
-      return
-    end
-
-    local rel = git_rel(buf)
-    if not rel then
-      content_cache[buf] = nil
-      return
-    end
-
-    content_cache[buf] = {
-      index = git_show_str(":0", rel),
-      head = git_show_str("HEAD", rel),
-    }
-  end
-
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Gutter Signs
-  -- ══════════════════════════════════════════════════════════════════════════════
-
-  -- Convert diff hunks to line map { [lnum] = "add"|"change"|"delete" }
-  local function hunks_to_lines(hunks, max_lines)
-    local lines = {}
-    for _, hunk in ipairs(hunks) do
-      local old_count, new_start, new_count = hunk[2], hunk[3], hunk[4]
-      local change_type = (old_count == 0 and new_count > 0) and "add" or
-                         (new_count == 0 and old_count > 0) and "delete" or "change"
-      if new_count > 0 then
-        for l = new_start, new_start + new_count - 1 do
-          lines[l] = change_type
-        end
-      else
-        lines[math.max(1, math.min(new_start, max_lines))] = "delete"
-      end
-    end
-    return lines
-  end
-
-  -- Get sign text and highlight for a line's git state
-  local function get_sign_for_line(unstaged, staged)
-    if unstaged and staged then
-      local t = unstaged == "delete" and "━" or "║"
-      local hl = unstaged == "add" and "GitSignAddBoth" or
-                 unstaged == "change" and "GitSignChangeBoth" or "GitSignDeleteBoth"
-      return t, hl
-    elseif unstaged then
-      local t = unstaged == "add" and "│" or unstaged == "change" and "│" or "▁"
-      local hl = unstaged == "add" and "GitSignAdd" or
-                 unstaged == "change" and "GitSignChange" or "GitSignDelete"
-      return t, hl
-    else
-      local t = staged == "add" and "┃" or staged == "change" and "┃" or "▔"
-      local hl = staged == "add" and "GitSignAddStaged" or
-                 staged == "change" and "GitSignChangeStaged" or "GitSignDeleteStaged"
-      return t, hl
-    end
-  end
-
-  update_signs = function(buf)
-    local cache = content_cache[buf]
-    if not vim.api.nvim_buf_is_valid(buf) or not cache then return end
-    if not cache.head or not cache.index then return end
+    local c = cache[buf]
+    if not c or not vim.api.nvim_buf_is_valid(buf) then return end
 
     vim.api.nvim_buf_clear_namespace(buf, git_ns, 0, -1)
 
-    local buf_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
-    local buf_line_count = vim.api.nvim_buf_line_count(buf)
+    local buf_text = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
+    local line_count = vim.api.nvim_buf_line_count(buf)
 
-    -- Unstaged changes: INDEX vs working tree (working tree line numbers)
-    local unstaged_hunks = vim.diff(cache.index, buf_content, { result_type = "indices" })
-    local unstaged_lines = hunks_to_lines(unstaged_hunks, buf_line_count)
-
-    -- Staged changes: HEAD vs INDEX (index line numbers)
-    local staged_hunks = vim.diff(cache.head, cache.index, { result_type = "indices" })
-    local index_line_count = select(2, cache.index:gsub("\n", "\n")) + 1
-    local staged_in_index = hunks_to_lines(staged_hunks, index_line_count)
-
-    -- Map staged changes from INDEX line space to working tree line space
-    local staged_lines = {}
-    for index_lnum, change_type in pairs(staged_in_index) do
-      -- Calculate offset: sum of (new_count - old_count) for all hunks ending before this line
-      local offset = 0
-      for _, h in ipairs(unstaged_hunks) do
-        local old_start, old_count, new_count = h[1], h[2], h[4]
-        local old_end = old_start + math.max(0, old_count - 1)
-        if old_end < index_lnum then
-          -- Hunk ends before this line, apply full offset
-          offset = offset + (new_count - old_count)
-        elseif old_start <= index_lnum and index_lnum <= old_end then
-          -- We're inside this hunk - line may have moved or been deleted
-          -- Map proportionally within the hunk
-          local pos_in_hunk = index_lnum - old_start
-          if new_count > 0 then
-            offset = offset + pos_in_hunk  -- Approximate position in new
-          end
-          break
+    -- Compute diffs (all positions are in BUFFER coordinates)
+    local function diff_to_lines(base)
+      local lines = {}
+      if not base or base == "" then return lines end
+      for _, h in ipairs(vim.diff(base, buf_text, { result_type = "indices" }) or {}) do
+        local old_n, new_start, new_n = h[2], h[3], h[4]
+        local t = old_n == 0 and "add" or new_n == 0 and "del" or "change"
+        if new_n > 0 then
+          for l = new_start, new_start + new_n - 1 do lines[l] = t end
+        else
+          lines[math.max(1, math.min(new_start, line_count))] = "del"
         end
       end
-      local working_lnum = index_lnum + offset
-      if working_lnum >= 1 and working_lnum <= buf_line_count then
-        staged_lines[working_lnum] = change_type
-      end
+      return lines
     end
 
-    -- Build display lines based on mode
-    local display_lines = {}
-    if git_diff_mode == "all" then
-      for l in pairs(unstaged_lines) do display_lines[l] = true end
-      for l in pairs(staged_lines) do display_lines[l] = true end
-    else
-      for l in pairs(unstaged_lines) do display_lines[l] = true end
+    local all = diff_to_lines(c.head)      -- HEAD vs buffer
+    local unstaged = diff_to_lines(c.index) -- INDEX vs buffer
+
+    -- Staged = in HEAD diff but not in INDEX diff
+    local staged = {}
+    for l, t in pairs(all) do
+      if not unstaged[l] then staged[l] = t end
     end
 
-    -- Place extmarks
-    for lnum in pairs(display_lines) do
-      local sign_text, sign_hl = get_sign_for_line(unstaged_lines[lnum], staged_lines[lnum])
-      pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, lnum - 1, 0, {
-        sign_text = sign_text, sign_hl_group = sign_hl, priority = 10,
+    -- Highlight definitions
+    local hl = {
+      add = "GitSignAdd", change = "GitSignChange", del = "GitSignDelete",
+      add_s = "GitSignAddStaged", change_s = "GitSignChangeStaged", del_s = "GitSignDeleteStaged",
+    }
+    local sign = { add = "│", change = "│", del = "▁", add_s = "┃", change_s = "┃", del_s = "▔" }
+
+    -- Place signs
+    for l, t in pairs(unstaged) do
+      pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
+        sign_text = sign[t], sign_hl_group = hl[t], priority = 10
       })
     end
-
-    -- Add virtual text hints for hunk boundaries
-    if show_hunk_hints then
-      local prev_lnum = 0
-      local sorted_lines = {}
-      for l in pairs(display_lines) do table.insert(sorted_lines, l) end
-      table.sort(sorted_lines)
-
-      for _, lnum in ipairs(sorted_lines) do
-        -- Check if this is the start of a new hunk (gap > 1 from previous)
-        if lnum > prev_lnum + 1 or prev_lnum == 0 then
-          -- Count consecutive lines in this hunk
-          local hunk_size = 1
-          for i = lnum + 1, vim.api.nvim_buf_line_count(buf) do
-            if display_lines[i] then
-              hunk_size = hunk_size + 1
-            else
-              break
-            end
-          end
-
-          -- Add virtual text on first line of hunk
-          local unstaged = unstaged_lines[lnum]
-          local staged = staged_lines[lnum]
-          local virt_text = ""
-
-          if unstaged and staged then
-            virt_text = string.format("  [%d lines • staged + unstaged]", hunk_size)
-          elseif unstaged then
-            virt_text = string.format("  [%d lines • unstaged]", hunk_size)
-          else
-            virt_text = string.format("  [%d lines • staged]", hunk_size)
-          end
-
-          pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, lnum - 1, 0, {
-            virt_text = { { virt_text, "Comment" } },
-            virt_text_pos = "eol",
-            priority = 1,
-          })
-        end
-        prev_lnum = lnum
-      end
+    for l, t in pairs(staged) do
+      pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
+        sign_text = sign[t .. "_s"], sign_hl_group = hl[t .. "_s"], priority = 9
+      })
     end
   end
 
-  -- Toggle hunk hints
-  map("n", "<leader>gh", function()
-    show_hunk_hints = not show_hunk_hints
-    local buf = vim.api.nvim_get_current_buf()
-    update_signs(buf)
-    print("Hunk hints: " .. (show_hunk_hints and "ON" or "OFF"))
-  end)
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Hunks: Parse git diff output for operations
+  -- Uses git diff on FILE for authoritative hunk data
+  -- ────────────────────────────────────────────────────────────────────────────
 
-  -- Toggle git diff mode
-  map("n", "<leader>gm", function()
-    git_diff_mode = git_diff_mode == "all" and "unstaged" or "all"
-    local mode_names = { all = "All changes (git diff HEAD)", unstaged = "Unstaged only (git diff)" }
-
-    local buf = vim.api.nvim_get_current_buf()
-    update_signs(buf)
-    if inline_on[buf] then update_inline_diff(buf) end
-
-    -- Update all active diff splits (not just current buffer)
-    for work_buf, _ in pairs(diff_state) do
-      update_diff_split(work_buf)
-    end
-
-    print("Git diff mode: " .. mode_names[git_diff_mode])
-  end)
-
-  local function debounced_update(buf, delay)
-    if debounce_timers[buf] then vim.fn.timer_stop(debounce_timers[buf]) end
-    debounce_timers[buf] = vim.fn.timer_start(delay, function()
-      debounce_timers[buf] = nil
-      vim.schedule(function()
-        update_signs(buf)
-        if inline_on[buf] then update_inline_diff(buf) end
-      end)
-    end)
-  end
-
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Autocmds
-  -- ══════════════════════════════════════════════════════════════════════════════
-
-  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, { callback = function(ev)
-    refresh_content_cache(ev.buf)
-    update_signs(ev.buf)
-    if inline_on[ev.buf] then update_inline_diff(ev.buf) end
-  end })
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, { callback = function(ev) debounced_update(ev.buf, 150) end })
-  vim.api.nvim_create_autocmd("BufDelete", { callback = function(ev)
-    content_cache[ev.buf] = nil
-    buf_git_cache[ev.buf] = nil
-    inline_on[ev.buf] = nil
-    diff_state[ev.buf] = nil
-    if debounce_timers[ev.buf] then vim.fn.timer_stop(debounce_timers[ev.buf]); debounce_timers[ev.buf] = nil end
-  end })
-
-  -- Refresh git signs when a :G terminal closes
-  vim.api.nvim_create_autocmd("TermClose", { callback = function(ev)
-    if not vim.b[ev.buf].is_git_terminal then return end
-    -- Schedule refresh after terminal buffer is cleaned up
-    vim.schedule(function()
-      for _, win in ipairs(vim.api.nvim_list_wins()) do
-        local buf = vim.api.nvim_win_get_buf(win)
-        if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "" then
-          refresh_content_cache(buf)
-          update_signs(buf)
-          if inline_on[buf] then update_inline_diff(buf) end
-        end
-      end
-    end)
-  end })
-
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Hunk Operations
-  -- ══════════════════════════════════════════════════════════════════════════════
-
-  local function get_hunks(staged)
-    local rel = git_rel()
-    if not rel then return {} end
-
-    -- Build diff command based on mode or explicit staged parameter
-    local diff_cmd = staged ~= nil
-      and (staged and "git diff --cached -U0 -- " or "git diff -U0 -- ")
-      or (git_diff_mode == "all" and "git diff HEAD -U0 -- " or "git diff -U0 -- ")
-
-    local diff = git_cmd_lines(diff_cmd .. git_file())
+  local function parse_hunks(diff_output, rel)
     local hunks = {}
-
-    for i, line in ipairs(diff) do
+    local i = 1
+    while i <= #diff_output do
+      local line = diff_output[i]
       local os, oc, ns, nc = line:match("^@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
-      if ns then
-        local hunk_lines = { line }
-        for j = i + 1, #diff do
-          if diff[j]:match("^@@") then break end
-          table.insert(hunk_lines, diff[j])
+      if os then
+        local content = { line }
+        i = i + 1
+        while i <= #diff_output and not diff_output[i]:match("^@@") do
+          table.insert(content, diff_output[i])
+          i = i + 1
         end
         table.insert(hunks, {
-          start = tonumber(ns), count = tonumber(nc ~= "" and nc or 1),
           old_start = tonumber(os), old_count = tonumber(oc ~= "" and oc or 1),
-          lines = hunk_lines, rel = rel,
+          new_start = tonumber(ns), new_count = tonumber(nc ~= "" and nc or 1),
+          lines = content, rel = rel,
         })
+      else
+        i = i + 1
       end
     end
     return hunks
   end
 
-  local function hunk_at_cursor(staged)
+  local function get_hunks_from_git(mode)
+    local rel = get_rel_path()
+    if not rel then return {} end
+    local cmd = mode == "staged" and "git diff --cached -U0 -- "
+             or mode == "unstaged" and "git diff -U0 -- "
+             or "git diff HEAD -U0 -- "
+    return parse_hunks(git_lines(cmd .. get_escaped_path()), rel)
+  end
+
+  local function find_hunk_at_cursor(hunks)
     local cur = vim.api.nvim_win_get_cursor(0)[1]
-    for _, h in ipairs(get_hunks(staged)) do
-      local e = h.count == 0 and h.start or (h.start + h.count - 1)
-      if cur >= h.start and cur <= e then return h end
+    for _, h in ipairs(hunks) do
+      local s, e = h.new_start, h.new_start + math.max(h.new_count - 1, 0)
+      if cur >= s and cur <= e then return h end
     end
   end
 
-  local function make_patch(h, reverse)
-    local patch = { "--- a/" .. h.rel, "+++ b/" .. h.rel }
-    for _, line in ipairs(h.lines) do
+  local function make_patch(hunk, reverse)
+    local p = { "--- a/" .. hunk.rel, "+++ b/" .. hunk.rel }
+    for _, line in ipairs(hunk.lines) do
       if reverse then
         if line:match("^%+") and not line:match("^%+%+%+") then
           line = "-" .. line:sub(2)
         elseif line:match("^%-") and not line:match("^%-%-%-") then
           line = "+" .. line:sub(2)
         elseif line:match("^@@") then
-          line = string.format("@@ -%d,%d +%d,%d @@", h.start, h.count, h.old_start, h.old_count)
+          line = string.format("@@ -%d,%d +%d,%d @@",
+            hunk.new_start, hunk.new_count, hunk.old_start, hunk.old_count)
         end
       end
-      table.insert(patch, line)
+      table.insert(p, line)
     end
-    return table.concat(patch, "\n") .. "\n"
+    return table.concat(p, "\n") .. "\n"
   end
 
-  -- Enhanced hunk preview with context and stats
-  map("n", "<leader>hp", function()
-    local h = hunk_at_cursor()
-    if not h then return print("No hunk") end
+  local function apply_patch(patch, to_index)
+    local cmd = "git apply --unidiff-zero"
+    if to_index then cmd = cmd .. " --cached" end
+    return git(cmd .. " -", patch) ~= nil
+  end
 
-    -- Calculate stats
-    local adds, dels = 0, 0
-    for _, line in ipairs(h.lines) do
-      if line:match("^%+") and not line:match("^%+%+%+") then adds = adds + 1
-      elseif line:match("^%-") and not line:match("^%-%-%-") then dels = dels + 1
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Refresh: Update all git state
+  -- ────────────────────────────────────────────────────────────────────────────
+
+  local function refresh(buf, reload)
+    buf = buf or vim.api.nvim_get_current_buf()
+    if reload then vim.cmd("e!") end
+    refresh_cache(buf)
+    update_signs(buf)
+    -- Update diff split if open
+    local d = diff_bufs[buf]
+    if d and vim.api.nvim_buf_is_valid(d.buf) then
+      local rel = get_rel_path(buf)
+      if rel then
+        local content = git_lines("git show HEAD:" .. rel)
+        vim.bo[d.buf].modifiable = true
+        vim.api.nvim_buf_set_lines(d.buf, 0, -1, false, content)
+        vim.bo[d.buf].modifiable = false
       end
     end
+  end
 
-    -- Show preview with header
-    local preview = { "# Hunk Preview: +" .. adds .. " -" .. dels, "" }
-    for _, line in ipairs(h.lines) do
-      table.insert(preview, line)
+  local function debounced_refresh(buf)
+    if timers[buf] then vim.fn.timer_stop(timers[buf]) end
+    timers[buf] = vim.fn.timer_start(150, function()
+      timers[buf] = nil
+      vim.schedule(function() update_signs(buf) end)
+    end)
+  end
+
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Autocmds
+  -- ────────────────────────────────────────────────────────────────────────────
+
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, {
+    callback = function(ev) refresh(ev.buf) end
+  })
+  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    callback = function(ev) debounced_refresh(ev.buf) end
+  })
+  vim.api.nvim_create_autocmd("BufDelete", {
+    callback = function(ev)
+      cache[ev.buf] = nil
+      diff_bufs[ev.buf] = nil
+      if timers[ev.buf] then vim.fn.timer_stop(timers[ev.buf]) end
     end
+  })
 
-    local buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_open_win(buf, true, {
-      relative = "cursor", row = 1, col = 0,
-      width = math.min(80, vim.o.columns - 4),
-      height = math.min(#preview + 2, 20),
-      style = "minimal", border = "rounded",
-      title = " Hunk Actions: ha=stage | hu=unstage | hr=reset ",
-      title_pos = "center"
-    })
-    make_diff_buf(preview, "diff")
-  end)
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Highlights
+  -- ────────────────────────────────────────────────────────────────────────────
 
-  -- Unified hunk operation helper
-  local function hunk_op(staged, opts, msg)
-    local h = staged == nil and (hunk_at_cursor(true) or hunk_at_cursor(false)) or hunk_at_cursor(staged)
-    if not h then return print("No hunk") end
-    if git_apply(make_patch(h, false), opts) then
-      refresh_buf(nil, { reload = opts.reload })
-      print(msg)
+  local function setup_highlights()
+    vim.api.nvim_set_hl(0, "GitSignAdd", { fg = "#2ea043" })
+    vim.api.nvim_set_hl(0, "GitSignChange", { fg = "#d29922" })
+    vim.api.nvim_set_hl(0, "GitSignDelete", { fg = "#f85149" })
+    vim.api.nvim_set_hl(0, "GitSignAddStaged", { fg = "#1a4d2e" })
+    vim.api.nvim_set_hl(0, "GitSignChangeStaged", { fg = "#6b4d12" })
+    vim.api.nvim_set_hl(0, "GitSignDeleteStaged", { fg = "#6b2020" })
+    vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#1d3b2a" })
+    vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a20" })
+    vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#3b1d1d", fg = "#5c3030" })
+    vim.api.nvim_set_hl(0, "DiffText", { bg = "#3b3520" })
+  end
+  setup_highlights()
+  vim.api.nvim_create_autocmd("ColorScheme", { callback = setup_highlights })
+
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Keymaps: Hunk operations
+  -- ────────────────────────────────────────────────────────────────────────────
+
+  -- Stage hunk
+  map("n", "<leader>ha", function()
+    if vim.bo.modified then vim.cmd("silent write") end
+    local hunks = get_hunks_from_git("unstaged")
+    local h = find_hunk_at_cursor(hunks)
+    if not h then return print("No unstaged hunk at cursor") end
+    if apply_patch(make_patch(h, false), true) then
+      refresh()
+      print("Staged hunk")
     else
       print("Failed")
     end
-  end
+  end)
 
-  map("n", "<leader>ha", function() hunk_op(false, { cached = true }, "Staged hunk") end)
-  map("n", "<leader>hu", function() hunk_op(true, { cached = true, reverse = true }, "Unstaged hunk") end)
-  map("n", "<leader>hr", function() hunk_op(false, { reverse = true, reload = true }, "Reset hunk to index") end)
+  -- Unstage hunk
+  map("n", "<leader>hu", function()
+    if vim.bo.modified then vim.cmd("silent write") end
+    local hunks = get_hunks_from_git("staged")
+    local h = find_hunk_at_cursor(hunks)
+    if not h then return print("No staged hunk at cursor") end
+    if apply_patch(make_patch(h, true), true) then
+      refresh()
+      print("Unstaged hunk")
+    else
+      print("Failed")
+    end
+  end)
+
+  -- Reset hunk (discard changes)
+  map("n", "<leader>hr", function()
+    if vim.bo.modified then vim.cmd("silent write") end
+    local hunks = get_hunks_from_git("unstaged")
+    local h = find_hunk_at_cursor(hunks)
+    if not h then return print("No unstaged hunk at cursor") end
+    if apply_patch(make_patch(h, true), false) then
+      refresh(nil, true)
+      print("Reset hunk")
+    else
+      print("Failed")
+    end
+  end)
 
   -- Hunk navigation
   map("n", "]c", function()
-    local hunks, cur = get_hunks(), vim.api.nvim_win_get_cursor(0)[1]
-    if #hunks == 0 then return print("No hunks") end
-    for _, h in ipairs(hunks) do if h.start > cur then return vim.api.nvim_win_set_cursor(0, { h.start, 0 }) end end
+    if vim.bo.modified then vim.cmd("silent write") end
+    local hunks = get_hunks_from_git("all")
+    local cur = vim.api.nvim_win_get_cursor(0)[1]
+    for _, h in ipairs(hunks) do
+      if h.new_start > cur then
+        vim.api.nvim_win_set_cursor(0, { h.new_start, 0 })
+        return
+      end
+    end
     print("No more hunks")
   end)
+
   map("n", "[c", function()
-    local hunks, cur = get_hunks(), vim.api.nvim_win_get_cursor(0)[1]
-    if #hunks == 0 then return print("No hunks") end
-    for i = #hunks, 1, -1 do if hunks[i].start < cur then return vim.api.nvim_win_set_cursor(0, { hunks[i].start, 0 }) end end
+    if vim.bo.modified then vim.cmd("silent write") end
+    local hunks = get_hunks_from_git("all")
+    local cur = vim.api.nvim_win_get_cursor(0)[1]
+    for i = #hunks, 1, -1 do
+      if hunks[i].new_start < cur then
+        vim.api.nvim_win_set_cursor(0, { hunks[i].new_start, 0 })
+        return
+      end
+    end
     print("No more hunks")
   end)
 
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Inline Diff
-  -- ══════════════════════════════════════════════════════════════════════════════
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Keymaps: Diff views
+  -- ────────────────────────────────────────────────────────────────────────────
 
-  function update_inline_diff(buf)
-    vim.api.nvim_buf_clear_namespace(buf, inline_ns, 0, -1)
-
-    local cache = content_cache[buf]
-    if not cache then return end
-
-    -- Get base content based on mode (same as gd)
-    local base = git_diff_mode == "all" and cache.head or cache.index
-    if not base then return end
-
-    local buf_content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), "\n") .. "\n"
-    local diff = vim.diff(base, buf_content, { result_type = "unified" })
-    if not diff or diff == "" then return end
-
-    local diff_lines = vim.split(diff, "\n")
-    local i = 1
-
-    while i <= #diff_lines do
-      local line = diff_lines[i]
-      local old_start, old_count, new_start, new_count = line:match("^@@%s*%-(%d+),?(%d*)%s*%+(%d+),?(%d*)%s*@@")
-
-      if old_start then
-        old_start = tonumber(old_start)
-        old_count = tonumber(old_count ~= "" and old_count or 1)
-        new_start = tonumber(new_start)
-        new_count = tonumber(new_count ~= "" and new_count or 1)
-
-        local deleted_lines = {}
-        i = i + 1
-
-        while i <= #diff_lines and not diff_lines[i]:match("^@@") do
-          local dl = diff_lines[i]
-          if dl:match("^%-") and not dl:match("^%-%-%-") then
-            table.insert(deleted_lines, dl:sub(2))
-          end
-          i = i + 1
-        end
-
-        -- Show deleted lines as virtual text
-        if #deleted_lines > 0 then
-          local virt_lines = {}
-          for _, dline in ipairs(deleted_lines) do
-            table.insert(virt_lines, { { "  - " .. dline, "DiffDelete" } })
-          end
-          local mark_line = math.max(0, new_start - 1)
-          pcall(vim.api.nvim_buf_set_extmark, buf, inline_ns, mark_line, 0, {
-            virt_lines = virt_lines,
-            virt_lines_above = true,
-          })
-        end
-
-        -- Highlight changed/added lines (no sign_text to preserve gutter)
-        if new_count > 0 then
-          local hl_group = old_count == 0 and "DiffAdd" or "DiffChange"
-          for l = new_start, new_start + new_count - 1 do
-            pcall(vim.api.nvim_buf_set_extmark, buf, inline_ns, l - 1, 0, {
-              line_hl_group = hl_group,
-              priority = 5,  -- Lower than gutter (10)
-            })
-          end
-        elseif #deleted_lines > 0 then
-          -- Pure deletion marker
-          local mark_line = math.max(0, math.min(new_start, vim.api.nvim_buf_line_count(buf) - 1))
-          pcall(vim.api.nvim_buf_set_extmark, buf, inline_ns, mark_line, 0, {
-            line_hl_group = "DiffDelete",
-            priority = 5,
-          })
-        end
-      else
-        i = i + 1
-      end
+  local function close_diff_view()
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local b = vim.api.nvim_win_get_buf(win)
+      if vim.b[b].is_git_diff then pcall(vim.api.nvim_win_close, win, true) end
     end
+    vim.cmd("diffoff!")
+    diff_bufs = {}
   end
 
-  map("n", "gi", function()
-    local buf = vim.api.nvim_get_current_buf()
-
-    if inline_on[buf] then
-      inline_on[buf] = false
-      vim.api.nvim_buf_clear_namespace(buf, inline_ns, 0, -1)
-      print("Inline diff: OFF")
-    else
-      inline_on[buf] = true
-      update_inline_diff(buf)
-      local mode_label = git_diff_mode == "all" and "vs HEAD" or "vs INDEX"
-      print("Inline diff: ON (" .. mode_label .. ") - gi/q=off")
-      vim.keymap.set("n", "q", function()
-        inline_on[buf] = false
-        vim.api.nvim_buf_clear_namespace(buf, inline_ns, 0, -1)
-        print("Inline diff: OFF")
-      end, { buffer = buf })
-    end
-  end)
-
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Conflict Resolution
-  -- ══════════════════════════════════════════════════════════════════════════════
-
-  -- Enhanced conflict resolution with preview
-  local function resolve_conflict(buf, choice)
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    local cur = vim.api.nvim_win_get_cursor(0)[1]
-    local s, m, e, f
-
-    -- Find conflict markers
-    for i = cur, 1, -1 do
-      if lines[i]:match("^<<<<<<<") then s = i; break end
-    end
-    if not s then return print("Not in conflict") end
-
-    for i = s, #lines do
-      if lines[i]:match("^|||||||") then m = i
-      elseif lines[i]:match("^=======") then e = i
-      elseif lines[i]:match("^>>>>>>>") then f = i; break end
-    end
-    if not e or not f then return print("Malformed conflict") end
-
-    local ranges = {
-      ours = { s + 1, (m or e) - 1 },
-      theirs = { e + 1, f - 1 },
-      base = m and { m + 1, e - 1 }
-    }
-    local range = ranges[choice]
-    if not range then return print("No base section") end
-
-    local result = {}
-    for i = range[1], range[2] do
-      table.insert(result, lines[i])
-    end
-
-    vim.api.nvim_buf_set_lines(buf, s - 1, f, false, result)
-    print("Resolved with " .. choice .. " (" .. #result .. " lines)")
-  end
-
-  -- Preview conflict choices
-  map("n", "<leader>gp", function()
-    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    local cur = vim.api.nvim_win_get_cursor(0)[1]
-    local s, m, e, f
-
-    for i = cur, 1, -1 do
-      if lines[i]:match("^<<<<<<<") then s = i; break end
-    end
-    if not s then return print("Not in conflict") end
-
-    for i = s, #lines do
-      if lines[i]:match("^|||||||") then m = i
-      elseif lines[i]:match("^=======") then e = i
-      elseif lines[i]:match("^>>>>>>>") then f = i; break end
-    end
-    if not e or not f then return print("Malformed conflict") end
-
-    local preview = { "=== CONFLICT PREVIEW ===" }
-    table.insert(preview, "")
-    table.insert(preview, "OURS (gH):")
-    for i = s + 1, (m or e) - 1 do
-      table.insert(preview, "  " .. lines[i])
-    end
-
-    if m then
-      table.insert(preview, "")
-      table.insert(preview, "BASE (gJ):")
-      for i = m + 1, e - 1 do
-        table.insert(preview, "  " .. lines[i])
-      end
-    end
-
-    table.insert(preview, "")
-    table.insert(preview, "THEIRS (gL):")
-    for i = e + 1, f - 1 do
-      table.insert(preview, "  " .. lines[i])
-    end
-
-    local buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_open_win(buf, true, {
-      relative = "cursor", row = 1, col = 0,
-      width = math.min(80, vim.o.columns - 4),
-      height = math.min(#preview + 2, 25),
-      style = "minimal", border = "rounded",
-      title = " Conflict Resolution Options ",
-      title_pos = "center"
-    })
-    make_diff_buf(preview, "diff")
-  end)
-
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: Diff Commands
-  -- ══════════════════════════════════════════════════════════════════════════════
-
+  -- Split diff (gd)
   map("n", "<leader>gd", function()
-    local rel = git_rel()
+    local rel = get_rel_path()
     if not rel then return print("Not tracked") end
-
-    -- Check for merge conflict (3-way merge)
-    local ours, theirs = git_show(":2", rel), git_show(":3", rel)
-    if #ours > 0 and #theirs > 0 then
-      vim.cmd("tabnew " .. vim.fn.fnameescape(vim.api.nvim_buf_get_name(0)))
-      local work_buf = vim.api.nvim_get_current_buf()
-      vim.cmd("diffthis")
-
-      vim.cmd("leftabove vnew")
-      make_diff_buf(ours, vim.bo[work_buf].filetype)
-      vim.cmd("diffthis"); vim.wo.foldcolumn = "0"
-      local ours_buf = vim.api.nvim_get_current_buf()
-
-      vim.cmd("wincmd l | rightbelow vnew")
-      make_diff_buf(theirs, vim.bo[work_buf].filetype)
-      vim.cmd("diffthis"); vim.wo.foldcolumn = "0"
-      local theirs_buf = vim.api.nvim_get_current_buf()
-
-      vim.api.nvim_set_current_win(vim.fn.win_findbuf(work_buf)[1])
-      map("n", "gh", "<cmd>diffget " .. ours_buf .. "<cr>", { buffer = work_buf })
-      map("n", "gl", "<cmd>diffget " .. theirs_buf .. "<cr>", { buffer = work_buf })
-      map("n", "q", "<cmd>tabclose<cr>", { buffer = work_buf })
-      return print("3-way merge: OURS | WORKING | THEIRS (gh/gl=hunk gH/gJ/gL=block ]c/[c=nav q=quit)")
-    end
-
-    -- Normal diff based on mode
-    local ref = git_diff_mode == "all" and "HEAD" or ":0"
-    local label = git_diff_mode == "all" and "HEAD" or "INDEX"
-    local base = git_show(ref, rel)
-    if #base == 0 then return print("No " .. label) end
+    local content = git_lines("git show HEAD:" .. rel)
+    if #content == 0 then return print("No HEAD") end
 
     local work_buf = vim.api.nvim_get_current_buf()
-    diff_split(base, vim.bo.filetype)
-    diff_state[work_buf] = { ref_buf = vim.api.nvim_get_current_buf(), ref_win = vim.api.nvim_get_current_win() }
+    vim.cmd("vnew")
+    local ref_buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(ref_buf, 0, -1, false, content)
+    vim.bo[ref_buf].buftype = "nofile"
+    vim.bo[ref_buf].bufhidden = "wipe"
+    vim.bo[ref_buf].modifiable = false
+    vim.b[ref_buf].is_git_diff = true
+    vim.cmd("diffthis")
+    vim.wo.foldcolumn = "0"
+
+    diff_bufs[work_buf] = { buf = ref_buf, win = vim.api.nvim_get_current_win() }
+
     vim.cmd("wincmd p | diffthis")
-    map("n", "q", close_diff, { buffer = work_buf })
-    print("Diff: " .. label .. " | CURRENT - ]c/[c=nav q=quit")
+    map("n", "q", close_diff_view, { buffer = work_buf })
+    map("n", "q", close_diff_view, { buffer = ref_buf })
+    print("Diff: HEAD | WORKING (]c/[c nav, q quit)")
   end)
 
+  -- Unified diff (gD)
   map("n", "<leader>gD", function()
-    local rel = git_rel()
+    local rel = get_rel_path()
     if not rel then return print("Not tracked") end
-
-    local cmd = git_diff_mode == "all" and "git diff HEAD -- " or "git diff -- "
-    local diff = git_cmd_lines(cmd .. git_file())
+    local diff = git_lines("git diff HEAD -- " .. get_escaped_path())
     if #diff == 0 then return print("No changes") end
-
-    diff_tab(diff, "diff")
-    print("Unified diff (" .. (git_diff_mode == "all" and "all changes" or "unstaged only") .. ") - q=quit")
+    vim.cmd("tabnew")
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, diff)
+    vim.bo.buftype = "nofile"
+    vim.bo.bufhidden = "wipe"
+    vim.bo.filetype = "diff"
+    map("n", "q", "<cmd>tabclose<cr>", { buffer = true })
+    print("Unified diff (q quit)")
   end)
 
-  -- ══════════════════════════════════════════════════════════════════════════════
-  -- GIT: File Operations
-  -- ══════════════════════════════════════════════════════════════════════════════
+  -- ────────────────────────────────────────────────────────────────────────────
+  -- Keymaps: File operations
+  -- ────────────────────────────────────────────────────────────────────────────
 
-  local function git_file_op(cmd, msg, reload)
-    if not git_cmd(cmd .. " " .. git_file()) then return print("Failed") end
-    refresh_buf(nil, { reload = reload })
-    print(msg)
-  end
+  map("n", "<leader>ga", function()
+    if not git("git add " .. get_escaped_path()) then return print("Failed") end
+    refresh()
+    print("Staged file")
+  end)
 
-  -- Git status with interactive file navigation
-  local function get_status_text(code)
-    if code:match("M") then return "[Modified]"
-    elseif code:match("A") then return "[Added]"
-    elseif code:match("D") then return "[Deleted]"
-    elseif code:match("R") then return "[Renamed]"
-    elseif code:match("?") then return "[Untracked]"
-    else return "[Changed]" end
-  end
+  map("n", "<leader>gu", function()
+    if not git("git restore --staged " .. get_escaped_path()) then return print("Failed") end
+    refresh()
+    print("Unstaged file")
+  end)
+
+  map("n", "<leader>gr", function()
+    if not git("git restore " .. get_escaped_path()) then return print("Failed") end
+    refresh(nil, true)
+    print("Reset file")
+  end)
 
   map("n", "<leader>gs", function()
-    local status = git_cmd_lines("git status --porcelain")
-    if #status == 0 then return print("No changes") end
-
+    local status = git_lines("git status --porcelain")
+    if #status == 0 then return print("Clean") end
     local qf = {}
     for _, line in ipairs(status) do
-      local code, file = line:sub(1, 2), line:sub(4)
-      table.insert(qf, { filename = file, lnum = 1, text = get_status_text(code) .. " " .. file })
+      table.insert(qf, { filename = line:sub(4), text = line:sub(1, 2) })
     end
-
     vim.fn.setqflist(qf, "r")
-    vim.fn.setqflist({}, "a", { title = "Git Status (Enter=open | ga=stage | gu=unstage)" })
+    vim.fn.setqflist({}, "a", { title = "Git Status" })
     vim.cmd("copen")
-
-    vim.api.nvim_create_autocmd("FileType", {
-      pattern = "qf",
-      once = true,
-      callback = function(ev)
-        map("n", "ga", function()
-          local item = vim.fn.getqflist()[vim.fn.line(".")]
-          if item and item.filename then
-            git_cmd("git add " .. vim.fn.shellescape(item.filename))
-            print("Staged: " .. item.filename)
-          end
-        end, { buffer = ev.buf })
-
-        map("n", "gu", function()
-          local item = vim.fn.getqflist()[vim.fn.line(".")]
-          if item and item.filename then
-            git_cmd("git restore --staged " .. vim.fn.shellescape(item.filename))
-            print("Unstaged: " .. item.filename)
-          end
-        end, { buffer = ev.buf })
-      end,
-    })
   end)
-  map("n", "<leader>ga", function() git_file_op("git add", "Staged", false) end)
-  map("n", "<leader>gu", function() git_file_op("git restore --staged", "Unstaged", false) end)
-  map("n", "<leader>gr", function() git_file_op("git restore", "Reset to index", true) end)
 
   map("n", "<leader>gb", function()
-    local blame = git_cmd_lines("git blame --date=short " .. git_file())
+    local blame = git_lines("git blame --date=short " .. get_escaped_path())
     if #blame == 0 then return print("Not tracked") end
-    diff_tab(blame, "git")
-    print("Git blame (q=quit)")
+    vim.cmd("tabnew")
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, blame)
+    vim.bo.buftype = "nofile"
+    vim.bo.bufhidden = "wipe"
+    map("n", "q", "<cmd>tabclose<cr>", { buffer = true })
+    print("Blame (q quit)")
   end)
 
   map("n", "<leader>gl", function()
-    local rel = git_rel()
-    if not rel then return print("Not tracked") end
-
-    local log = git_cmd_lines("git log --oneline -100 -- " .. git_file())
+    local log = git_lines("git log --oneline -50 -- " .. get_escaped_path())
     if #log == 0 then return print("No history") end
-
-    local qf = {}
-    for _, line in ipairs(log) do
-      local hash = line:match("^(%w+)")
-      if hash then table.insert(qf, { text = line, user_data = hash }) end
-    end
-    vim.fn.setqflist(qf, "r")
-    vim.fn.setqflist({}, "a", { title = "Git Log: " .. rel })
-    vim.cmd("copen")
-    print("File history (Enter=show-commit q=close)")
-
-    local function qf_enter()
-      local item = vim.fn.getqflist()[vim.fn.line(".")]
-      if item and item.user_data then
-        local diff = git_cmd_lines("git show " .. item.user_data .. " -- " .. rel)
-        if #diff > 0 then diff_tab(diff, "git") end
-      end
-    end
-    vim.api.nvim_create_autocmd("FileType", { pattern = "qf", once = true, callback = function(ev)
-      map("n", "<CR>", qf_enter, { buffer = ev.buf })
-    end })
-  end)
-
-  map("n", "<leader>gL", function()
-    local log = git_cmd_lines("git log --oneline -50")
-    if #log == 0 then return print("No commits") end
-    diff_tab(log, "git")
-    print("Git log (q=quit)")
-  end)
-
-  -- Git summary view with current file status
-  map("n", "<leader>gS", function()
-    local summary = {}
-
-    local branch = (git_cmd("git branch --show-current") or ""):gsub("\n", "")
-    if branch ~= "" then table.insert(summary, "Branch: " .. branch) end
-
-    local last_commit = (git_cmd("git log -1 --oneline") or ""):gsub("\n", "")
-    if last_commit ~= "" then table.insert(summary, "Last commit: " .. last_commit) end
-
-    table.insert(summary, "")
-    table.insert(summary, "=== Current File ===")
-
-    local rel = git_rel()
-    if rel then
-      table.insert(summary, "File: " .. rel)
-      table.insert(summary, "Unstaged hunks: " .. #get_hunks(false))
-      table.insert(summary, "Staged hunks: " .. #get_hunks(true))
-
-      local status = (git_cmd("git status --porcelain " .. git_file()) or ""):gsub("\n", "")
-      if status ~= "" then table.insert(summary, "Status: " .. status) end
-    else
-      table.insert(summary, "File: Not tracked")
-    end
-
-    table.insert(summary, "")
-    table.insert(summary, "=== Repository Status ===")
-
-    local status_lines = git_cmd_lines("git status --porcelain")
-    local modified, added, deleted, untracked = 0, 0, 0, 0
-    for _, line in ipairs(status_lines) do
-      local code = line:sub(1, 2)
-      if code:match("M") then modified = modified + 1
-      elseif code:match("A") then added = added + 1
-      elseif code:match("D") then deleted = deleted + 1
-      elseif code:match("?") then untracked = untracked + 1
-      end
-    end
-
-    table.insert(summary, "Modified: " .. modified)
-    table.insert(summary, "Added: " .. added)
-    table.insert(summary, "Deleted: " .. deleted)
-    table.insert(summary, "Untracked: " .. untracked)
-
-    diff_tab(summary, "git")
-    print("Git summary (q=quit)")
+    vim.cmd("tabnew")
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, log)
+    vim.bo.buftype = "nofile"
+    vim.bo.bufhidden = "wipe"
+    map("n", "q", "<cmd>tabclose<cr>", { buffer = true })
+    print("Log (q quit)")
   end)
 
   map("n", "<leader>gC", "<cmd>terminal git commit<cr>")
   map("n", "<leader>gP", "<cmd>!git push<cr>")
 
-  -- Global conflict resolution (works anywhere in conflict blocks)
-  map("n", "gH", function() resolve_conflict(0, "ours") end)
-  map("n", "gJ", function() resolve_conflict(0, "base") end)
-  map("n", "gL", function() resolve_conflict(0, "theirs") end)
+  -- :G command
+  vim.api.nvim_create_user_command("G", function(opts)
+    vim.cmd("terminal git " .. table.concat(opts.fargs, " "))
+    vim.b.is_git_terminal = true
+  end, { nargs = "+", complete = "shellcmd" })
 
-  -- Navigate between changed files
-  local changed_files_cache = nil
-  local changed_files_index = 1
-
-  local function refresh_changed_files()
-    changed_files_cache = {}
-    for _, line in ipairs(git_cmd_lines("git status --porcelain")) do
-      table.insert(changed_files_cache, line:sub(4))
+  vim.api.nvim_create_autocmd("TermClose", {
+    callback = function(ev)
+      if vim.b[ev.buf].is_git_terminal then
+        vim.schedule(function()
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "" then
+              refresh(buf)
+            end
+          end
+        end)
+      end
     end
-  end
-
-  map("n", "]f", function()
-    if not changed_files_cache then refresh_changed_files() end
-    if #changed_files_cache == 0 then return print("No changed files") end
-
-    changed_files_index = changed_files_index + 1
-    if changed_files_index > #changed_files_cache then changed_files_index = 1 end
-
-    vim.cmd("e " .. vim.fn.fnameescape(changed_files_cache[changed_files_index]))
-    print("File " .. changed_files_index .. "/" .. #changed_files_cache .. ": " .. changed_files_cache[changed_files_index])
-  end)
-
-  map("n", "[f", function()
-    if not changed_files_cache then refresh_changed_files() end
-    if #changed_files_cache == 0 then return print("No changed files") end
-
-    changed_files_index = changed_files_index - 1
-    if changed_files_index < 1 then changed_files_index = #changed_files_cache end
-
-    vim.cmd("e " .. vim.fn.fnameescape(changed_files_cache[changed_files_index]))
-    print("File " .. changed_files_index .. "/" .. #changed_files_cache .. ": " .. changed_files_cache[changed_files_index])
-  end)
-
-  -- Refresh cache on git operations
-  vim.api.nvim_create_autocmd("BufWritePost", {
-    callback = function() changed_files_cache = nil end
   })
+
 end
 
 local function nvim_tmux_nav(direction)
