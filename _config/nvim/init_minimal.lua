@@ -268,19 +268,40 @@ if vim.fn.executable("git") == 1 then
     local hl = {
       add = "GitSignAdd", change = "GitSignChange", del = "GitSignDelete",
       add_s = "GitSignAddStaged", change_s = "GitSignChangeStaged", del_s = "GitSignDeleteStaged",
+      add_b = "GitSignAddBoth", change_b = "GitSignChangeBoth", del_b = "GitSignDeleteBoth",
     }
-    local sign = { add = "│", change = "│", del = "▁", add_s = "┃", change_s = "┃", del_s = "▔" }
+    -- │ = unstaged, ┃ = staged, ║ = both
+    local sign = {
+      -- add = "│", change = "│", del = "▁",
+      -- add_s = "┃", change_s = "┃", del_s = "▔",
+      -- add_b = "║", change_b = "║", del_b = "━",
+      add = " +", change = " ~", del = " -",
+      add_s = "+ ", change_s = "~ ", del_s = "- ",
+      add_b = "++", change_b = "~~", del_b = "--",
+    }
 
-    -- Place signs based on mode
+    -- Place signs (always show truth, regardless of diff_mode)
+    local placed = {}
     for l, t in pairs(unstaged) do
-      pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
-        sign_text = sign[t], sign_hl_group = hl[t], priority = 10
-      })
-    end
-    if diff_mode == "all" then
-      for l, t in pairs(staged) do
+      if staged[l] then
+        -- Both staged and unstaged on this line
         pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
-          sign_text = sign[t .. "_s"], sign_hl_group = hl[t .. "_s"], priority = 9
+          sign_text = sign[t .. "_b"], sign_hl_group = hl[t .. "_b"], priority = 10
+        })
+        placed[l] = true
+      else
+        -- Unstaged only
+        pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
+          sign_text = sign[t], sign_hl_group = hl[t], priority = 10
+        })
+        placed[l] = true
+      end
+    end
+    for l, t in pairs(staged) do
+      if not placed[l] then
+        -- Staged only
+        pcall(vim.api.nvim_buf_set_extmark, buf, git_ns, l - 1, 0, {
+          sign_text = sign[t .. "_s"], sign_hl_group = hl[t .. "_s"], priority = 10
         })
       end
     end
@@ -437,12 +458,19 @@ if vim.fn.executable("git") == 1 then
   -- ────────────────────────────────────────────────────────────────────────────
 
   local function setup_highlights()
+    -- Unstaged: bright
     vim.api.nvim_set_hl(0, "GitSignAdd", { fg = "#2ea043" })
     vim.api.nvim_set_hl(0, "GitSignChange", { fg = "#d29922" })
     vim.api.nvim_set_hl(0, "GitSignDelete", { fg = "#f85149" })
+    -- Staged: dim
     vim.api.nvim_set_hl(0, "GitSignAddStaged", { fg = "#1a4d2e" })
     vim.api.nvim_set_hl(0, "GitSignChangeStaged", { fg = "#6b4d12" })
     vim.api.nvim_set_hl(0, "GitSignDeleteStaged", { fg = "#6b2020" })
+    -- Both: bright with background hint
+    vim.api.nvim_set_hl(0, "GitSignAddBoth", { fg = "#2ea043", bg = "#1a4d2e" })
+    vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#6b4d12" })
+    vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#6b2020" })
+    -- Diff
     vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#1d3b2a" })
     vim.api.nvim_set_hl(0, "DiffChange", { bg = "#2a2a20" })
     vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#3b1d1d", fg = "#5c3030" })
