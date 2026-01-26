@@ -458,19 +458,25 @@ if vim.fn.executable("git") == 1 then
         vim.api.nvim_set_hl(0, "GitSignAddBoth", { fg = "#3fb950", bg = "#1a4d2e" })
         vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#6b5416" })
         vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#6b2020" })
-        -- Diff: Brighter, more visible backgrounds (override colorscheme)
-        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35", fg = "NONE", default = false })
-        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20", fg = "NONE", default = false })
-        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true, default = false })
-        vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", fg = "NONE", bold = true, default = false })
+        -- Diff: Brighter, more visible backgrounds (force override colorscheme)
+        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35" })
+        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20" })
+        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true })
+        vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", bold = true })
     end
-    setup_highlights()
+
+    -- Apply highlights after colorscheme loads
     vim.api.nvim_create_autocmd("ColorScheme", {
         callback = function()
-            -- Delay to ensure colorscheme finishes first
-            vim.schedule(setup_highlights)
+            vim.schedule(function()
+                setup_highlights()
+                vim.cmd("redraw")
+            end)
         end
     })
+
+    -- Initial setup
+    setup_highlights()
 
     -- Hunk operations
     map("n", "<leader>ha", function()
@@ -568,10 +574,16 @@ if vim.fn.executable("git") == 1 then
             local theirs_buf = vim.api.nvim_get_current_buf()
 
             vim.api.nvim_set_current_win(vim.fn.win_findbuf(work_buf)[1])
-            setup_highlights()
             map("n", "gh", "<cmd>diffget " .. ours_buf .. "<cr>", { buffer = work_buf })
             map("n", "gl", "<cmd>diffget " .. theirs_buf .. "<cr>", { buffer = work_buf })
             map("n", "q", "<cmd>tabclose<cr>", { buffer = work_buf })
+
+            -- Apply highlights after entering 3-way diff
+            vim.schedule(function()
+                setup_highlights()
+                vim.cmd("redraw")
+            end)
+
             return print("3-way: OURS|WORK|THEIRS (gh/gl=get q=quit)")
         end
 
@@ -597,17 +609,25 @@ if vim.fn.executable("git") == 1 then
 
         vim.cmd("wincmd p")
         vim.cmd("diffthis")
-        setup_highlights()
 
         map("n", "q", close_diff_view, { buffer = work_buf })
         map("n", "q", close_diff_view, { buffer = ref_buf })
 
-        -- Toggle syntax highlighting
+        -- Toggle syntax highlighting (affects both panes)
+        local original_ft = vim.bo[work_buf].filetype
         map("n", "ts", function()
             diff_syntax_enabled = not diff_syntax_enabled
-            vim.bo[ref_buf].filetype = diff_syntax_enabled and vim.bo[work_buf].filetype or ""
+            local ft = diff_syntax_enabled and original_ft or ""
+            vim.bo[ref_buf].filetype = ft
+            vim.bo[work_buf].filetype = ft
             print("Diff syntax: " .. (diff_syntax_enabled and "ON" or "OFF"))
         end, { buffer = work_buf })
+
+        -- Apply highlights after entering diff mode
+        vim.schedule(function()
+            setup_highlights()
+            vim.cmd("redraw")
+        end)
 
         print("Diff: " .. label .. " | WORKING (]c/[c nav, ts=toggle syntax, q=quit)")
     end)
@@ -711,16 +731,24 @@ if vim.fn.executable("git") == 1 then
                     vim.wo.foldcolumn = "0"
 
                     vim.cmd("wincmd p | diffthis")
-                    setup_highlights()
 
                     map("n", "q", "<cmd>tabclose<cr>", { buffer = work_buf })
                     map("n", "q", "<cmd>tabclose<cr>", { buffer = old_buf })
+
+                    -- Toggle syntax highlighting (affects both panes)
                     map("n", "ts", function()
                         diff_syntax_enabled = not diff_syntax_enabled
-                        vim.bo[old_buf].filetype = diff_syntax_enabled and filetype or ""
-                        vim.bo[work_buf].filetype = diff_syntax_enabled and filetype or ""
+                        local ft = diff_syntax_enabled and filetype or ""
+                        vim.bo[old_buf].filetype = ft
+                        vim.bo[work_buf].filetype = ft
                         print("Diff syntax: " .. (diff_syntax_enabled and "ON" or "OFF"))
                     end, { buffer = work_buf })
+
+                    -- Apply highlights after entering diff mode
+                    vim.schedule(function()
+                        setup_highlights()
+                        vim.cmd("redraw")
+                    end)
 
                     print("Commit " .. hash .. " - ts=toggle syntax, q=quit")
                 end, { buffer = qf_buf })
