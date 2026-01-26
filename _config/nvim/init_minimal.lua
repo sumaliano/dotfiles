@@ -103,11 +103,11 @@ local function smart_trigger()
 end
 
 -- 2. Manual Tab/S-Tab Logic
-if vim.fn.pumvisible() == 1 then return "<C-n>" end
-    map("i", "<Tab>", function()
-        local col = vim.fn.col(".") - 1
-        if col == 0 or vim.fn.getline("."):sub(col, col):match("%s") then return "<Tab>" end
-        return smart_trigger()
+map("i", "<Tab>", function()
+    if vim.fn.pumvisible() == 1 then return "<C-n>" end
+    local col = vim.fn.col(".") - 1
+    if col == 0 or vim.fn.getline("."):sub(col, col):match("%s") then return "<Tab>" end
+    return smart_trigger()
 end, { expr = true })
 
 map("i", "<S-Tab>", function() return vim.fn.pumvisible() == 1 and "<C-p>" or "<S-Tab>" end, { expr = true })
@@ -154,24 +154,32 @@ local function smart_close()
     local ft = vim.bo[buf].filetype
     local bt = vim.bo[buf].buftype
 
-    -- 1. Specific handling for Quickfix
+    -- 1. Quickfix
     if ft == "qf" then
         vim.cmd("cclose")
         return true
     end
 
-    -- 2. Handling for other special windows
-    if ft == "netrw" or bt == "help" or bt == "nofile" or ft == "lspinfo" then
+    -- 2. Terminal (close if not the last window, otherwise exit terminal mode)
+    if bt == "terminal" then
         if #vim.api.nvim_list_wins() > 1 then
-            -- If it's a split, just shut the window
             vim.cmd("close")
         else
-            -- If it's the last window, try to go back to a real file
+            vim.cmd("stopinsert")
+        end
+        return true
+    end
+
+    -- 3. Special windows (help, netrw, nofile, etc.)
+    if ft == "netrw" or ft == "diff" or bt == "help" or bt == "nofile" or ft == "lspinfo" or ft == "man" or vim.b[buf].is_git_diff then
+        if #vim.api.nvim_list_wins() > 1 then
+            vim.cmd("close")
+        else
+            -- Last window: try alternate buffer or create new
             local alt = vim.fn.bufnr("#")
             if alt ~= -1 and vim.fn.buflisted(alt) == 1 and alt ~= buf then
                 vim.cmd("bdelete")
             else
-                -- Last resort: create a blank slate so Neovim doesn't quit
                 vim.cmd("enew")
                 vim.api.nvim_buf_delete(buf, { force = true })
             end
@@ -185,7 +193,15 @@ end
 local smart_logic = vim.api.nvim_create_augroup("SmartLogic", { clear = true })
 vim.api.nvim_create_autocmd("FileType", {
     group = smart_logic,
-    pattern = { "qf", "netrw", "help", "man", "lspinfo", "checkhealth" },
+    pattern = { "qf", "netrw", "help", "man", "lspinfo", "checkhealth", "diff" },
+    callback = function(ev)
+        map("n", "q", smart_close, { buffer = ev.buf, nowait = true, silent = true })
+    end,
+})
+
+-- Terminal: q closes window, Esc Esc exits insert mode
+vim.api.nvim_create_autocmd("TermOpen", {
+    group = smart_logic,
     callback = function(ev)
         map("n", "q", smart_close, { buffer = ev.buf, nowait = true, silent = true })
     end,
@@ -218,8 +234,8 @@ map("n", "<leader>e", function()
     for _, win in ipairs(wins) do
         local buf = vim.api.nvim_win_get_buf(win)
         if vim.bo[buf].filetype == "netrw" then
-            return
             vim.api.nvim_win_close(win, true)
+            return
         end
     end
     -- Otherwise, open it
@@ -979,7 +995,10 @@ if vim.fn.executable("git") == 1 then
                             refresh(buf)
                         end
                     end
+                    vim.cmd("bd!")
                 end)
+            else
+                vim.schedule(function() vim.cmd("bd!") end)
             end
         end
     })
@@ -1043,14 +1062,14 @@ map("n", "<leader>cr", function()
     print("Config reloaded")
 end)
 
+map("n", "<leader>cd", function()
   local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
-  map("n", "<leader>cd", function()
-  if vim.v.shell_error == 0 then
-    vim.cmd("cd " .. git_root)
+  if vim.v.shell_error == 0 and git_root then
+    vim.cmd("cd " .. vim.fn.fnameescape(git_root))
   else
     vim.cmd("cd %:p:h")
   end
-  print("CWD set to " .. vim.fn.getcwd())
+  print("CWD: " .. vim.fn.getcwd())
 end, { desc = "cd to project root or file dir" })
 
 
@@ -1100,7 +1119,6 @@ vim.api.nvim_create_autocmd("BufReadPost", { callback = function()
     local m = vim.api.nvim_buf_get_mark(0, '"')
     if m[1] > 0 and m[1] <= vim.api.nvim_buf_line_count(0) then pcall(vim.api.nvim_win_set_cursor, 0, m) end
 end })
-vim.api.nvim_create_autocmd("TermClose", { callback = function() vim.cmd("bd!") end })
 
 
 -- Help

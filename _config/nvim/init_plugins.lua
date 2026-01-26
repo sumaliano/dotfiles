@@ -133,22 +133,6 @@ require("lazy").setup({
       end, { desc = "Toggle completion auto-trigger" })
 
       return {
-        -- Explicitly using defaults for documentation
-        keymap = {
-          preset = "default",
-          ["<C-space>"] = { "show", "show_documentation", "hide_documentation" },
-          ["<C-e>"] = { "hide", "fallback" },
-          ["<C-y>"] = { "select_and_accept", "fallback" },
-          ["<Up>"] = { "select_prev", "fallback" },
-          ["<Down>"] = { "select_next", "fallback" },
-          ["<C-p>"] = { "select_prev", "fallback_to_mappings" },
-          ["<C-n>"] = { "select_next", "fallback_to_mappings" },
-          ["<C-b>"] = { "scroll_documentation_up", "fallback" },
-          ["<C-f>"] = { "scroll_documentation_down", "fallback" },
-          ["<Tab>"] = { "snippet_forward", "fallback" },
-          ["<S-Tab>"] = { "snippet_backward", "fallback" },
-          ["<C-k>"] = { "show_signature", "hide_signature", "fallback" },
-        },
         completion = {
           documentation = { auto_show = true },
           trigger = {
@@ -199,8 +183,8 @@ require("lazy").setup({
     cmd = { "Git", "G" },
     keys = {
       { "<leader>gs", "<cmd>Git<cr>", desc = "Git status" },
-      { "<leader>gc", "<cmd>Git commit<cr>", desc = "Git commit" },
-      { "<leader>gp", "<cmd>Git push<cr>", desc = "Git push" },
+      { "<leader>gC", "<cmd>Git commit<cr>", desc = "Git commit" },
+      { "<leader>gP", "<cmd>Git push<cr>", desc = "Git push" },
       { "<leader>gl", "<cmd>Git log<cr>", desc = "Git log" },
     },
   },
@@ -210,60 +194,44 @@ require("lazy").setup({
     "lewis6991/gitsigns.nvim",
     event = { "BufReadPost", "BufNewFile" },
     opts = {
-      signs = {
-        add = { text = "+" },
-        change = { text = "~" },
-        delete = { text = "_" },
-        topdelete = { text = "‾" },
-        changedelete = { text = "~" },
-      },
+      -- signs = {
+      --   add = { text = "+" },
+      --   change = { text = "~" },
+      --   delete = { text = "_" },
+      --   topdelete = { text = "‾" },
+      --   changedelete = { text = "~" },
+      -- },
       on_attach = function(bufnr)
         local gs = package.loaded.gitsigns
         local function m(mode, lhs, rhs, desc)
           vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, desc = desc })
         end
         -- Navigation
-        m("n", "]c", function()
-          if vim.wo.diff then
-            vim.cmd.normal({ "]c", bang = true })
-          else
-            gs.nav_hunk("next")
-          end
-        end, "Next hunk")
+        m("n", "]c", function() if vim.wo.diff then vim.cmd.normal({ "]c", bang = true }) else gs.nav_hunk("next") end end, "Next hunk")
+        m("n", "[c", function() if vim.wo.diff then vim.cmd.normal({ "[c", bang = true }) else gs.nav_hunk("prev") end end, "Prev hunk")
 
-        m("n", "[c", function()
-          if vim.wo.diff then
-            vim.cmd.normal({ "[c", bang = true })
-          else
-            gs.nav_hunk("prev")
-          end
-        end, "Prev hunk")
-
-        -- Actions
-        m("n", "<leader>hs", gs.stage_hunk, "Stage hunk")
-        m("n", "<leader>hr", gs.reset_hunk, "Reset hunk")
+        -- Actions (using minimal.lua keybinds)
+        m("n", "<leader>ha", gs.stage_hunk, "Stage hunk")
         m("n", "<leader>hu", gs.undo_stage_hunk, "Undo stage hunk")
-        m("v", "<leader>hs", function()
-          gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") })
-        end, "Stage hunk")
-        m("v", "<leader>hr", function()
-          gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") })
-        end, "Reset hunk")
-        m("n", "<leader>hS", gs.stage_buffer, "Stage buffer")
-        m("n", "<leader>hR", gs.reset_buffer, "Reset buffer")
+        m("n", "<leader>hr", gs.reset_hunk, "Reset hunk")
+        m("n", "<leader>ga", gs.stage_buffer, "Stage file")
+        m("n", "<leader>gu", function()
+          local file = vim.fn.shellescape(vim.api.nvim_buf_get_name(0))
+          if vim.fn.system("git restore --staged " .. file) == "" then
+            gs.refresh()
+            print("Unstaged file")
+          else
+            print("Failed to unstage")
+          end
+        end, "Unstage file")
+        m("n", "<leader>gr", gs.reset_buffer, "Reset file")
+
         m("n", "<leader>hp", gs.preview_hunk, "Preview hunk")
         m("n", "<leader>hi", gs.preview_hunk_inline, "Preview hunk inline")
-        m("n", "<leader>hb", function()
-          gs.blame_line({ full = true })
-        end, "Blame line")
-        m("n", "<leader>hd", gs.diffthis, "Diff this")
-        m("n", "<leader>hD", function()
-          gs.diffthis("~")
-        end, "Diff this (~)")
-        m("n", "<leader>hQ", function()
-          gs.setqflist("all")
-        end, "Quickfix (all hunks)")
+        m("n", "<leader>gb", function() gs.blame_line({ full = true }) end, "Blame line")
+        m("n", "<leader>hd", gs.diffthis, "Diff this") m("n", "<leader>hD", function() gs.diffthis("~") end, "Diff this (~)")
         m("n", "<leader>hq", gs.setqflist, "Quickfix (buffer hunks)")
+        m("n", "<leader>hQ", function() gs.setqflist("all") end, "Quickfix (all hunks)")
 
         -- Toggles
         m("n", "<leader>tb", gs.toggle_current_line_blame, "Toggle line blame")
@@ -307,15 +275,6 @@ require("lazy").setup({
         end,
       },
     },
-  },
-
-  ---------------------------------------------------------------------------
-  -- Auto pairs – extra, but unobtrusive
-  ---------------------------------------------------------------------------
-  {
-    "windwp/nvim-autopairs",
-    event = "InsertEnter",
-    opts = {},
   },
 
   ---------------------------------------------------------------------------
@@ -532,9 +491,18 @@ end
 
 -- General
 map("n", "<Esc>", "<cmd>nohlsearch<cr>", { desc = "Clear highlight" })
+map("i", "jk", "<Esc>", { desc = "Exit insert mode with jk" })
 map("n", "<leader>w", "<cmd>w<cr>", { desc = "Save" })
 map("n", "<leader>x", "<cmd>q<cr>", { desc = "Quit" })
 map("n", "<leader>Q", "<cmd>qa<cr>", { desc = "Quit all" })
+
+-- Toggle quickfix
+map("n", "Q", function()
+    for _, win in ipairs(vim.fn.getwininfo()) do
+        if win.quickfix == 1 then vim.cmd("cclose"); return end
+    end
+    if vim.fn.empty(vim.fn.getqflist()) == 1 then print("Quickfix empty") else vim.cmd("copen") end
+end, { desc = "Toggle quickfix" })
 
 -- Diagnostics (using defaults)
 map("n", "<C-W>d", vim.diagnostic.open_float, { desc = "Show diagnostic" })
@@ -544,11 +512,21 @@ map("n", "[e", function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.s
 map("n", "]e", function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end, { desc = "Next error" })
 -- map("n", "<leader>d", vim.diagnostic.open_float, { desc = "Show diagnostic" })
 
--- Windows
-map("n", "<C-h>", "<C-w>h", { desc = "Left" })
-map("n", "<C-j>", "<C-w>j", { desc = "Down" })
-map("n", "<C-k>", "<C-w>k", { desc = "Up" })
-map("n", "<C-l>", "<C-w>l", { desc = "Right" })
+-- Windows (with tmux integration)
+local function nvim_tmux_nav(direction)
+    local win = vim.api.nvim_get_current_win()
+    vim.cmd('wincmd ' .. direction)
+    -- If the window didn't change, we are at the edge; jump to Tmux
+    if win == vim.api.nvim_get_current_win() then
+        local tmux_dir = {h = 'L', j = 'D', k = 'U', l = 'R'}
+        vim.fn.system('tmux select-pane -' .. tmux_dir[direction])
+    end
+end
+
+map('n', '<C-h>', function() nvim_tmux_nav('h') end, { desc = "Left" })
+map('n', '<C-j>', function() nvim_tmux_nav('j') end, { desc = "Down" })
+map('n', '<C-k>', function() nvim_tmux_nav('k') end, { desc = "Up" })
+map('n', '<C-l>', function() nvim_tmux_nav('l') end, { desc = "Right" })
 map("n", "<leader>-", "<cmd>split<cr>", { desc = "Split horizontal" })
 map("n", "<leader>|", "<cmd>vsplit<cr>", { desc = "Split vertical" })
 
@@ -571,17 +549,13 @@ map({ "n", "v" }, "<leader>p", '"+p', { desc = "Paste from clipboard" })
 map("v", "<", "<gv")
 map("v", ">", ">gv")
 
--- Move lines
-map("n", "<A-j>", "<cmd>m .+1<cr>==", { desc = "Move down" })
-map("n", "<A-k>", "<cmd>m .-2<cr>==", { desc = "Move up" })
+-- Move lines (visual mode only, like minimal)
 map("v", "<A-j>", ":m '>+1<cr>gv=gv", { desc = "Move down" })
 map("v", "<A-k>", ":m '<-2<cr>gv=gv", { desc = "Move up" })
 
 -- Quickfix/location
 map("n", "[q", "<cmd>cprev<cr>", { desc = "Prev quickfix" })
 map("n", "]q", "<cmd>cnext<cr>", { desc = "Next quickfix" })
-map("n", "<leader>qo", "<cmd>copen<cr>", { desc = "Open quickfix" })
-map("n", "<leader>qc", "<cmd>cclose<cr>", { desc = "Close quickfix" })
 map("n", "[l", "<cmd>lprev<cr>", { desc = "Prev location" })
 map("n", "]l", "<cmd>lnext<cr>", { desc = "Next location" })
 
@@ -602,15 +576,52 @@ vim.api.nvim_create_user_command("CloseHiddenBuffers", close_hidden_buffers, { d
 vim.api.nvim_create_user_command("ToggleNumber", toggle_number, { desc = "Cycle number modes" })
 
 -- Edit this config file
-map("n", "<leader>c", function()
+map("n", "<leader>cc", function()
   vim.cmd.edit(vim.fn.stdpath("config") .. "/init_plugins.lua")
 end, { desc = "Edit config" })
+
+-- Reload config
+map("n", "<leader>cr", function()
+    for _, group in ipairs(vim.api.nvim_get_autocmds({})) do
+        if group.group_name and not group.group_name:match("^nvim") then
+            pcall(vim.api.nvim_del_augroup_by_name, group.group_name)
+        end
+    end
+    dofile(vim.fn.stdpath("config") .. "/init_plugins.lua")
+    print("Config reloaded")
+end, { desc = "Reload config" })
 
 -- Alternate file
 map("n", "<leader><leader>", "<C-^>", { desc = "Alternate file" })
 
--- Run current file (same semantics as minimal)
+-- Change to project root or file directory
+local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+map("n", "<leader>cd", function()
+  if vim.v.shell_error == 0 then
+    vim.cmd("cd " .. git_root)
+  else
+    vim.cmd("cd %:p:h")
+  end
+  print("CWD set to " .. vim.fn.getcwd())
+end, { desc = "cd to project root or file dir" })
+
+-- Replace word under cursor or visual selection
 map("n", "<leader>r", function()
+    local word = vim.fn.expand("<cword>")
+    vim.fn.feedkeys(":%s/\\<" .. word .. "\\>/" .. word .. "/gc", "n")
+    vim.fn.feedkeys(string.rep("\b", #word + 3), "n")
+end, { desc = "Replace word" })
+
+map("v", "<leader>r", function()
+    vim.cmd('normal! "zy')
+    local selection = vim.fn.getreg("z")
+    local escaped = vim.fn.escape(selection, "\\/")
+    vim.fn.feedkeys(":%s/\\V" .. escaped .. "/" .. selection .. "/gc", "n")
+    vim.fn.feedkeys(string.rep("\b", #selection + 3), "n")
+end, { desc = "Replace selection" })
+
+-- Run current file
+map("n", "<leader>R", function()
   local ft = vim.bo.filetype
   local file = vim.fn.shellescape(vim.fn.expand("%:p"))
   local cmds = {
@@ -619,6 +630,7 @@ map("n", "<leader>r", function()
     bash = "bash " .. file,
     rust = "cargo run",
     c = "gcc " .. file .. " -o /tmp/a.out && /tmp/a.out",
+    lua = "lua " .. file,
   }
   if cmds[ft] then
     vim.cmd("terminal " .. cmds[ft])
@@ -648,134 +660,6 @@ map("n", "<leader>li", function()
   vim.notify(table.concat(info, "\n"), vim.log.levels.INFO)
 end, { desc = "LSP info" })
 
--- Simple keymap helper window (shorter than minimal, same binding)
-map("n", "<leader>?", function()
-  local help = {
-    "═══════════════════════════════════════════════════════════",
-    "                    CUSTOM KEYMAPS (plugins)",
-    "═══════════════════════════════════════════════════════════",
-    "",
-    "GENERAL",
-    "  <leader>w      Save",
-    "  <leader>x      Quit",
-    "  <leader>Q      Quit all",
-    "  <Esc>          Clear search highlight",
-    "  <leader>c      Edit config",
-    "  <leader>?      Show this help",
-    "",
-    "LSP (gr prefix for actions)",
-    "  gd / gD        Definition / Declaration",
-    "  grr            References",
-    "  gri            Implementation",
-    "  gry            Type definition",
-    "  K              Hover",
-    "  grn            Rename",
-    "  gra            Code action",
-    "  grf            Format",
-    "  <C-s>          Signature help (insert)",
-    "  <leader>li     LSP info",
-    "",
-    "DIAGNOSTICS",
-    "  [d / ]d        Prev/Next diagnostic",
-    "  <C-W>d         Show diagnostic float",
-    "",
-    "GIT               (gitsigns + native)",
-    "  [c / ]c        Prev/Next hunk",
-    "  <leader>hs     Stage hunk (visual: selection)",
-    "  <leader>hu     Undo stage hunk",
-    "  <leader>hr     Reset hunk (visual: selection)",
-    "  <leader>hS     Stage buffer",
-    "  <leader>hR     Reset buffer",
-    "  <leader>hp     Preview hunk",
-    "  <leader>hb     Blame line",
-    "  <leader>hB     Toggle line blame",
-    "  <leader>hd     Diff hunk",
-    "  <leader>hD     Diff file",
-    "  <leader>gs     Git status (fugitive)",
-    "  <leader>gc     Git commit",
-    "  <leader>gl     Git log",
-    "  Signs: + (add), ~ (change), _ (delete)",
-    "",
-    "TELESCOPE (<C-n>/<C-p> select, <C-u>/<C-d> scroll)",
-    "  <leader>ff     Find files",
-    "  <leader>fg     Search in files",
-    "  <leader>fb     Buffers",
-    "  <leader>fr     Recent files",
-    "  <leader>fm     Marks list",
-    "  <leader>fs     LSP symbols",
-    "",
-    "NAVIGATION",
-    "  <leader>e / -  Explorer (nvim-tree)",
-    "  <leader><leader> Alternate file",
-    "  gf             Go to file (default)",
-    "",
-    "EDITING",
-    "  <leader>sw     Strip whitespace",
-    "  <leader>st     Set tab width",
-    "  <A-j/k>        Move line(s) down/up",
-    "  </>            Indent (visual, sticky)",
-    "",
-    "CLIPBOARD",
-    "  <leader>y/Y/p  Yank/paste using system clipboard",
-    "",
-    "BUFFERS & WINDOWS",
-    "  <Tab>/<S-Tab>  Next/Prev buffer",
-    "  <leader>bd     Delete buffer",
-    "  <leader>bl     List buffer",
-    "  <C-h/j/k/l>    Window navigation",
-    "  <leader>-/|    Split windows",
-    "",
-    "QUICKFIX",
-    "  [q / ]q        Prev/Next quickfix",
-    "  <leader>qo     Open quickfix",
-    "  <leader>qc     Close quickfix",
-    "  [l / ]l        Prev/Next location",
-    "",
-    "COMPLETION (blink.cmp defaults)",
-    "  <C-space>      Show / toggle docs",
-    "  <C-y>          Accept",
-    "  <C-e>          Hide",
-    "  <C-n>/<C-p>    Select next/prev",
-    "  <C-b>/<C-f>    Scroll docs",
-    "  <Tab>/<S-Tab>  Snippet jump",
-    "  <C-k>          Signature help",
-    "",
-    "MISC",
-    "  <leader>t      Terminal",
-    "  <Esc><Esc>     Exit terminal mode",
-    "  <leader>r      Run file",
-    "  <F2>           Toggle completion auto-trigger",
-    "  <F3>           Cycle number modes",
-    "",
-    "═══════════════════════════════════════════════════════════",
-    "  Press 'q' to close",
-    "═══════════════════════════════════════════════════════════",
-  }
-
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, help)
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].bufhidden = "wipe"
-
-  local width = 70
-  local height = #help
-  local row = math.floor((vim.o.lines - height) / 2) - 1
-  local col = math.floor((vim.o.columns - width) / 2)
-
-  vim.api.nvim_open_win(buf, true, {
-    relative = "editor",
-    width = width,
-    height = height,
-    row = row,
-    col = col,
-    style = "minimal",
-    border = "rounded",
-  })
-
-  vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = buf, silent = true })
-  vim.keymap.set("n", "<Esc>", "<cmd>close<cr>", { buffer = buf, silent = true })
-end, { desc = "Show keymaps" })
-
 -- ============================================================================
 -- AUTOCOMMANDS (aligned with init_minimal.lua)
 -- ============================================================================
@@ -784,9 +668,7 @@ local autocmd = vim.api.nvim_create_autocmd
 
 -- Highlight on yank
 autocmd("TextYankPost", {
-  callback = function()
-    vim.highlight.on_yank({ higroup = "IncSearch", timeout = 200 })
-  end,
+  callback = function() vim.highlight.on_yank({ higroup = "IncSearch", timeout = 200 }) end,
 })
 
 -- Restore cursor position
@@ -808,13 +690,18 @@ autocmd("FileType", {
   end,
 })
 
+-- q closes special windows (netrw, help, man, etc) like diffview
+autocmd("FileType", {
+  pattern = { "netrw", "help", "man", "lspinfo", "checkhealth" },
+  callback = function(event)
+    vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = event.buf, silent = true, nowait = true })
+  end,
+})
+
 -- YAML commentstring
 autocmd("FileType", {
   pattern = { "yaml", "yml" },
-  callback = function()
-    vim.bo.commentstring = "# %s"
-  end,
-})
+  callback = function() vim.bo.commentstring = "# %s" end, })
 
 -- Wrap and spell in text filetypes (extra)
 autocmd("FileType", {
@@ -826,6 +713,4 @@ autocmd("FileType", {
 })
 
 -- Auto-close terminal buffers when job exits
-autocmd("TermClose", {
-  callback = function() vim.cmd("bdelete!") end,
-})
+autocmd("TermClose", { callback = function() vim.cmd("bdelete!") end, })
