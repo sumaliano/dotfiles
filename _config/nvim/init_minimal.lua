@@ -458,14 +458,19 @@ if vim.fn.executable("git") == 1 then
         vim.api.nvim_set_hl(0, "GitSignAddBoth", { fg = "#3fb950", bg = "#1a4d2e" })
         vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#6b5416" })
         vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#6b2020" })
-        -- Diff: Brighter, more visible backgrounds
-        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35", fg = "NONE" })
-        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20", fg = "NONE" })
-        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true })
-        vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", fg = "NONE", bold = true })
+        -- Diff: Brighter, more visible backgrounds (override colorscheme)
+        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35", fg = "NONE", default = false })
+        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20", fg = "NONE", default = false })
+        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true, default = false })
+        vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", fg = "NONE", bold = true, default = false })
     end
     setup_highlights()
-    vim.api.nvim_create_autocmd("ColorScheme", { callback = setup_highlights })
+    vim.api.nvim_create_autocmd("ColorScheme", {
+        callback = function()
+            -- Delay to ensure colorscheme finishes first
+            vim.schedule(setup_highlights)
+        end
+    })
 
     -- Hunk operations
     map("n", "<leader>ha", function()
@@ -577,7 +582,7 @@ if vim.fn.executable("git") == 1 then
         if #content == 0 then return print("No " .. label) end
 
         local work_buf = vim.api.nvim_get_current_buf()
-        vim.cmd("vnew")
+        vim.cmd("leftabove vnew")
         local ref_buf = vim.api.nvim_get_current_buf()
         vim.api.nvim_buf_set_lines(ref_buf, 0, -1, false, content)
         vim.bo[ref_buf].buftype = "nofile"
@@ -590,7 +595,8 @@ if vim.fn.executable("git") == 1 then
 
         diff_bufs[work_buf] = { buf = ref_buf, win = vim.api.nvim_get_current_win(), ref = ref }
 
-        vim.cmd("wincmd p | diffthis")
+        vim.cmd("wincmd p")
+        vim.cmd("diffthis")
         setup_highlights()
 
         map("n", "q", close_diff_view, { buffer = work_buf })
