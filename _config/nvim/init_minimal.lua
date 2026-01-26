@@ -459,10 +459,10 @@ if vim.fn.executable("git") == 1 then
         vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#6b5416" })
         vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#6b2020" })
         -- Diff: Brighter, more visible backgrounds
-        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35", fg = "NONE" })      -- Brighter green
-        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20", fg = "NONE" })   -- Brighter tan
-        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true }) -- Brighter red
-        vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", fg = "NONE", bold = true })     -- Bright highlight
+        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35", fg = "NONE" })
+        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20", fg = "NONE" })
+        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true })
+        vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", fg = "NONE", bold = true })
     end
     setup_highlights()
     vim.api.nvim_create_autocmd("ColorScheme", { callback = setup_highlights })
@@ -535,56 +535,7 @@ if vim.fn.executable("git") == 1 then
         diff_bufs = {}
     end
 
-    -- Portable diff view helper: opens side-by-side diff
-    local function open_diff_view(old_content, new_content, old_label, new_label, filetype)
-        -- Determine if we're opening in a new tab or replacing current view
-        local in_new_tab = vim.bo.buftype ~= ""
-        if in_new_tab then vim.cmd("tabnew") end
-
-        local work_buf = vim.api.nvim_get_current_buf()
-
-        -- Set up working buffer with new content
-        vim.api.nvim_buf_set_lines(work_buf, 0, -1, false, new_content)
-        if diff_syntax_enabled and filetype then vim.bo[work_buf].filetype = filetype end
-        vim.bo[work_buf].buftype = "nofile"
-        vim.bo[work_buf].bufhidden = "wipe"
-        vim.b[work_buf].is_git_diff = true
-
-        -- Create old buffer on the left
-        vim.cmd("leftabove vnew")
-        local old_buf = vim.api.nvim_get_current_buf()
-        vim.api.nvim_buf_set_lines(old_buf, 0, -1, false, old_content)
-        vim.bo[old_buf].buftype = "nofile"
-        vim.bo[old_buf].bufhidden = "wipe"
-        vim.bo[old_buf].modifiable = false
-        if diff_syntax_enabled and filetype then vim.bo[old_buf].filetype = filetype end
-        vim.b[old_buf].is_git_diff = true
-        vim.cmd("diffthis")
-        vim.wo.foldcolumn = "0"
-
-        -- Switch to working buffer on the right
-        vim.cmd("wincmd p | diffthis")
-
-        -- Set up keymaps
-        map("n", "q", in_new_tab and "<cmd>tabclose<cr>" or close_diff_view, { buffer = work_buf })
-        map("n", "q", in_new_tab and "<cmd>tabclose<cr>" or close_diff_view, { buffer = old_buf })
-
-        -- Toggle syntax highlighting in diff view
-        map("n", "ts", function()
-            diff_syntax_enabled = not diff_syntax_enabled
-            if diff_syntax_enabled and filetype then
-                vim.bo[old_buf].filetype = filetype
-                vim.bo[work_buf].filetype = filetype
-            else
-                vim.bo[old_buf].filetype = ""
-                vim.bo[work_buf].filetype = ""
-            end
-            print("Diff syntax: " .. (diff_syntax_enabled and "ON" or "OFF"))
-        end, { buffer = work_buf })
-
-        return old_buf, work_buf
-    end
-
+    -- Split diff (gd) - keeps original file as working buffer
     map("n", "<leader>gd", function()
         local rel = get_rel_path()
         if not rel then return print("Not tracked") end
@@ -612,25 +563,47 @@ if vim.fn.executable("git") == 1 then
             local theirs_buf = vim.api.nvim_get_current_buf()
 
             vim.api.nvim_set_current_win(vim.fn.win_findbuf(work_buf)[1])
+            setup_highlights()
             map("n", "gh", "<cmd>diffget " .. ours_buf .. "<cr>", { buffer = work_buf })
             map("n", "gl", "<cmd>diffget " .. theirs_buf .. "<cr>", { buffer = work_buf })
             map("n", "q", "<cmd>tabclose<cr>", { buffer = work_buf })
             return print("3-way: OURS|WORK|THEIRS (gh/gl=get q=quit)")
         end
 
-        -- Normal 2-way diff: OLD (left) | NEW (right)
+        -- Normal 2-way diff: REF (left) | WORKING (right)
         local ref = diff_mode == "all" and "HEAD" or ":0"
         local label = diff_mode == "all" and "HEAD" or "INDEX"
-        local old_content = git_lines("git show " .. ref .. ":" .. rel)
-        if #old_content == 0 then return print("No " .. label) end
+        local content = git_lines("git show " .. ref .. ":" .. rel)
+        if #content == 0 then return print("No " .. label) end
 
         local work_buf = vim.api.nvim_get_current_buf()
-        local new_content = vim.api.nvim_buf_get_lines(work_buf, 0, -1, false)
-        local filetype = vim.bo[work_buf].filetype
+        vim.cmd("vnew")
+        local ref_buf = vim.api.nvim_get_current_buf()
+        vim.api.nvim_buf_set_lines(ref_buf, 0, -1, false, content)
+        vim.bo[ref_buf].buftype = "nofile"
+        vim.bo[ref_buf].bufhidden = "wipe"
+        vim.bo[ref_buf].modifiable = false
+        vim.b[ref_buf].is_git_diff = true
+        if diff_syntax_enabled then vim.bo[ref_buf].filetype = vim.bo[work_buf].filetype end
+        vim.cmd("diffthis")
+        vim.wo.foldcolumn = "0"
 
-        local old_buf, new_buf = open_diff_view(old_content, new_content, label, "WORKING", filetype)
-        diff_bufs[new_buf] = { buf = old_buf, win = vim.api.nvim_get_current_win(), ref = ref }
-        print("Diff: " .. label .. " (left) | WORKING (right) - ]c/[c nav, ts=toggle syntax, q=quit")
+        diff_bufs[work_buf] = { buf = ref_buf, win = vim.api.nvim_get_current_win(), ref = ref }
+
+        vim.cmd("wincmd p | diffthis")
+        setup_highlights()
+
+        map("n", "q", close_diff_view, { buffer = work_buf })
+        map("n", "q", close_diff_view, { buffer = ref_buf })
+
+        -- Toggle syntax highlighting
+        map("n", "ts", function()
+            diff_syntax_enabled = not diff_syntax_enabled
+            vim.bo[ref_buf].filetype = diff_syntax_enabled and vim.bo[work_buf].filetype or ""
+            print("Diff syntax: " .. (diff_syntax_enabled and "ON" or "OFF"))
+        end, { buffer = work_buf })
+
+        print("Diff: " .. label .. " | WORKING (]c/[c nav, ts=toggle syntax, q=quit)")
     end)
 
     map("n", "<leader>gD", function()
@@ -700,25 +673,54 @@ if vim.fn.executable("git") == 1 then
         vim.fn.setqflist(qf, "r")
         vim.fn.setqflist({}, "a", { title = "Git Log: " .. vim.fn.fnamemodify(file, ":t") })
         vim.cmd("copen")
-        vim.api.nvim_create_autocmd("FileType", {
-            pattern = "qf",
-            once = true,
-            callback = function()
+
+        -- Set up keymaps after qf window opens
+        vim.schedule(function()
+            local qf_buf = vim.fn.bufnr()
+            if vim.bo[qf_buf].filetype == "qf" then
                 -- Enter: side-by-side diff view
-                map("n", "<S-CR>", function()
+                map("n", "<CR>", function()
                     local item = vim.fn.getqflist()[vim.fn.line(".")]
                     if not item or not item.user_data then return end
                     local hash = item.user_data
-                    -- Get old version (parent commit)
                     local old_content = git_lines("git show " .. hash .. "~1:" .. vim.fn.shellescape(rel))
                     local new_content = git_lines("git show " .. hash .. ":" .. vim.fn.shellescape(rel))
                     if #new_content == 0 then return print("No content") end
+
                     vim.cmd("tabnew")
-                    open_diff_view(old_content, new_content, hash .. "~1", hash, filetype)
+                    local work_buf = vim.api.nvim_get_current_buf()
+                    vim.api.nvim_buf_set_lines(work_buf, 0, -1, false, new_content)
+                    if diff_syntax_enabled then vim.bo[work_buf].filetype = filetype end
+                    vim.bo[work_buf].buftype = "nofile"
+                    vim.bo[work_buf].bufhidden = "wipe"
+
+                    vim.cmd("leftabove vnew")
+                    local old_buf = vim.api.nvim_get_current_buf()
+                    vim.api.nvim_buf_set_lines(old_buf, 0, -1, false, old_content)
+                    vim.bo[old_buf].buftype = "nofile"
+                    vim.bo[old_buf].bufhidden = "wipe"
+                    vim.bo[old_buf].modifiable = false
+                    if diff_syntax_enabled then vim.bo[old_buf].filetype = filetype end
+                    vim.cmd("diffthis")
+                    vim.wo.foldcolumn = "0"
+
+                    vim.cmd("wincmd p | diffthis")
+                    setup_highlights()
+
+                    map("n", "q", "<cmd>tabclose<cr>", { buffer = work_buf })
+                    map("n", "q", "<cmd>tabclose<cr>", { buffer = old_buf })
+                    map("n", "ts", function()
+                        diff_syntax_enabled = not diff_syntax_enabled
+                        vim.bo[old_buf].filetype = diff_syntax_enabled and filetype or ""
+                        vim.bo[work_buf].filetype = diff_syntax_enabled and filetype or ""
+                        print("Diff syntax: " .. (diff_syntax_enabled and "ON" or "OFF"))
+                    end, { buffer = work_buf })
+
                     print("Commit " .. hash .. " - ts=toggle syntax, q=quit")
-                end, { buffer = true })
-                -- Shift-Enter: unified diff (classic view)
-                map("n", "<CR>", function()
+                end, { buffer = qf_buf })
+
+                -- u: unified diff
+                map("n", "u", function()
                     local item = vim.fn.getqflist()[vim.fn.line(".")]
                     if not item or not item.user_data then return end
                     local diff = git_lines("git show --stat --patch " .. item.user_data .. " -- " .. vim.fn.shellescape(rel))
@@ -729,10 +731,11 @@ if vim.fn.executable("git") == 1 then
                     vim.bo.bufhidden = "wipe"
                     vim.bo.filetype = "diff"
                     map("n", "q", "<cmd>tabclose<cr>", { buffer = true })
-                end, { buffer = true })
+                end, { buffer = qf_buf })
             end
-        })
-        print("Log: Enter=diff view, Shift+Enter=unified, q=close")
+        end)
+
+        print("Log: Enter=diff view, u=unified, q=close")
     end)
 
     map("n", "<leader>gC", "<cmd>terminal git commit<cr>")
@@ -950,10 +953,10 @@ map("n", "<leader>?", function()
     CUSTOM:   w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | C-hjkl win
     r replace | R run | cc/cr config/reload | F2 auto-cmp | F3 numbers | sw strip | st tab | cd git-root
     NETRW:    - vinegar(up) | e toggle-sidebar | h/l nav | ./q hidden/quit | a/A file/dir | r rename | dd del | P preview
-    GIT DIFF: gd split(2-way/3-way) | gD unified | gm mode(all/unstaged) | ts=toggle-syntax | q=quit-diff
+    GIT DIFF: gd split | gD unified | gm mode(all/unstaged) | ts=syntax | q=quit
     GIT NAV:  ]c/[c hunk | ]e/[e errors | ]q/[q quickfix
     GIT FILE: gs status | ga/gu stage/unstage | gr reset
-    GIT VIEW: gp conflict-preview | gC commit | gP push | gb blame | gl log(Enter=diff Shift+Enter=unified)
+    GIT VIEW: gp conflict-preview | gC commit | gP push | gb blame | gl log(CR=diff u=unified)
     HUNK OPS: ha/hu stage/unstage-hunk | hr reset-hunk
     CONFLICT: gH/gJ/gL resolve(ours/base/theirs) | gh/gl diffget in 3-way
     LSP/DIAG: gd/gD/grr/gri/K/grn/gra LSP | gry/grf type/format
