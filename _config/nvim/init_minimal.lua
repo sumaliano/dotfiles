@@ -460,11 +460,6 @@ if vim.fn.executable("git") == 1 then
         hl("DiffChange", { bg = "#4d4d2e", reverse = false }) -- Stronger Olive/Yellow
         hl("DiffDelete", { bg = "#4d2e2e", fg = "#aa5555", reverse = false }) -- Stronger Red
         hl("DiffText",   { bg = "#2d4a85", fg = "#ffffff", bold = true, reverse = false }) -- Your working Blue
-        -- hl("DiffAdd",    { bg = "#1a3d24", reverse = false })            -- Clean Forest Green
-        -- hl("DiffChange", { bg = "#333311", reverse = false })            -- Deep Amber
-        -- hl("DiffDelete", { bg = "#441a1a", fg = "#662222", reverse = false }) -- Muted Crimson
-        -- hl("DiffText",   { bg = "#2d4a85", fg = "#ffffff", bold = true, reverse = false }) -- Bright Blue for changes
-
 
         -- Gutter Signs (GitSigns)
         hl("GitSignAdd",          { fg = "#3fb950" })
@@ -476,7 +471,6 @@ if vim.fn.executable("git") == 1 then
         hl("GitSignAddBoth",      { fg = "#3fb950", bg = "#1a4d2e" })
         hl("GitSignChangeBoth",   { fg = "#d29922", bg = "#6b5416" })
         hl("GitSignDeleteBoth",   { fg = "#f85149", bg = "#6b2020" })
-
     end
 
     -- Create an augroup to prevent autocmd duplication
