@@ -446,31 +446,47 @@ if vim.fn.executable("git") == 1 then
         end
     })
 
-    -- Claude-style diff colors (brighter, more visible)
     local function setup_highlights()
-        -- Signs: subtle, modern colors
-        vim.api.nvim_set_hl(0, "GitSignAdd", { fg = "#3fb950" })
-        vim.api.nvim_set_hl(0, "GitSignChange", { fg = "#d29922" })
-        vim.api.nvim_set_hl(0, "GitSignDelete", { fg = "#f85149" })
-        vim.api.nvim_set_hl(0, "GitSignAddStaged", { fg = "#2d5a3d" })
-        vim.api.nvim_set_hl(0, "GitSignChangeStaged", { fg = "#6b5416" })
-        vim.api.nvim_set_hl(0, "GitSignDeleteStaged", { fg = "#6b2020" })
-        vim.api.nvim_set_hl(0, "GitSignAddBoth", { fg = "#3fb950", bg = "#1a4d2e" })
-        vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#6b5416" })
-        vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#6b2020" })
-        -- Diff: Completely replace to clear reverse attribute from colorscheme
-        -- vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35" })
-        -- vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20" })
-        -- vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true })
-        -- vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", bold = true })
+        -- Helper to force highlights so they override any colorscheme logic
+        local function hl(name, opts)
+            vim.api.nvim_set_hl(0, name, {})
+            opts.force = true
+            vim.api.nvim_set_hl(0, name, opts)
+        end
 
-        vim.api.nvim_set_hl(0, "DiffAdd"    , { fg = "#9ece6a", bg = "#2e3c21", reverse = false }) -- Greenish
-        vim.api.nvim_set_hl(0, "DiffChange" , { fg = "#e0af68", bg = "#3e3723", reverse = false }) -- Yellowish
-        vim.api.nvim_set_hl(0, "DiffDelete" , { fg = "#f7768e", bg = "#3d2b2e", reverse = false }) -- Reddish
-        vim.api.nvim_set_hl(0, "DiffText"   , { fg = "#7aa2f7", bg = "#2b374d", reverse = false, bold = true }) -- Blueish (the actual change)
+        -- The "Loud & Clear" Palette 
+        -- If these are STILL gray, your terminal literally cannot see these hex values.
+        hl("DiffAdd",    { bg = "#2e4d3a", reverse = false }) -- Stronger Green
+        hl("DiffChange", { bg = "#4d4d2e", reverse = false }) -- Stronger Olive/Yellow
+        hl("DiffDelete", { bg = "#4d2e2e", fg = "#aa5555", reverse = false }) -- Stronger Red
+        hl("DiffText",   { bg = "#2d4a85", fg = "#ffffff", bold = true, reverse = false }) -- Your working Blue
+        -- hl("DiffAdd",    { bg = "#1a3d24", reverse = false })            -- Clean Forest Green
+        -- hl("DiffChange", { bg = "#333311", reverse = false })            -- Deep Amber
+        -- hl("DiffDelete", { bg = "#441a1a", fg = "#662222", reverse = false }) -- Muted Crimson
+        -- hl("DiffText",   { bg = "#2d4a85", fg = "#ffffff", bold = true, reverse = false }) -- Bright Blue for changes
+
+
+        -- Gutter Signs (GitSigns)
+        hl("GitSignAdd",          { fg = "#3fb950" })
+        hl("GitSignChange",       { fg = "#d29922" })
+        hl("GitSignDelete",       { fg = "#f85149" })
+        hl("GitSignAddStaged",    { fg = "#2d5a3d" })
+        hl("GitSignChangeStaged", { fg = "#6b5416" })
+        hl("GitSignDeleteStaged", { fg = "#6b2020" })
+        hl("GitSignAddBoth",      { fg = "#3fb950", bg = "#1a4d2e" })
+        hl("GitSignChangeBoth",   { fg = "#d29922", bg = "#6b5416" })
+        hl("GitSignDeleteBoth",   { fg = "#f85149", bg = "#6b2020" })
+
     end
-    vim.api.nvim_create_autocmd("ColorScheme", { callback = setup_highlights })
-    -- Apply now to override colorscheme that already loaded
+
+    -- Create an augroup to prevent autocmd duplication
+    local diff_hl_group = vim.api.nvim_create_augroup("UserDiffHighlights", { clear = true })
+    -- Re-apply when colorscheme changes
+    vim.api.nvim_create_autocmd("ColorScheme", {
+        group = diff_hl_group,
+        callback = setup_highlights,
+    })
+    -- Apply immediately
     setup_highlights()
 
     -- Hunk operations
