@@ -124,78 +124,87 @@ map("n", "<F3>", function()
     print("Line numbers: " .. (o.number:get() and "ON" or "OFF"))
 end)
 
+local function smart_close()
+    local buf = vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(buf) then return end
 
--- File explorer (netrw enhanced)
-g.netrw_banner = 0           -- no banner
-g.netrw_liststyle = 0        -- thin listing (less clutter)
-g.netrw_altv = 1             -- split to right
-g.netrw_winsize = 25         -- 25% width for Lexplore
-g.netrw_browse_split = 0     -- open in same window
+    local ft = vim.bo[buf].filetype
+    local bt = vim.bo[buf].buftype
 
--- Vinegar-style: `-` opens parent dir of current file, `-` again goes up
-map("n", "-", function()
-    local buf_name = vim.api.nvim_buf_get_name(0)
-    if vim.bo.filetype == "netrw" then
-        -- Already in netrw, go up
-        vim.cmd("normal -")
-    elseif buf_name ~= "" then
-        -- Open directory containing current file
-        vim.cmd("Explore " .. vim.fn.fnameescape(vim.fn.fnamemodify(buf_name, ":h")))
-    else
-        -- No file, open cwd
-        vim.cmd("Explore")
+    -- 1. Specific handling for Quickfix
+    if ft == "qf" then
+        vim.cmd("cclose")
+        return true
     end
-end)
 
--- Sidebar toggle with sync to current file
-local netrw_win = nil
-map("n", "<leader>e", function()
-    -- Check if netrw sidebar is open
-    if netrw_win and vim.api.nvim_win_is_valid(netrw_win) then
-        vim.api.nvim_win_close(netrw_win, true)
-        netrw_win = nil
-        return
-    end
-    -- Open Lexplore at current file's directory
-    local dir = vim.fn.expand("%:p:h")
-    if dir == "" then dir = vim.fn.getcwd() end
-    vim.cmd("Lexplore " .. vim.fn.fnameescape(dir))
-    netrw_win = vim.api.nvim_get_current_win()
-end)
-
--- Netrw buffer enhancements
-vim.api.nvim_create_autocmd("FileType", {
-    pattern = "netrw",
-    callback = function()
-        local opts = { buffer = true, remap = true }
-        -- Navigation
-        map("n", "h", "-", opts)              -- go up directory
-        map("n", "l", "<CR>", opts)           -- open file/dir
-        map("n", ".", "gh", opts)             -- toggle hidden files
-        map("n", "q", "<cmd>bd<cr>", opts)    -- quit
-        -- File operations (using netrw's built-in)
-        map("n", "a", "%", opts)              -- create file
-        map("n", "A", "d", opts)              -- create directory
-        map("n", "r", "R", opts)              -- rename
-        map("n", "dd", "D", opts)             -- delete
-        map("n", "yy", "mc", opts)            -- mark for copy
-        map("n", "p", "mtmm", opts)           -- paste (move marked to here)
-        -- Preview file under cursor
-        map("n", "P", function()
-            local dir = vim.b.netrw_curdir or vim.fn.getcwd()
-            local file = dir .. "/" .. vim.fn.expand("<cfile>")
-            if vim.fn.filereadable(file) == 1 then
-                vim.cmd("pedit " .. vim.fn.fnameescape(file))
+    -- 2. Handling for other special windows
+    if ft == "netrw" or bt == "help" or bt == "nofile" or ft == "lspinfo" then
+        if #vim.api.nvim_list_wins() > 1 then
+            -- If it's a split, just shut the window
+            vim.cmd("close")
+        else
+            -- If it's the last window, try to go back to a real file
+            local alt = vim.fn.bufnr("#")
+            if alt ~= -1 and vim.fn.buflisted(alt) == 1 and alt ~= buf then
+                vim.cmd("bdelete")
+            else
+                -- Last resort: create a blank slate so Neovim doesn't quit
+                vim.cmd("enew")
+                vim.api.nvim_buf_delete(buf, { force = true })
             end
-        end, { buffer = true })
+        end
+        return true
     end
+    return false
+end
+
+-- 1. Optimized Autocmd for Special Windows
+local smart_logic = vim.api.nvim_create_augroup("SmartLogic", { clear = true })
+vim.api.nvim_create_autocmd("FileType", {
+    group = smart_logic,
+    pattern = { "qf", "netrw", "help", "man", "lspinfo", "checkhealth" },
+    callback = function(ev)
+        vim.keymap.set("n", "q", smart_close, { buffer = ev.buf, nowait = true, silent = true })
+    end,
 })
 
+-- 2. Global Cleanup & Smart Escape
+vim.keymap.set("n", "<Esc>", function()
+    vim.cmd("noh")
+    local closed = smart_close()
+    if not closed then
+        -- You can add other 'Esc' behaviors here if nothing was closed
+    end
+end, { desc = "Clear highlights and smart close", silent = true })
 
+-- 3. Vinegar-style Navigation
+vim.keymap.set("n", "-", function()
+    if vim.bo.filetype == "netrw" then
+        return vim.cmd("normal -")
+    end
+    -- Use Explore but ensure we handle potential errors
+    pcall(vim.cmd, "Explore %:p:h")
+end, { desc = "Open parent directory" })
+
+-- 4. Robust Sidebar (Lexplore) Toggle
+vim.keymap.set("n", "<leader>e", function()
+    -- Find if a netrw window already exists in the current tab
+    local wins = vim.api.nvim_tabpage_list_wins(0)
+    for _, win in ipairs(wins) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.bo[buf].filetype == "netrw" then
+            vim.api.nvim_win_close(win, true)
+            return
+        end
+    end
+    -- Otherwise, open it
+    vim.cmd("Lexplore %:p:h")
+    vim.cmd("vertical resize 30")
+end, { desc = "Toggle netrw sidebar" })
 -- File finder
 local function ui_sel(items, prompt, on_choice)
     if #items == 0 then return print("None found") end
-    vim.ui.select(items, { prompt = prompt }, function(c) if c then on_choice(c) end end)
+    vim.ui.select(items, {prompt = prompt }, function(c) if c then on_choice(c) end end)
 end
 
 map("n", "<leader>ff", function()
@@ -967,8 +976,6 @@ vim.keymap.set('n', '<C-j>', function() nvim_tmux_nav('j') end)
 vim.keymap.set('n', '<C-k>', function() nvim_tmux_nav('k') end)
 vim.keymap.set('n', '<C-l>', function() nvim_tmux_nav('l') end)
 
--- Keymaps: navigation, buffer, clipboard, quickfix
-map("n", "<Esc>", "<cmd>noh<cr>")
 map("n", "<leader>w", "<cmd>w<cr>")
 map("n", "<leader>q", "<cmd>q<cr>")
 map("n", "<leader>Q", "<cmd>qa<cr>")
@@ -978,6 +985,7 @@ map("n", "Q", function()
     end
     if vim.fn.empty(vim.fn.getqflist()) == 1 then print("Quickfix empty") else vim.cmd("copen") end
 end)
+
 -- map("n", "<C-h>", "<C-w>h")
 -- map("n", "<C-j>", "<C-w>j")
 -- map("n", "<C-k>", "<C-w>k")
@@ -997,7 +1005,7 @@ map("v", "<A-j>", ":m '>+1<cr>gv=gv")
 map("v", "<A-k>", ":m '<-2<cr>gv=gv")
 map("n", "[q", "<cmd>cprev<cr>")
 map("n", "]q", "<cmd>cnext<cr>")
-map("n", "<leader>c", function() vim.cmd("e " .. vim.fn.stdpath("config") .. "/init.lua") end)
+map("n", "<leader>c", function() vim.cmd("e " .. vim.fn.stdpath("config") .. "/init_minimal.lua") end)
 map("n", "<leader>C", function()
     -- Clear all autocommands to avoid duplicates
     for _, group in ipairs(vim.api.nvim_get_autocmds({})) do
@@ -1006,7 +1014,7 @@ map("n", "<leader>C", function()
         end
     end
     -- Source the config
-    dofile(vim.fn.stdpath("config") .. "/init.lua")
+    dofile(vim.fn.stdpath("config") .. "/init_minimal.lua")
     print("Config reloaded")
 end)
 
@@ -1057,7 +1065,6 @@ vim.api.nvim_create_autocmd("BufReadPost", { callback = function()
     if m[1] > 0 and m[1] <= vim.api.nvim_buf_line_count(0) then pcall(vim.api.nvim_win_set_cursor, 0, m) end
 end })
 vim.api.nvim_create_autocmd("TermClose", { callback = function() vim.cmd("bd!") end })
-vim.api.nvim_create_autocmd("FileType", { pattern = "qf", callback = function() map("n", "q", "<cmd>cclose<cr>", { buffer = true }) end })
 
 
 -- Help
