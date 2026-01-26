@@ -91,6 +91,15 @@ set -g status-left "#[fg=blue,bold]#S "
 set -g status-right "#[fg=magenta]#h #[fg=white]%H:%M"
 setw -g window-status-current-format "#[fg=cyan,bold][#I:#W]"
 
+# Fix colors in Neovim
+set -g default-terminal "screen-256color"
+# Tell Tmux that the outside terminal supports RGB/True Color
+# This string usually works for iTerm2, Alacritty, and Kitty
+set -as terminal-features ",xterm-256color:RGB"
+
+# Optional: If the above doesn't work, use the older 'Tc' override
+# set -ga terminal-overrides ",xterm-256color:Tc"
+
 
 # Plugins:
 
