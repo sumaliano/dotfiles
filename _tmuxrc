@@ -5,9 +5,9 @@
 # --------------------
 # Essentials
 # --------------------
-unbind C-b
-set -g prefix C-a
-bind C-a send-prefix
+unbind C-g
+set -g prefix C-g
+bind C-g send-prefix
 
 set -g mouse on
 set -g base-index 1
@@ -28,8 +28,8 @@ bind-key -n 'C-l' if-shell "$is_vim" 'send-keys C-l' 'select-pane -R'
 # Clearing the Screen (The Native Way)
 # --------------------
 # Instead of a new shortcut, we keep it simple:
-# To clear screen: Prefix, then Ctrl-l. 
 # This "sends" the Ctrl-l through tmux to the shell.
+# To clear screen: Prefix, then Ctrl-l. 
 bind C-l send-keys 'C-l'
 
 # ====================
@@ -70,8 +70,8 @@ bind -r C-p rotate-window -D # Rotate Backward
 bind -r Enter swap-pane -t 1 \; select-pane -t 1
 
 # Force "Master/Stack" Layout
-bind v select-layout main-vertical \; resize-pane -t :.1 -x "60%"
-bind h select-layout main-horizontal \; resize-pane -t :.1 -y "60%"
+bind v select-layout main-vertical \; resize-pane -t :.1 -x "50%"
+bind h select-layout main-horizontal \; resize-pane -t :.1 -y "80%"
 
 # =========================================================
 # Repeatable Resizing (One of the few things worth overriding)

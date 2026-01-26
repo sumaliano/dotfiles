@@ -12,26 +12,31 @@ for k, v in pairs {
     tabstop = 4,
     smartindent = true,
     ignorecase = true,
-    smartcase = true, 
+    smartcase = true,
     hlsearch = true,
-    splitright = true, 
-    splitbelow = true, 
-    wrap = false, 
+    splitright = true,
+    splitbelow = true,
+    wrap = false,
     scrolloff = 8,
-    swapfile = false, 
-    backup = false, 
-    updatetime = 300, 
+    swapfile = false,
+    backup = false,
+    updatetime = 300,
     timeoutlen = 500,
-    completeopt = "menu,menuone,noselect", 
-    pumheight = 10, 
+    completeopt = "menu,menuone,noselect,noinsert",
+    pumheight = 10,
     list = true,
-    mouse = "", 
-    showmode = false, 
+    mouse = "",
+    showmode = false,
     laststatus = 2,
     termguicolors = true
 } do o[k] = v end
 o.listchars = { tab = "| ", trail = ".", nbsp = "+" }
 o.diffopt:append { "vertical", "linematch:60", "algorithm:histogram", "indent-heuristic", "internal" }
+o.shortmess:append("c") -- Don't show "match 1 of 2" messages
+-- How long to wait for a mapped sequence (e.g., if you mapped 'jk' to Esc)
+o.timeoutlen = 500
+-- 50ms is fast enough to feel instant, but slow enough for the terminal to process
+o.ttimeoutlen = 50
 
 -- Ensure default runtime is in runtimepath for default colorschemes
 local default_runtime = vim.fn.stdpath('data') .. '/runtime'
@@ -61,9 +66,7 @@ local function statusline()
     return " " .. mode .. " " .. branch .. " " .. file .. flags .. "%=" .. lsp .. "%l:%c %p%% "
 end
 
-vim.api.nvim_create_autocmd({ "BufEnter", "DirChanged" }, {
-    callback = update_branch
-})
+vim.api.nvim_create_autocmd({ "BufEnter", "DirChanged" }, { callback = update_branch })
 
 _G.statusline_fn = statusline
 vim.o.statusline = "%!v:lua.statusline_fn()"
@@ -88,35 +91,55 @@ vim.diagnostic.config {
 map("n", "[e", function() vim.diagnostic.goto_prev { severity = vim.diagnostic.severity.ERROR } end)
 map("n", "]e", function() vim.diagnostic.goto_next { severity = vim.diagnostic.severity.ERROR } end)
 
-
 -- Completion
-map("i", "<Tab>", function()
-    if vim.fn.pumvisible() == 1 then return "<C-n>" end
-    local col = vim.fn.col(".") - 1
-    if col == 0 or vim.fn.getline("."):sub(col, col):match("%s") then return "<Tab>" end
-    return vim.bo.omnifunc ~= "" and "<C-x><C-o>" or "<C-n>"
+-- 1. Helper: Determine the best completion mode for the current context
+local function smart_trigger()
+    local line = vim.fn.getline('.')
+    local col = vim.fn.col('.')
+    local before = line:sub(1, col - 1)
+    if before:match("[%./~]$") or before:match("/[%w%._%-]*$") then return "<C-x><C-f>" -- If it looks like a path, use File completion
+    elseif vim.bo.omnifunc ~= "" then return "<C-x><C-o>"                               -- If LSP/Omnifunc is available, use it
+    else return "<C-n>" end                                                             -- Fallback to buffer keywords
+end
+
+-- 2. Manual Tab/S-Tab Logic
+if vim.fn.pumvisible() == 1 then return "<C-n>" end
+    map("i", "<Tab>", function()
+        local col = vim.fn.col(".") - 1
+        if col == 0 or vim.fn.getline("."):sub(col, col):match("%s") then return "<Tab>" end
+        return smart_trigger()
 end, { expr = true })
+
 map("i", "<S-Tab>", function() return vim.fn.pumvisible() == 1 and "<C-p>" or "<S-Tab>" end, { expr = true })
-map("i", "<CR>", function() return vim.fn.pumvisible() == 1 and "<C-y>" or "<CR>" end, { expr = true })
+map("i", "<cr>", function() return vim.fn.pumvisible() == 1 and "<c-y>" or "<cr>" end, { expr = true })
 
-
--- Auto-trigger completion (toggle with F2)
-local auto_cmp, auto_cmp_group = false, vim.api.nvim_create_augroup("AutoCmp", { clear = true })
+-- 3. Auto-trigger Logic with Debounce
+local auto_cmp = false
+local auto_cmp_group = vim.api.nvim_create_augroup("AutoCmp", { clear = true })
+local timer = vim.loop.new_timer()
 map("n", "<F2>", function()
     auto_cmp = not auto_cmp
     vim.api.nvim_clear_autocmds { group = auto_cmp_group }
     if auto_cmp then
-        vim.api.nvim_create_autocmd("TextChangedI", { group = auto_cmp_group, callback = function()
-            if vim.fn.pumvisible() == 1 or vim.fn.col(".") < 3 then return end
-            local char = vim.fn.getline("."):sub(vim.fn.col(".") - 1, vim.fn.col(".") - 1)
-            if char:match("[%w_%.%-]") then
-                vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(vim.bo.omnifunc ~= "" and "<C-x><C-o>" or "<C-n>", true, false, true), "n", false)
+        vim.api.nvim_create_autocmd("TextChangedI", {
+            group = auto_cmp_group,
+            callback = function()
+                local char = vim.fn.getline("."):sub(vim.fn.col(".") - 1, vim.fn.col(".") - 1)
+                if vim.fn.pumvisible() == 1 or vim.fn.col(".") < 3 or not char:match("[%w_%.%-%/~]") then
+                    return
+                end
+                -- Debounce: Wait 150ms after typing before showing menu
+                timer:stop()
+                timer:start(150, 0, vim.schedule_wrap(function()
+                    if vim.api.nvim_get_mode().mode == 'i' then
+                        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(smart_trigger(), true, false, true), "n", false)
+                    end
+                end))
             end
-        end })
+        })
     end
     print("Auto-completion: " .. (auto_cmp and "ON" or "OFF"))
 end)
-
 
 -- Toggle line numbers (F3)
 map("n", "<F3>", function()
@@ -164,21 +187,23 @@ vim.api.nvim_create_autocmd("FileType", {
     group = smart_logic,
     pattern = { "qf", "netrw", "help", "man", "lspinfo", "checkhealth" },
     callback = function(ev)
-        vim.keymap.set("n", "q", smart_close, { buffer = ev.buf, nowait = true, silent = true })
+        map("n", "q", smart_close, { buffer = ev.buf, nowait = true, silent = true })
     end,
 })
 
 -- 2. Global Cleanup & Smart Escape
-vim.keymap.set("n", "<Esc>", function()
+map("n", "<Esc>", function()
     vim.cmd("noh")
-    local closed = smart_close()
-    if not closed then
+    local handled = smart_close()
+    if not handled then
         -- You can add other 'Esc' behaviors here if nothing was closed
     end
 end, { desc = "Clear highlights and smart close", silent = true })
 
+map("i", "jk", "<Esc>", { desc = "Exit insert mode with jk" }) -- "jk" to escape
+
 -- 3. Vinegar-style Navigation
-vim.keymap.set("n", "-", function()
+map("n", "-", function()
     if vim.bo.filetype == "netrw" then
         return vim.cmd("normal -")
     end
@@ -187,14 +212,14 @@ vim.keymap.set("n", "-", function()
 end, { desc = "Open parent directory" })
 
 -- 4. Robust Sidebar (Lexplore) Toggle
-vim.keymap.set("n", "<leader>e", function()
+map("n", "<leader>e", function()
     -- Find if a netrw window already exists in the current tab
     local wins = vim.api.nvim_tabpage_list_wins(0)
     for _, win in ipairs(wins) do
         local buf = vim.api.nvim_win_get_buf(win)
         if vim.bo[buf].filetype == "netrw" then
-            vim.api.nvim_win_close(win, true)
             return
+            vim.api.nvim_win_close(win, true)
         end
     end
     -- Otherwise, open it
@@ -971,10 +996,10 @@ local function nvim_tmux_nav(direction)
     end
 end
 
-vim.keymap.set('n', '<C-h>', function() nvim_tmux_nav('h') end)
-vim.keymap.set('n', '<C-j>', function() nvim_tmux_nav('j') end)
-vim.keymap.set('n', '<C-k>', function() nvim_tmux_nav('k') end)
-vim.keymap.set('n', '<C-l>', function() nvim_tmux_nav('l') end)
+map('n', '<C-h>', function() nvim_tmux_nav('h') end)
+map('n', '<C-j>', function() nvim_tmux_nav('j') end)
+map('n', '<C-k>', function() nvim_tmux_nav('k') end)
+map('n', '<C-l>', function() nvim_tmux_nav('l') end)
 
 map("n", "<leader>w", "<cmd>w<cr>")
 map("n", "<leader>q", "<cmd>q<cr>")
@@ -999,15 +1024,15 @@ map({ "n", "v" }, "<leader>y", '"+y')
 map({ "n", "v" }, "<leader>p", '"+p')
 map("v", "<", "<gv")
 map("v", ">", ">gv")
-map("n", "<A-j>", "<cmd>m .+1<cr>==")
-map("n", "<A-k>", "<cmd>m .-2<cr>==")
+-- map("n", "<A-k>", "<cmd>m .-2<cr>==")
+-- map("n", "<A-j>", "<cmd>m .+1<cr>==")
 map("v", "<A-j>", ":m '>+1<cr>gv=gv")
 map("v", "<A-k>", ":m '<-2<cr>gv=gv")
 map("n", "[q", "<cmd>cprev<cr>")
 map("n", "]q", "<cmd>cnext<cr>")
-map("n", "<leader>c", function() vim.cmd("e " .. vim.fn.stdpath("config") .. "/init_minimal.lua") end)
-map("n", "<leader>C", function()
-    -- Clear all autocommands to avoid duplicates
+map("n", "<leader>cc", function() vim.cmd("e " .. vim.fn.stdpath("config") .. "/init_minimal.lua") end)
+map("n", "<leader>cr", function()
+        -- Clear all autocommands to avoid duplicates
     for _, group in ipairs(vim.api.nvim_get_autocmds({})) do
         if group.group_name and not group.group_name:match("^nvim") then
             pcall(vim.api.nvim_del_augroup_by_name, group.group_name)
@@ -1017,6 +1042,17 @@ map("n", "<leader>C", function()
     dofile(vim.fn.stdpath("config") .. "/init_minimal.lua")
     print("Config reloaded")
 end)
+
+  local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
+  map("n", "<leader>cd", function()
+  if vim.v.shell_error == 0 then
+    vim.cmd("cd " .. git_root)
+  else
+    vim.cmd("cd %:p:h")
+  end
+  print("CWD set to " .. vim.fn.getcwd())
+end, { desc = "cd to project root or file dir" })
+
 
 -- Replace word under cursor or visual selection
 map("n", "<leader>r", function()
