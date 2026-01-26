@@ -458,11 +458,16 @@ if vim.fn.executable("git") == 1 then
         vim.api.nvim_set_hl(0, "GitSignAddBoth", { fg = "#3fb950", bg = "#1a4d2e" })
         vim.api.nvim_set_hl(0, "GitSignChangeBoth", { fg = "#d29922", bg = "#6b5416" })
         vim.api.nvim_set_hl(0, "GitSignDeleteBoth", { fg = "#f85149", bg = "#6b2020" })
-        -- Diff: Brighter, more visible backgrounds
-        vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35" })
-        vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20" })
-        vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true })
-        vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", bold = true })
+        -- Diff: Completely replace to clear reverse attribute from colorscheme
+        -- vim.api.nvim_set_hl(0, "DiffAdd", { bg = "#234d35" })
+        -- vim.api.nvim_set_hl(0, "DiffChange", { bg = "#3d3d20" })
+        -- vim.api.nvim_set_hl(0, "DiffDelete", { bg = "#4d2626", fg = "#8b4040", bold = true })
+        -- vim.api.nvim_set_hl(0, "DiffText", { bg = "#5a4d28", bold = true })
+
+        vim.api.nvim_set_hl(0, "DiffAdd"    , { fg = "#9ece6a", bg = "#2e3c21", reverse = false }) -- Greenish
+        vim.api.nvim_set_hl(0, "DiffChange" , { fg = "#e0af68", bg = "#3e3723", reverse = false }) -- Yellowish
+        vim.api.nvim_set_hl(0, "DiffDelete" , { fg = "#f7768e", bg = "#3d2b2e", reverse = false }) -- Reddish
+        vim.api.nvim_set_hl(0, "DiffText"   , { fg = "#7aa2f7", bg = "#2b374d", reverse = false, bold = true }) -- Blueish (the actual change)
     end
     vim.api.nvim_create_autocmd("ColorScheme", { callback = setup_highlights })
     -- Apply now to override colorscheme that already loaded
@@ -528,6 +533,13 @@ if vim.fn.executable("git") == 1 then
     local diff_syntax_enabled = true  -- Track syntax highlighting state
 
     local function close_diff_view()
+        -- Restore original filetypes before closing
+        for work_buf, data in pairs(diff_bufs) do
+            if vim.api.nvim_buf_is_valid(work_buf) and data.original_ft then
+                vim.bo[work_buf].filetype = data.original_ft
+            end
+        end
+        -- Close diff windows
         for _, win in ipairs(vim.api.nvim_list_wins()) do
             local b = vim.api.nvim_win_get_buf(win)
             if vim.b[b].is_git_diff then pcall(vim.api.nvim_win_close, win, true) end
@@ -588,7 +600,8 @@ if vim.fn.executable("git") == 1 then
         vim.cmd("diffthis")
         vim.wo.foldcolumn = "0"
 
-        diff_bufs[work_buf] = { buf = ref_buf, win = vim.api.nvim_get_current_win(), ref = ref }
+        local original_ft = vim.bo[work_buf].filetype
+        diff_bufs[work_buf] = { buf = ref_buf, win = vim.api.nvim_get_current_win(), ref = ref, original_ft = original_ft }
 
         vim.cmd("wincmd p")
         vim.cmd("diffthis")
@@ -597,7 +610,6 @@ if vim.fn.executable("git") == 1 then
         map("n", "q", close_diff_view, { buffer = ref_buf })
 
         -- Toggle syntax highlighting (affects both panes)
-        local original_ft = vim.bo[work_buf].filetype
         map("n", "ts", function()
             diff_syntax_enabled = not diff_syntax_enabled
             local ft = diff_syntax_enabled and original_ft or ""
