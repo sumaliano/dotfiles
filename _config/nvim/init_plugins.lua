@@ -177,18 +177,6 @@ require("lazy").setup({
         },
     },
 
-    -- Git Commands
-    {
-        "tpope/vim-fugitive",
-        cmd = { "Git", "G" },
-        keys = {
-            { "<leader>gs", "<cmd>Git<cr>", desc = "Git status" },
-            { "<leader>gC", "<cmd>Git commit<cr>", desc = "Git commit" },
-            { "<leader>gP", "<cmd>Git push<cr>", desc = "Git push" },
-            { "<leader>gl", "<cmd>Git log<cr>", desc = "Git log" },
-        },
-    },
-
     -- Git Signs (gutter indicators)
     {
         "lewis6991/gitsigns.nvim",
@@ -249,10 +237,10 @@ require("lazy").setup({
             cmd = { "DiffviewOpen", "DiffviewClose", "DiffviewFileHistory" },
             dependencies = { "nvim-lua/plenary.nvim" },
             keys = {
-                { "<leader>gdo", "<cmd>DiffviewOpen<cr>", desc = "Diff open" },
-                { "<leader>gdc", "<cmd>DiffviewClose<cr>", desc = "Diff close" },
-                { "<leader>gdf", "<cmd>DiffviewFileHistory %<cr>", desc = "File history" },
-                { "<leader>gdh", "<cmd>DiffviewFileHistory<cr>", desc = "Branch history" },
+                { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diff open" },
+                { "q",          "<cmd>DiffviewClose<cr>", desc = "Diff close" },
+                { "<leader>gl", "<cmd>DiffviewFileHistory %<cr>", desc = "File history" },
+                { "<leader>gh", "<cmd>DiffviewFileHistory<cr>", desc = "Branch history" },
             },
             opts = {
                 enhanced_diff_hl = true,
@@ -523,10 +511,11 @@ require("lazy").setup({
         end
     end
 
-    map('n', '<C-h>', function() nvim_tmux_nav('h') end, { desc = "Left" })
-    map('n', '<C-j>', function() nvim_tmux_nav('j') end, { desc = "Down" })
-    map('n', '<C-k>', function() nvim_tmux_nav('k') end, { desc = "Up" })
-    map('n', '<C-l>', function() nvim_tmux_nav('l') end, { desc = "Right" })
+    map('n', '<M-h>', function() nvim_tmux_nav('h') end, { desc = "Left" })
+    map('n', '<M-j>', function() nvim_tmux_nav('j') end, { desc = "Down" })
+    map('n', '<M-k>', function() nvim_tmux_nav('k') end, { desc = "Up" })
+    map('n', '<M-l>', function() nvim_tmux_nav('l') end, { desc = "Right" })
+
     map("n", "<leader>-", "<cmd>split<cr>", { desc = "Split horizontal" })
     map("n", "<leader>|", "<cmd>vsplit<cr>", { desc = "Split vertical" })
 

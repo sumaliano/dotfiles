@@ -875,10 +875,10 @@ local function nvim_tmux_nav(direction)
     end
 end
 
-map('n', '<C-h>', function() nvim_tmux_nav('h') end)
-map('n', '<C-j>', function() nvim_tmux_nav('j') end)
-map('n', '<C-k>', function() nvim_tmux_nav('k') end)
-map('n', '<C-l>', function() nvim_tmux_nav('l') end)
+map('n', '<M-h>', function() nvim_tmux_nav('h') end)
+map('n', '<M-j>', function() nvim_tmux_nav('j') end)
+map('n', '<M-k>', function() nvim_tmux_nav('k') end)
+map('n', '<M-l>', function() nvim_tmux_nav('l') end)
 
 -- Core keymaps
 map("n", "<leader>w", "<cmd>w<cr>")

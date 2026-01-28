@@ -320,6 +320,63 @@ topcmd() {
     history | awk '{CMD[$2]++;count++;}END { for (a in CMD)print CMD[a] " " CMD[a]/count*100 "% " a;}' | grep -v "./" | sort -rn | head -20
 }
 
+ssh-ls() {
+    printf "%-25s %-20s %-10s\n" "ALIAS" "HOSTNAME/IP" "USER"
+    printf "%-25s %-20s %-10s\n" "-----" "-----------" "----"
+
+    awk '
+        # Match Host alias
+        /^[Hh]ost / && $2 !~ /\*/ {
+            if (a) printf "%-25s %-20s %-10s\n", a, h, u
+            a=$2; h="?"; u="-"
+        }
+        # Match Hostname (supports your specific Hostname casing)
+        /^[Hh]ost[Nn]ame / { h=$2 }
+        # Match User
+        /^[Uu]ser / { u=$2 }
+
+        # Print the last entry
+        END { if (a) printf "%-25s %-20s %-10s\n", a, h, u }
+    ' ~/.ssh/config
+}
+
+ssh-go() {
+    local host
+    host=$(grep -i "^Host " ~/.ssh/config | grep -v "*" | awk '{print $2}' | fzf --height 40% --reverse)
+    if [ -n "$host" ]; then
+        ssh "$host"
+    fi
+}
+
+ssh-save() {
+    # Usage: ssh-save user@host alias
+    if [ "$#" -ne 2 ]; then
+        echo "Usage: ssh-save user@host alias"
+        return 1
+    fi
+
+    local input=$1
+    local alias=$2
+    local user="${input%@*}"
+    local host="${input#*@}"
+
+    # If no @ was provided, default user to current system user
+    if [[ "$input" != *"@"* ]]; then
+        user=$USER
+        host=$input
+    fi
+
+    # Append to config with clean formatting
+    cat >> ~/.ssh/config <<EOF
+
+Host $alias
+    HostName $host
+    User $user
+EOF
+
+    echo "Saved '$alias' ($user@$host) to ~/.ssh/config"
+}
+
 # Directory bookmarks (persistent)
 MARKPATH="${MARKPATH:-$HOME/.marks}"
 [ -d "$MARKPATH" ] || mkdir -p "$MARKPATH"
