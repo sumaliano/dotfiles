@@ -9,12 +9,11 @@ unbind C-g
 set -g prefix C-g
 bind C-g send-prefix
 
-set -g mouse on
 set -g base-index 1
 setw -g pane-base-index 1
 set -g renumber-windows on
-
 set -sg escape-time 10
+
 # --------------------
 # The "Smart Navigation" (The only major non-native part)
 # --------------------
@@ -87,9 +86,36 @@ bind -r J resize-pane -D 5
 bind -r K resize-pane -U 5
 bind -r L resize-pane -R 5
 
-# --------------------
+
+
+# =========================================================
+# Mouse configuration
+# =========================================================
+
+set -g mouse on
+
+# 1. Fix Scrolling: Don't jump to bottom when selecting text
+unbind -T copy-mode-vi MouseDragEnd1Pane
+
+# 2. Integration with System Clipboard
+# This allows mouse selection to sync with your actual OS clipboard
+# bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -in"
+
+# 3. Triple Click to select whole line
+bind-key -n TripleClick1Pane \
+    select-pane -t= \; \
+    copy-mode -M \; \
+    send-keys -X select-line \; \
+    run-shell "sleep 0.3" \; \
+    send-keys -X copy-pipe-and-cancel
+
+unbind -n MouseDown3Pane
+unbind-key -n MouseDown2Pane
+unbind-key -n MouseUp2Pane
+
+# ====================
 # Maintenance & Style
-# --------------------
+# ====================
 bind r source-file ~/.tmux.conf \; display "Config Reloaded"
 
 set -g status-style 'bg=default fg=white'
