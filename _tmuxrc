@@ -94,24 +94,20 @@ bind -r L resize-pane -R 5
 
 set -g mouse on
 
-# 1. Fix Scrolling: Don't jump to bottom when selecting text
-unbind -T copy-mode-vi MouseDragEnd1Pane
+# ----------------
+# APPROACH 1: Automatic Clipboard Sync (Portable)
+# ----------------
+# This syncs mouse selections to system clipboard automatically
+# Works on Linux (xclip), macOS (pbcopy), WSL (clip.exe)
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "sh -c 'if command -v xclip > /dev/null; then xclip -selection clipboard -in; elif command -v pbcopy > /dev/null; then pbcopy; elif command -v clip.exe > /dev/null; then clip.exe; else cat; fi'"
 
-# 2. Integration with System Clipboard
-# This allows mouse selection to sync with your actual OS clipboard
-# bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "xclip -selection clipboard -in"
-
-# 3. Triple Click to select whole line
-bind-key -n TripleClick1Pane \
-    select-pane -t= \; \
-    copy-mode -M \; \
-    send-keys -X select-line \; \
-    run-shell "sleep 0.3" \; \
-    send-keys -X copy-pipe-and-cancel
-
-unbind -n MouseDown3Pane
-unbind-key -n MouseDown2Pane
-unbind-key -n MouseUp2Pane
+# ----------------
+# APPROACH 2: Let Terminal Handle It (Simplest)
+# ----------------
+# Uncomment the line below and comment out APPROACH 1 to test
+# This lets your terminal emulator handle all copying naturally
+# (no tmux clipboard integration, but most portable)
+# unbind -T copy-mode-vi MouseDragEnd1Pane
 
 # ====================
 # Maintenance & Style
