@@ -321,35 +321,34 @@ topcmd() {
 }
 
 ssh-ls() {
-    printf "%-25s %-20s %-10s\n" "ALIAS" "HOSTNAME/IP" "USER"
-    printf "%-25s %-20s %-10s\n" "-----" "-----------" "----"
+    printf "%-20s %-15s %-25s\n" "ALIAS" "USER" "HOSTNAME/IP"
+    printf "%-20s %-15s %-25s\n" "-----" "----" "-----------"
 
     awk '
-        # Match Host alias
+        # Reset and Print logic
         /^[Hh]ost / && $2 !~ /\*/ {
-            if (a) printf "%-25s %-20s %-10s\n", a, h, u
-            a=$2; h="?"; u="-"
+            if (alias) printf "%-20s %-15s %-25s\n", alias, user, host
+            alias=$2; host="?"; user="-"
+            next
         }
-        # Match Hostname (supports your specific Hostname casing)
-        /^[Hh]ost[Nn]ame / { h=$2 }
-        # Match User
-        /^[Uu]ser / { u=$2 }
+        # Case-insensitive matching for attributes
+        tolower($1) == "hostname" { host=$2 }
+        tolower($1) == "user"     { user=$2 }
 
-        # Print the last entry
-        END { if (a) printf "%-25s %-20s %-10s\n", a, h, u }
+        # Print the very last entry in the file
+        END { if (alias) printf "%-20s %-15s %-25s\n", alias, user, host }
     ' ~/.ssh/config
 }
 
 ssh-go() {
     local host
-    host=$(grep -i "^Host " ~/.ssh/config | grep -v "*" | awk '{print $2}' | fzf --height 40% --reverse)
+    host=$(awk '/^[Hh]ost / && $2 !~ /\*/ {print $2}' ~/.ssh/config | fzf --height 40% --reverse --prompt="Select Host: ")
     if [ -n "$host" ]; then
         ssh "$host"
     fi
 }
 
 ssh-save() {
-    # Usage: ssh-save user@host alias
     if [ "$#" -ne 2 ]; then
         echo "Usage: ssh-save user@host alias"
         return 1
@@ -357,16 +356,17 @@ ssh-save() {
 
     local input=$1
     local alias=$2
-    local user="${input%@*}"
-    local host="${input#*@}"
+    local user host
 
-    # If no @ was provided, default user to current system user
-    if [[ "$input" != *"@"* ]]; then
+    if [[ "$input" == *"@"* ]]; then
+        user="${input%@*}"
+        host="${input#*@}"
+    else
         user=$USER
         host=$input
     fi
 
-    # Append to config with clean formatting
+    # Ensure a newline before appending and keep EOF at start of line
     cat >> ~/.ssh/config <<EOF
 
 Host $alias
