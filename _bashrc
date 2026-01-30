@@ -224,12 +224,14 @@ command -v nvim &>/dev/null && alias vim='nvim' && alias nvim='nvim' && export E
 command -v nvim &>/dev/null && alias nv='nvim -u ~/.config/nvim/init_plugins.lua'
 
 # Modern tools (auto-detect)
+# Note: Only alias tools with compatible syntax to avoid breaking existing commands
 command -v bat &>/dev/null && alias cat='bat --style=plain --paging=never' && alias less='bat'
 command -v eza &>/dev/null && alias ls='eza --group-directories-first' && alias ll='eza -l --group-directories-first' && alias lt='eza -l --sort=modified' && alias tree='eza --tree'
-command -v fd &>/dev/null && alias find='fd'
-command -v rg &>/dev/null && alias grep='rg'
 command -v htop &>/dev/null && alias top='htop'
 command -v duf &>/dev/null && alias df='duf'
+
+# Don't alias find->fd or grep->rg due to incompatible syntax
+# Use fd and rg directly when you want their features
 
 # Reload bashrc
 alias reload='source ~/.bashrc && echo "Reloaded!"'
@@ -287,9 +289,21 @@ archive() {
     esac && echo "Created: ${name}.${format}"
 }
 
-# Quick file/dir info
-ff() { find . -type f -iname "*$1*" 2>/dev/null; }
-fd() { find . -type d -iname "*$1*" 2>/dev/null; }
+# Quick file/dir search (uses fd if available, falls back to find)
+fdf() {
+    if command -v fd &>/dev/null; then
+        fd -t f -i "$1"
+    else
+        find . -type f -iname "*$1*" 2>/dev/null
+    fi
+}
+fdd() {
+    if command -v fd &>/dev/null; then
+        fd -t d -i "$1"
+    else
+        find . -type d -iname "*$1*" 2>/dev/null
+    fi
+}
 
 # Serve current directory via HTTP
 serve() {
@@ -451,7 +465,11 @@ if command -v fzf &>/dev/null; then
     # Interactive cd with preview
     fcd() {
         local dir
-        dir=$(find ${1:-.} -type d 2>/dev/null | fzf --preview 'ls -la {}' +m) && cd "$dir"
+        if command -v fd &>/dev/null; then
+            dir=$(fd -t d . ${1:-.} 2>/dev/null | fzf --preview 'ls -la {}' +m) && cd "$dir"
+        else
+            dir=$(find ${1:-.} -type d 2>/dev/null | fzf --preview 'ls -la {}' +m) && cd "$dir"
+        fi
     }
 
     # Interactive history search
