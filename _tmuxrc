@@ -14,6 +14,9 @@ setw -g pane-base-index 1
 set -g renumber-windows on
 set -sg escape-time 10
 
+# Briefly show the pane index in the center of the screen only when you switch
+set-hook -g after-select-pane "display-panes"
+
 # --------------------
 # The "Smart Navigation" (The only major non-native part)
 # --------------------
@@ -24,10 +27,10 @@ is_vim="ps -o state= -o comm= -t '#{pane_tty}' | grep -iqE '^[^TXZ ]+ +(\\S+\\/)
 # bind-key -n 'C-j' if-shell "$is_vim" 'send-keys C-j' 'select-pane -D'
 # bind-key -n 'C-k' if-shell "$is_vim" 'send-keys C-k' 'select-pane -U'
 # bind-key -n 'C-l' if-shell "$is_vim" 'send-keys C-l' 'select-pane -R'
-bind -n M-h if-shell "$is_vim" 'send-keys M-h' 'select-pane -L'
-bind -n M-j if-shell "$is_vim" 'send-keys M-j' 'select-pane -D'
-bind -n M-k if-shell "$is_vim" 'send-keys M-k' 'select-pane -U'
-bind -n M-l if-shell "$is_vim" 'send-keys M-l' 'select-pane -R'
+bind -n M-h if-shell "$is_vim" "send-keys M-h" "if-shell -F '#{pane_at_left}'   '' 'select-pane -L'"
+bind -n M-j if-shell "$is_vim" "send-keys M-j" "if-shell -F '#{pane_at_bottom}' '' 'select-pane -D'"
+bind -n M-k if-shell "$is_vim" "send-keys M-k" "if-shell -F '#{pane_at_top}'    '' 'select-pane -U'"
+bind -n M-l if-shell "$is_vim" "send-keys M-l" "if-shell -F '#{pane_at_right}'  '' 'select-pane -R'"
 
 # --------------------
 # Clearing the Screen (The Native Way)
@@ -116,6 +119,7 @@ bind-key p paste-buffer
 # ====================
 bind r source-file ~/.tmux.conf \; display "Config Reloaded"
 
+set -g pane-active-border-style "fg=brightcyan,bg=default"
 set -g status-style 'bg=default fg=white'
 set -g status-left "#[fg=blue,bold]#S "
 set -g status-right "#[fg=magenta]#h #[fg=white]%H:%M"
