@@ -86,6 +86,7 @@ require("lazy").setup({
             "pyright",
             "rust_analyzer",
             "clangd",
+            "jdtls",
             "bashls",
             "jsonls",
             "yamlls"
@@ -417,6 +418,37 @@ require("lazy").setup({
             m("n", "gra", vim.lsp.buf.code_action, "Code action")
             m("i", "<C-s>", vim.lsp.buf.signature_help, "Signature help")
             m("n", "grf", function() vim.lsp.buf.format({ async = true }) end, "Format")
+        end,
+    })
+
+    -- JAVA (Eclipse JDTLS)
+    vim.api.nvim_create_autocmd("FileType", {
+        pattern = "java",
+        callback = function()
+            local root_markers = { "gradlew", "mvnw", "pom.xml", "build.gradle", ".git" }
+            local root_dir = vim.fs.dirname(vim.fs.find(root_markers, { upward = true })[1])
+            if not root_dir then
+                return
+            end
+
+            local workspace_dir = vim.fn.stdpath("data")
+            .. "/jdtls-workspaces/"
+            .. vim.fn.fnamemodify(root_dir, ":p:h:t")
+
+            vim.lsp.start({
+                name = "jdtls",
+                cmd = { "jdtls" },
+                root_dir = root_dir,
+                capabilities = require("blink.cmp").get_lsp_capabilities(),
+                init_options = {
+                    workspace = workspace_dir,
+                },
+                settings = {
+                    java = {
+                        signatureHelp = { enabled = true },
+                    },
+                },
+            })
         end,
     })
 
