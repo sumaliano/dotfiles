@@ -94,8 +94,8 @@ bind -r L resize-pane -R 5
 # =========================================================
 
 # Shift + Left/Right to swap windows
-bind-key -n < swap-window -t -1\; select-window -t -1
-bind-key -n > swap-window -t +1\; select-window -t +1
+bind-key -r < swap-window -t -1\; select-window -t -1
+bind-key -r > swap-window -t +1\; select-window -t +1
 
 # =========================================================
 # Mouse configuration
