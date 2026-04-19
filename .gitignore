@@ -1,6 +1,7 @@
 # Local machine-specific configuration
 bashrc.local
 .bashrc.local
+GEMINI.md
 
 # Vim temporary files
 *.swp
