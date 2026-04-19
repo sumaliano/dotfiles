@@ -126,6 +126,9 @@ bind-key P paste-buffer
 # Disable tmux's default middle-click paste to prevent double-pasting in terminals like Tabby
 unbind-key -T root MouseDown2Pane
 
+# Toggle synchronization with Prefix + S
+bind S setw synchronize-panes \; display "Sync #{?pane_synchronized,ON,OFF}"
+
 # ====================
 # Maintenance & Style
 # ====================
@@ -133,12 +136,13 @@ bind r source-file ~/.tmux.conf \; display "Config Reloaded"
 
 set -g pane-active-border-style "fg=brightcyan,bg=default"
 set -g status-style 'bg=default fg=white'
-set -g status-left "#{?client_prefix,#[fg=yellow,bold]<G> ,#[fg=blue,bold]#S }"
+set -g status-left "#{?client_prefix,#[fg=yellow]#[bold]<G> ,#[fg=blue]#[bold]#S }"
 set -g status-right "#[fg=magenta]#h #[fg=white]%H:%M"
 setw -g window-status-current-format "#[fg=cyan,bold][#I:#W]"
 
 # Fix colors in Neovim
 set -g default-terminal "screen-256color"
+setw -g clock-mode-style 24
 # Tell Tmux that the outside terminal supports RGB/True Color
 set -as terminal-features ",xterm-256color:RGB"
 

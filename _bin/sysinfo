@@ -68,7 +68,7 @@ fi
 
 # Public IP (optional, quick timeout)
 if command -v curl &>/dev/null; then
-    pub_ip=$(curl -s --connect-timeout 2 ifconfig.me 2>/dev/null || echo "N/A")
+    pub_ip=$(curl -s --connect-timeout 0.5 ifconfig.me 2>/dev/null || echo "N/A")
     echo -e "${G}Public IP:${N} $pub_ip"
 fi
 

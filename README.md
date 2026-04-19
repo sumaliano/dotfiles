@@ -70,4 +70,4 @@ Edit `_bashrc` directly. Local overrides go in `~/.bashrc.local`.
 Edit `_vimrc`. Sections are fold-marked for easy navigation.
 
 ### Neovim
-Edit `_config/nvim/init_minimal.lua`. All settings in one file.
+Edit `_config/nvim/init.lua`. All settings in one file.

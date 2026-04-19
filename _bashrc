@@ -414,13 +414,25 @@ jump() {
 marks() { ls -l "$MARKPATH" 2>/dev/null | sed 's/  / /g' | cut -d' ' -f9- | sed 's/ -> / → /'; }
 
 # ============================================================================
-# PATH - Add user bins
+# PATH - Add user bins safely
 # ============================================================================
 
-for dir in "$HOME/.local/bin" "$HOME/bin" "$HOME/.bin" "$HOME/.cargo/bin" "$HOME/go/bin"; do
-    [ -d "$dir" ] && [[ ":$PATH:" != *":$dir:"* ]] && PATH="$dir:$PATH"
-done
-export PATH
+# Helper to append/prepend to PATH without duplicates
+path_add() {
+    if [ -d "$1" ] && [[ ":$PATH:" != *":$1:"* ]]; then
+        if [ "$2" == "after" ]; then
+            export PATH="$PATH:$1"
+        else
+            export PATH="$1:$PATH"
+        fi
+    fi
+}
+
+path_add "$HOME/.local/bin"
+path_add "$HOME/bin"
+path_add "$HOME/.bin"
+path_add "$HOME/.cargo/bin"
+path_add "$HOME/go/bin" "after"
 
 # ============================================================================
 # FZF - Fuzzy finder integration (if available)
@@ -472,10 +484,10 @@ if command -v fzf &>/dev/null; then
         fi
     }
 
-    # Interactive history search
+    # Interactive history search (Cleaned up for different HISTTIMEFORMATs)
     fh() {
         local cmd
-        cmd=$(history | fzf --tac --no-sort | awk '{$1=$2=$3=""; sub(/^[[:space:]]+/, ""); print}')
+        cmd=$(history | fzf --tac --no-sort | sed 's/^[ ]*[0-9]*[ ]*//' | sed 's/^[0-9-]\{10\} [0-9:]\{8\}  //')
         [ -n "$cmd" ] && eval "$cmd"
     }
 

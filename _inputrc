@@ -54,8 +54,8 @@ set input-meta on
 set output-meta on
 set convert-meta off
 
-# Ring bell style (none = no beeping)
-set bell-style none
+# Ring bell style (visible = flash instead of beep)
+set bell-style visible
 
 # ====================
 # Editing

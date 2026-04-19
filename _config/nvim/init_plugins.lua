@@ -506,7 +506,7 @@ require("lazy").setup({
     end
 
     -- ============================================================================
-    -- KEYMAPS (kept identical to init_minimal.lua where possible)
+    -- KEYMAPS (kept identical to init.lua where possible)
     -- ============================================================================
 
     -- General
@@ -682,7 +682,7 @@ require("lazy").setup({
     end, { desc = "LSP info" })
 
     -- ============================================================================
-    -- AUTOCOMMANDS (aligned with init_minimal.lua)
+    -- AUTOCOMMANDS (aligned with init.lua)
     -- ============================================================================
 
     local autocmd = vim.api.nvim_create_autocmd
