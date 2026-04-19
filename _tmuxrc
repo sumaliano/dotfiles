@@ -134,6 +134,10 @@ bind S setw synchronize-panes \; display "Sync #{?pane_synchronized,ON,OFF}"
 # ====================
 bind r source-file ~/.tmux.conf \; display "Config Reloaded"
 
+# Save/Restore Sessions (Minimalist alternative to tmux-resurrect)
+bind C-s run-shell "tmux-session save"
+bind C-r run-shell "tmux-session restore"
+
 set -g pane-active-border-style "fg=brightcyan,bg=default"
 set -g status-style 'bg=default fg=white'
 set -g status-left "#{?client_prefix,#[fg=yellow]#[bold]<G> ,#[fg=blue]#[bold]#S }"

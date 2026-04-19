@@ -235,6 +235,7 @@ command -v duf &>/dev/null && alias df='duf'
 
 # Reload bashrc
 alias reload='source ~/.bashrc && echo "Reloaded!"'
+alias tsr='tmux-session restore'
 
 # ============================================================================
 # FUNCTIONS - Core utilities
