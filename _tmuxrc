@@ -43,10 +43,10 @@ bind C-l send-keys 'C-l'
 # ====================
 # Panes – Splits & Layouts
 # ====================
-# unbind '"'
-# unbind %
-# bind | split-window -h -c "#{pane_current_path}"
-# bind - split-window -v -c "#{pane_current_path}"
+# Open new windows/panes in the current directory
+bind c new-window -c "#{pane_current_path}"
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
 
 # =========================================================
 # Directional "Tiling" Move (Iterative Dragging)
@@ -106,19 +106,25 @@ set -g mouse on
 # Enable vi-copy mode
 setw -g mode-keys vi
 
-# Mouse drag: tmux copy mode, stores in tmux buffer (paste with Prefix+])
-# Shift+Mouse drag: terminal handles it (bypasses tmux, uses system clipboard)
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-selection
+# System clipboard integration (supports OSC 52 for terminals that allow it)
+set -s set-clipboard on
 
-# Keyboard yank ('y' in copy mode) - stores in tmux buffer
-bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel
-
-# Visual selection bindings
+# Visual selection bindings (vim-like)
 bind-key -T copy-mode-vi v send-keys -X begin-selection
+bind-key -T copy-mode-vi V send-keys -X select-line
 bind-key -T copy-mode-vi C-v send-keys -X rectangle-toggle
+
+# Keyboard yank ('y' in copy mode) - copy to system clipboard
+bind-key -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "xclip -in -selection clipboard 2>/dev/null || wl-copy 2>/dev/null || xsel -i --clipboard 2>/dev/null"
+
+# Mouse drag - copy to system clipboard
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "xclip -in -selection clipboard 2>/dev/null || wl-copy 2>/dev/null || xsel -i --clipboard 2>/dev/null"
 
 # Quick paste from tmux buffer
 bind-key P paste-buffer
+
+# Disable tmux's default middle-click paste to prevent double-pasting in terminals like Tabby
+unbind-key -T root MouseDown2Pane
 
 # ====================
 # Maintenance & Style
@@ -127,15 +133,14 @@ bind r source-file ~/.tmux.conf \; display "Config Reloaded"
 
 set -g pane-active-border-style "fg=brightcyan,bg=default"
 set -g status-style 'bg=default fg=white'
-set -g status-left "#[fg=blue,bold]#S "
+set -g status-left "#{?client_prefix,#[fg=yellow,bold]<G> ,#[fg=blue,bold]#S }"
 set -g status-right "#[fg=magenta]#h #[fg=white]%H:%M"
 setw -g window-status-current-format "#[fg=cyan,bold][#I:#W]"
 
 # Fix colors in Neovim
 set -g default-terminal "screen-256color"
 # Tell Tmux that the outside terminal supports RGB/True Color
-# This string usually works for iTerm2, Alacritty, and Kitty
-# set -as terminal-features ",xterm-256color:RGB"
+set -as terminal-features ",xterm-256color:RGB"
 
 # Optional: If the above doesn't work, use the older 'Tc' override
 # set -ga terminal-overrides ",xterm-256color:Tc"
