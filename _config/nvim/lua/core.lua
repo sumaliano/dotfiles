@@ -23,7 +23,7 @@ o.diffopt:append({ "vertical", "linematch:60", "algorithm:histogram", "indent-he
 o.shortmess:append("c")
 
 -- Colorscheme with fallback
-local colors = { "badwolf", "retrobox", "gruvbox", "desert" }
+local colors = { "retrobox", "badwolf", "gruvbox", "desert" }
 for _, c in ipairs(colors) do
     if pcall(vim.cmd.colorscheme, c) then break end
 end
