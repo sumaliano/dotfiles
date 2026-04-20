@@ -34,28 +34,39 @@ COMPONENTS=()
 
 usage() {
     cat <<EOF
-Usage: $(basename "$0") [OPTIONS] [COMPONENTS...]
+Usage: $(basename "$0") [COMMAND] [OPTIONS] [COMPONENTS...]
+
+Commands:
+    install          (Default) Link dotfiles to your home directory
+    status           Check installation and power-up status
+    update           Pull latest changes from git and re-install
+    edit             Open the dotfiles project in $EDITOR
+    uninstall        Remove dotfiles symlinks (Pure Cleanup)
 
 Options:
-    -s, --status     Check installation status
     -n, --dry-run    Show changes without applying them
     -v, --verbose    Show detailed output
-    -u, --uninstall  Remove dotfiles symlinks (Pure Cleanup)
     -h, --help       Show this help
 
-Components (default: all):
+Components (for install/uninstall):
     bash, vim, neovim, tmux, git, utils, fonts, inputrc
 
 EOF
     exit 0
 }
 
+# Command Detection
+COMMAND="install"
+case "$(basename "$1" 2>/dev/null)" in
+    install|status|update|edit|uninstall) COMMAND="$1"; shift ;;
+esac
+
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -s|--status)    CHECK_STATUS=1; shift ;;
+        -s|--status)    COMMAND="status"; shift ;;
         -n|--dry-run)   DRY_RUN=1; shift ;;
         -v|--verbose)   VERBOSE=1; shift ;;
-        -u|--uninstall) UNINSTALL=1; shift ;;
+        -u|--uninstall) COMMAND="uninstall"; shift ;;
         -h|--help)      usage ;;
         -*)             error "Unknown option: $1"; usage ;;
         *)              COMPONENTS+=("$1"); shift ;;
@@ -312,14 +323,29 @@ check_powerups() {
 # ============================================================================
 
 main() {
-    if [[ $CHECK_STATUS -eq 1 ]]; then
+    if [[ "$COMMAND" == "status" ]]; then
         do_status
         exit 0
     fi
 
-    if [[ $UNINSTALL -eq 1 ]]; then
+    if [[ "$COMMAND" == "uninstall" ]]; then
         do_uninstall
         exit 0
+    fi
+
+    if [[ "$COMMAND" == "update" ]]; then
+        info "Updating dotfiles..."
+        cd "$DOTFILES_DIR"
+        git pull --rebase
+        info "Running re-install..."
+        COMMAND="install"
+        main
+        exit 0
+    fi
+
+    if [[ "$COMMAND" == "edit" ]]; then
+        cd "$DOTFILES_DIR"
+        exec "${EDITOR:-vi}" .
     fi
 
     echo -e "${BLUE}${BOLD}Dotfiles Installer${NC}"
