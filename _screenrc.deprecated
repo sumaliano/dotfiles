@@ -47,7 +47,7 @@ bindkey "^[[1;3B" focus down # alt + down
 # split
 # layout new 'vertical'
 # split -v
-# layout new  'main' 
+# layout new  'main'
 
 # bind control sequences for new layouts
 bind V layout select 'vertical'

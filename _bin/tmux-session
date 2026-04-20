@@ -16,10 +16,10 @@ NC='\033[0m'
 
 save() {
     echo -e "${BLUE}Saving tmux sessions...${NC}"
-    
+
     # Format: session_name | window_index | window_name | layout | pane_index | pane_current_path
     tmux list-windows -a -F "#{session_name}|#{window_index}|#{window_name}|#{window_layout}|#{pane_index}|#{pane_current_path}" > "$DUMP_FILE"
-    
+
     local count=$(wc -l < "$DUMP_FILE")
     echo -e "${GREEN}[ok]${NC} Saved $count panes across all sessions."
 }

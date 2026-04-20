@@ -511,6 +511,20 @@ if command -v fzf &>/dev/null; then
         pid=$(ps -ef | sed 1d | fzf -m | awk '{print $2}')
         [ -n "$pid" ] && echo "$pid" | xargs kill -${1:-9}
     }
+
+    # Fuzzy jump to bookmarks
+    jb() {
+        local dest
+        dest=$(ls -1 "$MARKPATH" | fzf --prompt="Jump to mark: " --preview "ls -F --color=always $(readlink -f $MARKPATH/{})")
+        [ -n "$dest" ] && jump "$dest"
+    }
+
+    # Fuzzy git status (stage/unstage files)
+    fgs() {
+        local files
+        files=$(git status --porcelain | fzf -m --ansi --preview 'git diff --color=always {+2}' | awk '{print $2}')
+        [ -n "$files" ] && git add $files
+    }
 fi
 
 # ============================================================================

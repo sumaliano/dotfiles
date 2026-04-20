@@ -99,7 +99,7 @@ backup_and_link() {
 
     # Ensure parent directory exists
     run mkdir -p "$(dirname "$dest")"
-    
+
     # Use -n to treat dest as a normal file if it's a symlink to a directory
     run ln -sfn "$src" "$dest"
 }
@@ -110,7 +110,7 @@ backup_and_link() {
 
 install_bash() {
     info "Configuring Bash..."
-    
+
     # Link dircolors
     [[ -f "$DOTFILES_DIR/_dir_colors" ]] && backup_and_link "$DOTFILES_DIR/_dir_colors" ~/.dir_colors
 
@@ -144,7 +144,7 @@ EOF
 install_vim() {
     info "Configuring Vim..."
     backup_and_link "$DOTFILES_DIR/_vimrc" ~/.vimrc
-    
+
     # Link the full _vim directory if it exists (for spell files, etc.)
     if [[ -d "$DOTFILES_DIR/_vim" ]]; then
         backup_and_link "$DOTFILES_DIR/_vim" ~/.vim
@@ -152,7 +152,7 @@ install_vim() {
 
     # Ensure data directories exist
     run mkdir -p ~/.vim/{undo,backup,swap}
-    
+
     # Link the colors directory directly from Neovim config
     if [[ -d "$DOTFILES_DIR/_config/nvim/colors" ]]; then
         backup_and_link "$DOTFILES_DIR/_config/nvim/colors" ~/.vim/colors
@@ -163,10 +163,10 @@ install_vim() {
 install_neovim() {
     info "Configuring Neovim..."
     local nvim_conf="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
-    
+
     # Link the whole directory
     backup_and_link "$DOTFILES_DIR/_config/nvim" "$nvim_conf"
-    
+
     success "Neovim configured"
 }
 
@@ -178,6 +178,10 @@ install_tmux() {
 
 install_git() {
     info "Configuring Git..."
+
+    # Link global gitignore
+    [[ -f "$DOTFILES_DIR/_gitignore_global" ]] && backup_and_link "$DOTFILES_DIR/_gitignore_global" ~/.gitignore_global
+
     if [[ -f ~/.gitconfig ]] && ! grep -q "Dotfiles template" ~/.gitconfig 2>/dev/null; then
         warning "~/.gitconfig exists and isn't a dotfiles template. Skipping."
         info "Manual merge: cat $DOTFILES_DIR/_gitconfig >> ~/.gitconfig"
@@ -222,12 +226,12 @@ install_inputrc() {
 
 do_uninstall() {
     info "Uninstalling dotfiles (Pure Cleanup)..."
-    
+
     # 1. Bash Removal
     if [[ $DRY_RUN -eq 0 ]]; then
         sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' ~/.bashrc 2>/dev/null || true
     fi
-    
+
     # 3. Local Template Cleanup (Only if unedited)
     if [[ -f ~/.bashrc.local ]]; then
         if grep -q "Local machine-specific overrides" ~/.bashrc.local && [[ $(wc -l < ~/.bashrc.local) -le 3 ]]; then
@@ -249,7 +253,7 @@ do_uninstall() {
     if command -v fc-cache &>/dev/null; then
         run fc-cache -f
     fi
-    
+
     info "Uninstall complete. Original files (marked .backup.*) were left untouched."
 }
 
@@ -259,7 +263,7 @@ do_uninstall() {
 
 do_status() {
     echo -e "${BLUE}${BOLD}Installation Status:${NC}\n"
-    
+
     local components=(
         "Bash Block    :~/.bashrc:grep -q '# BEGIN DOTFILES' ~/.bashrc"
         "Inputrc       :~/.inputrc:[ -L ~/.inputrc ]"
@@ -276,14 +280,14 @@ do_status() {
         local path="${c#*:}"
         path="${path%%:*}"
         local cmd="${c##*:}"
-        
+
         if eval "$cmd" 2>/dev/null; then
             printf "  ${GREEN}[Installed]${NC} %-15s (%s)\n" "$name" "$path"
         else
             printf "  ${RED}[Missing]  ${NC} %-15s (%s)\n" "$name" "$path"
         fi
     done
-    
+
     check_powerups
 }
 
@@ -332,7 +336,7 @@ main() {
 
     success "Installation finished!"
     check_powerups
-    
+
     echo -e "\n${BOLD}Next Step:${NC} Run 'source ~/.bashrc' or restart your terminal."
 }
 

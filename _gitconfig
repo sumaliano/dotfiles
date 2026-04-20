@@ -8,6 +8,7 @@
 
 [core]
     editor = nvim
+    excludesfile = ~/.gitignore_global
     pager = less -FRX
     autocrlf = input
     whitespace = trailing-space,space-before-tab

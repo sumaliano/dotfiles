@@ -12,7 +12,8 @@ bind C-g send-prefix
 set -g base-index 1
 setw -g pane-base-index 1
 set -g renumber-windows on
-set -sg escape-time 10
+set -sg escape-time 0
+set -g focus-events on
 
 # Briefly show the pane index in the center of the screen only when you switch
 set-hook -g after-select-pane "display-panes"
@@ -37,7 +38,7 @@ bind -n M-l if-shell "$is_vim" "send-keys M-l" "if-shell -F '#{pane_at_right}'  
 # --------------------
 # Instead of a new shortcut, we keep it simple:
 # This "sends" the Ctrl-l through tmux to the shell.
-# To clear screen: Prefix, then Ctrl-l. 
+# To clear screen: Prefix, then Ctrl-l.
 bind C-l send-keys 'C-l'
 
 # ====================
@@ -149,9 +150,8 @@ set -g default-terminal "screen-256color"
 setw -g clock-mode-style 24
 # Tell Tmux that the outside terminal supports RGB/True Color
 set -as terminal-features ",xterm-256color:RGB"
-
-# Optional: If the above doesn't work, use the older 'Tc' override
-# set -ga terminal-overrides ",xterm-256color:Tc"
+set -as terminal-overrides ',xterm-256color:Smulx=\E[4::%p1%dm'  # undercurl support
+set -as terminal-overrides ',xterm-256color:Setulc=\E[58::2::%p1%{65536}%/%d::%p1%{256}%/%{255}%&%d::%p1%{255}%&%d%;m' # underscore colors
 
 
 # Plugins:
