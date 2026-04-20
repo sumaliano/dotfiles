@@ -56,10 +56,10 @@ EOF
 }
 
 # Command Detection
-COMMAND="sync"
-case "$1" in
+COMMAND="help"
+case "${1:-}" in
     sync|install|status|update|edit|clean|uninstall) COMMAND="$1"; shift ;;
-    -*) ;; # Allow flags without command (defaults to sync)
+    -*) COMMAND="sync" ;; # Flags without command imply sync
 esac
 
 # Normalize commands
@@ -328,6 +328,10 @@ check_powerups() {
 # ============================================================================
 
 main() {
+    if [[ "$COMMAND" == "help" ]]; then
+        usage
+    fi
+
     if [[ "$COMMAND" == "status" ]]; then
         do_status
         exit 0
