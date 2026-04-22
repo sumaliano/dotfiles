@@ -497,24 +497,22 @@ if vim.fn.executable("git") == 1 then
             vim.api.nvim_set_hl(0, name, opts)
         end
 
-        -- The "Loud & Clear" Palette 
-        -- If these are STILL gray, your terminal literally cannot see these hex values.
-        hl("DiffAdd",    { bg = "#2e4d3a", reverse = false }) -- Stronger Green
-        hl("DiffChange", { bg = "#4d4d2e", reverse = false }) -- Stronger Olive/Yellow
-        hl("DiffDelete", { bg = "#4d2e2e", fg = "#aa5555", reverse = false }) -- Stronger Red
-        hl("DiffText",   { bg = "#2d4a85", fg = "#ffffff", bold = true, reverse = false }) -- Your working Blue
+        -- The "Modern & Soft" Palette (Easy to read, inspired by modern themes)
+        hl("DiffAdd",    { bg = "#1f3a28", fg = "NONE", reverse = false }) -- Subtle dark green
+        hl("DiffChange", { bg = "#223249", fg = "NONE", reverse = false }) -- Subtle dark blue
+        hl("DiffDelete", { bg = "#482628", fg = "#7b4449", reverse = false }) -- Subtle dark red
+        hl("DiffText",   { bg = "#2d4d6e", fg = "NONE", bold = true, reverse = false }) -- Bright blue for changed words
 
         -- Gutter Signs (GitSigns)
-        hl("GitSignAdd",          { fg = "#3fb950" })
-        hl("GitSignChange",       { fg = "#d29922" })
-        hl("GitSignDelete",       { fg = "#f85149" })
-        hl("GitSignAddStaged",    { fg = "#2d5a3d" })
-        hl("GitSignChangeStaged", { fg = "#6b5416" })
-        hl("GitSignDeleteStaged", { fg = "#6b2020" })
-        hl("GitSignAddBoth",      { fg = "#3fb950", bg = "#1a4d2e" })
-        hl("GitSignChangeBoth",   { fg = "#d29922", bg = "#6b5416" })
-        hl("GitSignDeleteBoth",   { fg = "#f85149", bg = "#6b2020" })
-    end
+        hl("GitSignAdd",          { fg = "#3fb950" }) -- GitHub green
+        hl("GitSignChange",       { fg = "#d29922" }) -- GitHub orange/yellow
+        hl("GitSignDelete",       { fg = "#f85149" }) -- GitHub red
+        hl("GitSignAddStaged",    { fg = "#238636" }) -- Dimmer green
+        hl("GitSignChangeStaged", { fg = "#9e6a03" }) -- Dimmer orange
+        hl("GitSignDeleteStaged", { fg = "#da3633" }) -- Dimmer red
+        hl("GitSignAddBoth",      { fg = "#3fb950", bg = "#1f3a28" })
+        hl("GitSignChangeBoth",   { fg = "#d29922", bg = "#2a2215" })
+        hl("GitSignDeleteBoth",   { fg = "#f85149", bg = "#482628" })    end
 
     -- Create an augroup to prevent autocmd duplication
     local diff_hl_group = vim.api.nvim_create_augroup("UserDiffHighlights", { clear = true })
