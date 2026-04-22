@@ -257,21 +257,7 @@ autocmd("FileType", { pattern = { "gitcommit", "markdown" }, callback = function
     vim.opt_local.wrap, vim.opt_local.spell = true, true
 end })
 
--- Auto-close terminal buffers (with Gitsigns refresh if available)
-autocmd("TermClose", { 
-    callback = function(ev) 
-        if vim.b[ev.buf].is_git_terminal then
-            vim.schedule(function()
-                local ok, gs = pcall(require, "gitsigns")
-                if ok then gs.refresh() end
-                vim.cmd("bd!")
-            end)
-        else
-            vim.cmd("bd!") 
-        end
-    end, 
-})
-
+-- Auto-close terminal buffers
 
 local map = vim.keymap.set
 
@@ -908,6 +894,8 @@ if vim.fn.executable("git") == 1 then
         callback = function(ev)
             if vim.b[ev.buf].is_git_terminal then
                 vim.schedule(function()
+                    local ok, gs = pcall(require, "gitsigns")
+                    if ok then gs.refresh() end
                     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
                         if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "" then
                             refresh(buf)

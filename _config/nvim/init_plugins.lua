@@ -154,33 +154,6 @@ vim.api.nvim_create_autocmd("LspAttach", {
 })
 
 -- ============================================================================
--- GIT CONFLICTS
--- ============================================================================
-
-local function resolve_conflict(choice)
-    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    local cur = vim.api.nvim_win_get_cursor(0)[1]
-    local s, m, e, f
-    for i = cur, 1, -1 do if lines[i]:match("^<<<<<<<") then s = i; break end end
-    if not s then return print("Not in conflict") end
-    for i = s, #lines do
-        if lines[i]:match("^|||||||") then m = i elseif lines[i]:match("^=======") then e = i elseif lines[i]:match("^>>>>>>>") then f = i; break end
-    end
-    if not e or not f then return print("Malformed conflict") end
-    local ranges = { ours = { s + 1, (m or e) - 1 }, theirs = { e + 1, f - 1 }, base = m and { m + 1, e - 1 } }
-    local range = ranges[choice]
-    if not range then return print("No base section") end
-    local result = {}
-    for i = range[1], range[2] do table.insert(result, lines[i]) end
-    vim.api.nvim_buf_set_lines(0, s - 1, f, false, result)
-    print("Resolved: " .. choice)
-end
-
-vim.keymap.set("n", "gH", function() resolve_conflict("ours") end, { desc = "Resolve: OURS" })
-vim.keymap.set("n", "gJ", function() resolve_conflict("base") end, { desc = "Resolve: BASE" })
-vim.keymap.set("n", "gL", function() resolve_conflict("theirs") end, { desc = "Resolve: THEIRS" })
-
--- ============================================================================
 -- HELP MENU (Full)
 -- ============================================================================
 
