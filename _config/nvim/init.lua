@@ -281,7 +281,37 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, { cal
 vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, { callback = function(ev) update_signs(ev.buf) end })
 
 -- Git Keymaps
-vim.keymap.set("n", "<leader>gd", function() vim.cmd("DiffviewOpen") end) -- Fallback if diffview exists
+vim.keymap.set("n", "<leader>gd", function()
+    if vim.fn.exists(":DiffviewOpen") == 2 then
+        vim.cmd("DiffviewOpen")
+    else
+        vim.cmd("vertical terminal git diff " .. vim.fn.shellescape(vim.api.nvim_buf_get_name(0)))
+    end
+end)
+
+vim.keymap.set("n", "<leader>ga", function()
+    local file = vim.fn.shellescape(vim.api.nvim_buf_get_name(0))
+    vim.fn.system("git add " .. file)
+    refresh()
+    print("Staged: " .. file)
+end)
+
+vim.keymap.set("n", "<leader>gu", function()
+    local file = vim.fn.shellescape(vim.api.nvim_buf_get_name(0))
+    vim.fn.system("git restore --staged " .. file)
+    refresh()
+    print("Unstaged: " .. file)
+end)
+
+vim.keymap.set("n", "<leader>gr", function()
+    local file = vim.fn.shellescape(vim.api.nvim_buf_get_name(0))
+    if vim.fn.confirm("Restore (discard changes) " .. file .. "?", "&Yes\n&No") == 1 then
+        vim.fn.system("git restore " .. file)
+        refresh(nil, true)
+        print("Restored: " .. file)
+    end
+end)
+
 vim.keymap.set("n", "<leader>gs", function()
     local status = git_lines("git status --porcelain")
     if #status == 0 then return print("Clean") end
@@ -297,7 +327,7 @@ vim.keymap.set("n", "<leader>?", function()
     print([[
     GENERAL:  w/q/Q save/quit/toggle-qf | ff/fr/fb/fg find | e/- explore | y/p clip | bd buf | Tab nav | M-hjkl win
     r replace | R run | cc/cr config/reload | F2 auto-cmp | F3 numbers | sw strip | st tab | cd root
-    GIT:      gs status | gd diff | ]c/[c hunk | gs status | ga add | gu restore --staged | gr restore
+    GIT:      gs status | gd diff | ga add | gu unstage | gr restore | ]c/[c hunk
     LSP/DIAG: gry type | grf format | [e/]e error | K hover
     GUTTER:   green=add orange=change red=delete | bright=unstaged dim=staged bg=both]])
 end)
