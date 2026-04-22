@@ -281,12 +281,114 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained" }, { cal
 vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, { callback = function(ev) update_signs(ev.buf) end })
 
 -- Git Keymaps
+local diff_syntax_enabled = true
+
+local function close_diff_view()
+    for work_buf, data in pairs(diff_bufs) do
+        if vim.api.nvim_buf_is_valid(work_buf) and data.original_ft then
+            vim.bo[work_buf].filetype = data.original_ft
+        end
+    end
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local b = vim.api.nvim_win_get_buf(win)
+        if vim.b[b].is_git_diff then pcall(vim.api.nvim_win_close, win, true) end
+    end
+    vim.cmd("diffoff!")
+    diff_bufs = {}
+end
+
 vim.keymap.set("n", "<leader>gd", function()
     if vim.fn.exists(":DiffviewOpen") == 2 then
-        vim.cmd("DiffviewOpen")
-    else
-        vim.cmd("vertical terminal git diff " .. vim.fn.shellescape(vim.api.nvim_buf_get_name(0)))
+        return vim.cmd("DiffviewOpen")
     end
+
+    local rel = get_rel_path()
+    if not rel then return print("Not tracked") end
+
+    local ours = git_lines("git show :2:" .. vim.fn.shellescape(rel))
+    local theirs = git_lines("git show :3:" .. vim.fn.shellescape(rel))
+    if #ours > 0 and #theirs > 0 then
+        vim.cmd("tabnew " .. vim.fn.fnameescape(vim.api.nvim_buf_get_name(0)))
+        local work_buf = vim.api.nvim_get_current_buf()
+        vim.cmd("diffthis")
+
+        vim.cmd("leftabove vnew")
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, ours)
+        vim.bo.buftype, vim.bo.bufhidden, vim.bo.modifiable = "nofile", "wipe", false
+        vim.b.is_git_diff = true
+        vim.cmd("diffthis")
+        local ours_buf = vim.api.nvim_get_current_buf()
+
+        vim.cmd("wincmd l | rightbelow vnew")
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, theirs)
+        vim.bo.buftype, vim.bo.bufhidden, vim.bo.modifiable = "nofile", "wipe", false
+        vim.b.is_git_diff = true
+        vim.cmd("diffthis")
+        local theirs_buf = vim.api.nvim_get_current_buf()
+
+        vim.api.nvim_set_current_win(vim.fn.win_findbuf(work_buf)[1])
+        vim.keymap.set("n", "gh", "<cmd>diffget " .. ours_buf .. "<cr>", { buffer = work_buf })
+        vim.keymap.set("n", "gl", "<cmd>diffget " .. theirs_buf .. "<cr>", { buffer = work_buf })
+        vim.keymap.set("n", "q", "<cmd>tabclose<cr>", { buffer = work_buf })
+        return print("3-way: OURS|WORK|THEIRS (gh/gl=get q=quit)")
+    end
+
+    local ref = diff_mode == "all" and "HEAD" or ":0"
+    local label = diff_mode == "all" and "HEAD" or "INDEX"
+    local content = git_lines("git show " .. ref .. ":" .. vim.fn.shellescape(rel))
+    if #content == 0 then return print("No " .. label) end
+
+    local work_buf = vim.api.nvim_get_current_buf()
+    vim.cmd("leftabove vnew")
+    local ref_buf = vim.api.nvim_get_current_buf()
+    vim.api.nvim_buf_set_lines(ref_buf, 0, -1, false, content)
+    vim.bo[ref_buf].buftype = "nofile"
+    vim.bo[ref_buf].bufhidden = "wipe"
+    vim.bo[ref_buf].modifiable = false
+    vim.b[ref_buf].is_git_diff = true
+    if diff_syntax_enabled then vim.bo[ref_buf].filetype = vim.bo[work_buf].filetype end
+    vim.cmd("diffthis")
+    vim.wo.foldcolumn = "0"
+
+    local original_ft = vim.bo[work_buf].filetype
+    diff_bufs[work_buf] = { buf = ref_buf, win = vim.api.nvim_get_current_win(), ref = ref, original_ft = original_ft }
+
+    vim.cmd("wincmd p")
+    vim.cmd("diffthis")
+
+    vim.keymap.set("n", "q", close_diff_view, { buffer = work_buf })
+    vim.keymap.set("n", "q", close_diff_view, { buffer = ref_buf })
+
+    vim.keymap.set("n", "ts", function()
+        diff_syntax_enabled = not diff_syntax_enabled
+        local ft = diff_syntax_enabled and original_ft or ""
+        vim.bo[ref_buf].filetype = ft
+        vim.bo[work_buf].filetype = ft
+        print("Diff syntax: " .. (diff_syntax_enabled and "ON" or "OFF"))
+    end, { buffer = work_buf })
+
+    print("Diff: " .. label .. " | WORKING (ts=toggle syntax, q=quit)")
+end)
+
+vim.keymap.set("n", "<leader>gD", function()
+    local rel = get_rel_path()
+    if not rel then return print("Not tracked") end
+    local cmd = diff_mode == "all" and "git diff HEAD -- " or "git diff -- "
+    local diff = git_lines(cmd .. vim.fn.shellescape(rel))
+    if #diff == 0 then return print("No changes") end
+    vim.cmd("tabnew")
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, diff)
+    vim.bo.buftype = "nofile"
+    vim.bo.bufhidden = "wipe"
+    vim.bo.filetype = "diff"
+    vim.keymap.set("n", "q", "<cmd>tabclose<cr>", { buffer = true })
+    print("Unified diff (" .. (diff_mode == "all" and "all changes" or "unstaged") .. ") q=quit")
+end)
+
+vim.keymap.set("n", "<leader>gm", function()
+    diff_mode = diff_mode == "all" and "unstaged" or "all"
+    refresh()
+    print("Diff mode: " .. (diff_mode == "all" and "All changes (HEAD)" or "Unstaged only (INDEX)"))
 end)
 
 vim.keymap.set("n", "<leader>ga", function()
