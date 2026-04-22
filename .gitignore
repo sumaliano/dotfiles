@@ -10,6 +10,8 @@ GEMINI.md
 *~
 .*.sw?
 Session.vim
+_vim/.netrwhist
+_vim/undo/
 
 # OS files
 .DS_Store
@@ -21,6 +23,9 @@ Desktop.ini
 # Backup files
 *.backup
 *.bak
+
+# Font artifacts
+.uuid
 
 # Test/tmp
 test/
