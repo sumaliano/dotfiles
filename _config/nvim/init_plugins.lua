@@ -2,7 +2,7 @@
 -- NEVIM FULL CONFIGURATION (Plugin-Based)
 -- ============================================================================
 
-require('core')
+dofile(vim.fn.stdpath("config") .. "/init.lua")
 
 -- ============================================================================
 -- BOOTSTRAP lazy.nvim
