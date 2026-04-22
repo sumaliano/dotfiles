@@ -189,6 +189,27 @@ map("n", "<leader>R", function()
 end, { desc = "Run file" })
 
 -- ============================================================================
+-- NETRW NAVIGATION
+-- ============================================================================
+
+vim.keymap.set("n", "-", function()
+    if vim.bo.filetype == "netrw" then return vim.cmd("normal -") end
+    pcall(vim.cmd, "Explore %:p:h")
+end, { desc = "Explore parent directory" })
+
+vim.keymap.set("n", "<leader>e", function()
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.bo[buf].filetype == "netrw" then
+            vim.api.nvim_win_close(win, true)
+            return
+        end
+    end
+    vim.cmd("Lexplore %:p:h")
+    vim.cmd("vertical resize 30")
+end, { desc = "Toggle file explorer" })
+
+-- ============================================================================
 -- SHARED UTILITIES
 -- ============================================================================
 
@@ -246,3 +267,4 @@ autocmd("TermClose", {
         end
     end, 
 })
+require("native_git")

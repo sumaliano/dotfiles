@@ -95,57 +95,6 @@ require("lazy").setup({
             { "<leader>fs", "<cmd>Telescope lsp_document_symbols<cr>", desc = "Symbols" },
         },
     },
-    {
-        "lewis6991/gitsigns.nvim",
-        event = { "BufReadPost", "BufNewFile" },
-        opts = {
-            on_attach = function(bufnr)
-                local gs = package.loaded.gitsigns
-                local function m(mode, lhs, rhs, desc) vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, desc = desc }) end
-                m("n", "]c", function() if vim.wo.diff then vim.cmd.normal({ "]c", bang = true }) else gs.nav_hunk("next") end end, "Next hunk")
-                m("n", "[c", function() if vim.wo.diff then vim.cmd.normal({ "[c", bang = true }) else gs.nav_hunk("prev") end end, "Prev hunk")
-                m("n", "<leader>ha", gs.stage_hunk, "Stage hunk")
-                m("n", "<leader>hu", gs.undo_stage_hunk, "Undo stage hunk")
-                m("n", "<leader>hr", gs.reset_hunk, "Reset hunk")
-                m("n", "<leader>ga", gs.stage_buffer, "Stage file")
-                m("n", "<leader>gu", function()
-                    local file = vim.fn.shellescape(vim.api.nvim_buf_get_name(0))
-                    if vim.fn.system("git restore --staged " .. file) == "" then gs.refresh(); print("Unstaged file") else print("Failed to unstage") end
-                end, "Unstage file")
-                m("n", "<leader>gr", gs.reset_buffer, "Reset file")
-                m("n", "<leader>hp", gs.preview_hunk, "Preview hunk")
-                m("n", "<leader>gb", function() gs.blame_line({ full = true }) end, "Blame line")
-                m("n", "<leader>hd", gs.diffthis, "Diff this")
-            end,
-        },
-    },
-    {
-        "sindrets/diffview.nvim",
-        cmd = { "DiffviewOpen", "DiffviewClose", "DiffviewFileHistory" },
-        dependencies = { "nvim-lua/plenary.nvim" },
-        keys = {
-            { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diff open" },
-            { "q",          "<cmd>DiffviewClose<cr>", desc = "Diff close" },
-            { "<leader>gl", "<cmd>DiffviewFileHistory %<cr>", desc = "File history" },
-            { "<leader>gh", "<cmd>DiffviewFileHistory<cr>", desc = "Branch history" },
-        },
-        opts = { enhanced_diff_hl = true, view = { default = { layout = "diff2_horizontal" } } },
-    },
-    {
-        "nvim-tree/nvim-tree.lua",
-        cmd = { "NvimTreeToggle", "NvimTreeFocus" },
-        keys = { { "<leader>e", "<cmd>NvimTreeToggle<cr>", desc = "Explorer sidebar" }, { "-", "<cmd>NvimTreeToggle<cr>", desc = "Explorer sidebar" } },
-        opts = { view = { width = 30 }, on_attach = function(bufnr)
-            require("nvim-tree.api").config.mappings.default_on_attach(bufnr)
-            vim.keymap.set("n", "<Esc>", require("nvim-tree.api").tree.close, { buffer = bufnr, desc = "Close" })
-        end },
-    },
-    {
-        "folke/which-key.nvim",
-        event = "VeryLazy",
-        init = function() vim.o.timeout, vim.o.timeoutlen = true, 300 end,
-        opts = {},
-    },
 }, { rocks = { enabled = false }, checker = { enabled = true } })
 
 -- ============================================================================
@@ -203,11 +152,8 @@ vim.keymap.set("n", "<leader>?", function()
     print([[
     GENERAL:  w save | q quit | Q toggle-qf | L lazy | cc/cr config | sw strip | st tab | cd root
     FIND:     ff files | fg grep | fb buffers | fr recent | fm marks | fs symbols (Telescope)
-    EXPLORER: e/- toggle sidebar (NvimTree) | q close
-    GIT:      gd diffview | gl file-history | gh branch-history | gs status (qf) | gb blame
-    HUNK:     ha/hu stage/unstage | hr reset | hp/hi preview | ]c/[c nav
-    CONFLICT: gH/gJ/gL resolve(ours/base/theirs) | :G commit
-    LSP:      gd def | grr ref | K hover | grn rename | gra action | grf format
-    DIAG:     [d/]d nav | [e/]e error | <C-W>d float
+    EXPLORER: e/- toggle sidebar/parent (Netrw) | q close
+    GIT:      gs status | gd diff | ga add | gu unstage | gr restore | ]c/[c hunk
+    LSP/DIAG: gd def | grr ref | K hover | grn rename | gra action | grf format | [e/]e error
     NAV:      Tab/S-Tab buffers | M-hjkl windows (tmux) | <leader><leader> alternate]])
 end, { desc = "Show custom help menu" })
