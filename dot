@@ -66,6 +66,9 @@ esac
 [[ "$COMMAND" == "install" ]] && COMMAND="sync"
 [[ "$COMMAND" == "uninstall" ]] && COMMAND="clean"
 
+# Get Neovim config path once
+NVIM_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         -s|--status)    COMMAND="status"; shift ;;
@@ -198,7 +201,7 @@ install_git() {
     # Link global gitignore
     [[ -f "$DOTFILES_DIR/_gitignore_global" ]] && backup_and_link "$DOTFILES_DIR/_gitignore_global" ~/.gitignore_global
 
-    if [[ -f ~/.gitconfig ]] && ! grep -q "Dotfiles template" ~/.gitconfig 2>/dev/null; then
+    if [[ -f ~/.gitconfig ]] && ! grep -q "Git configuration template" ~/.gitconfig 2>/dev/null; then
         warning "~/.gitconfig exists and isn't a dotfiles template. Skipping."
         info "Manual merge: cat $DOTFILES_DIR/_gitconfig >> ~/.gitconfig"
     else
@@ -248,6 +251,12 @@ do_clean() {
         sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' ~/.bashrc 2>/dev/null || true
     fi
 
+    # 2. Git Config Cleanup (Only if it's our template)
+    if [[ -f ~/.gitconfig ]] && grep -q "Git configuration template" ~/.gitconfig 2>/dev/null; then
+        run rm ~/.gitconfig
+        success "Removed ~/.gitconfig (template)"
+    fi
+
     # 3. Local Template Cleanup (Only if unedited)
     if [[ -f ~/.bashrc.local ]]; then
         if grep -q "Local machine-specific overrides" ~/.bashrc.local && [[ $(wc -l < ~/.bashrc.local) -le 3 ]]; then
@@ -257,7 +266,7 @@ do_clean() {
     fi
 
     # 4. Symlink Removal
-    local links=(~/.vimrc ~/.vim ~/.tmux.conf ~/.inputrc ~/.dir_colors ~/.bin ~/.config/nvim ~/.local/share/fonts/dotfiles)
+    local links=(~/.vimrc ~/.vim ~/.tmux.conf ~/.inputrc ~/.dir_colors ~/.bin "$NVIM_CONF" ~/.local/share/fonts/dotfiles ~/.gitignore_global)
     for l in "${links[@]}"; do
         if [[ -L "$l" ]]; then
             run rm "$l"
@@ -286,9 +295,11 @@ do_status() {
         "Tmux          :~/.tmux.conf:[ -L ~/.tmux.conf ]"
         "Vim Config    :~/.vimrc:[ -L ~/.vimrc ]"
         "Vim Dir       :~/.vim:[ -L ~/.vim ]"
-        "Neovim        :~/.config/nvim:[ -L ~/.config/nvim ]"
+        "Neovim        :$NVIM_CONF:[ -L \"$NVIM_CONF\" ]"
         "Utilities     :~/.bin:[ -L ~/.bin ]"
         "Fonts         :~/.local/share/fonts/dotfiles:[ -L ~/.local/share/fonts/dotfiles ]"
+        "Git Config    :~/.gitconfig:grep -q 'Git configuration template' ~/.gitconfig"
+        "Git Global Ign:~/.gitignore_global:[ -L ~/.gitignore_global ]"
     )
 
     for c in "${components[@]}"; do
