@@ -167,6 +167,7 @@ alias ln='ln -iv'
 alias mkdir='mkdir -pv'
 
 # Helpers
+alias fixspaces="rename ' ' _ --all"
 alias dus='du -sh * | sort -h'    # Disk usage, sorted
 alias free='free -h 2>/dev/null || free'
 alias path='echo -e ${PATH//:/\\n}'
