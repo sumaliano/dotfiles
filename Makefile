@@ -131,6 +131,10 @@ status:
 	@if [ -e $(HOME)/.vimrc ]; then printf "  $(GREEN)[installed]$(NC) Vim\n"; else printf "  $(RED)[missing]  $(NC) Vim\n"; fi
 	@if [ -e $(HOME)/.config/nvim/init.lua ]; then printf "  $(GREEN)[installed]$(NC) Neovim\n"; else printf "  $(RED)[missing]  $(NC) Neovim\n"; fi
 	@if [ -e $(HOME)/.tmux.conf ]; then printf "  $(GREEN)[installed]$(NC) Tmux\n"; else printf "  $(RED)[missing]  $(NC) Tmux\n"; fi
+	@if [ -e $(HOME)/.gitignore_global ]; then printf "  $(GREEN)[installed]$(NC) Git\n"; else printf "  $(RED)[missing]  $(NC) Git\n"; fi
+	@if [ -e $(HOME)/.bin/sysinfo ]; then printf "  $(GREEN)[installed]$(NC) Utils\n"; else printf "  $(RED)[missing]  $(NC) Utils\n"; fi
+	@if [ -e $(HOME)/.local/share/fonts/Terminus ]; then printf "  $(GREEN)[installed]$(NC) Fonts\n"; else printf "  $(RED)[missing]  $(NC) Fonts\n"; fi
+	@if [ -e $(HOME)/.inputrc ]; then printf "  $(GREEN)[installed]$(NC) Inputrc\n"; else printf "  $(RED)[missing]  $(NC) Inputrc\n"; fi
 
 update:
 	git pull
