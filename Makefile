@@ -75,11 +75,8 @@ bash:
 
 vim:
 	$(INFO) "Configuring Vim..."
-	$(call stow_or_link,vim,$(call link_file,$(DOTFILES_DIR)/vim/dot-vimrc,$(HOME)/.vimrc); $(call link_file,$(DOTFILES_DIR)/vim/dot-vim,$(HOME)/.vim))
 	@mkdir -p $(DOTFILES_DIR)/vim/dot-vim/undo $(DOTFILES_DIR)/vim/dot-vim/backup $(DOTFILES_DIR)/vim/dot-vim/swap
-	@if [ -d "$(DOTFILES_DIR)/nvim/dot-config/nvim/colors" ]; then \
-		$(call link_file,$(DOTFILES_DIR)/nvim/dot-config/nvim/colors,$(HOME)/.vim/colors); \
-	fi
+	$(call stow_or_link,vim,$(call link_file,$(DOTFILES_DIR)/vim/dot-vimrc,$(HOME)/.vimrc); $(call link_file,$(DOTFILES_DIR)/vim/dot-vim,$(HOME)/.vim))
 
 neovim:
 	$(INFO) "Configuring Neovim..."
@@ -119,19 +116,21 @@ uninstall:
 	$(INFO) "Cleaning up dotfiles..."
 	@if [ -n "$(STOW)" ]; then \
 		stow --dotfiles -D -t $(HOME) bash vim nvim tmux git utils fonts inputrc 2>/dev/null || true; \
+	else \
+		for f in .dir_colors .vimrc .tmux.conf .gitignore_global .inputrc .vim .config/nvim .bin .local/share/fonts; do \
+			if [ -L "$(HOME)/$$f" ]; then rm -f "$(HOME)/$$f"; fi; \
+		done; \
 	fi
 	@sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' $(HOME)/.bashrc 2>/dev/null || true
-	@if [ -f $(HOME)/.gitconfig ] && grep -q "Git configuration template" $(HOME)/.gitconfig 2>/dev/null; then rm $(HOME)/.gitconfig; fi
-	@rm -f $(HOME)/.dir_colors $(HOME)/.vimrc $(HOME)/.tmux.conf $(HOME)/.gitignore_global $(HOME)/.inputrc
-	@rm -rf $(HOME)/.vim/colors $(HOME)/.config/nvim $(HOME)/.bin $(HOME)/.local/share/fonts
+	@if [ -f $(HOME)/.gitconfig ] && grep -q "Git configuration template" $(HOME)/.gitconfig 2>/dev/null; then rm -f $(HOME)/.gitconfig; fi
 	@printf "$(GREEN)[ok]$(NC) Cleanup complete\n"
 
 status:
 	@printf "$(BOLD)Dotfiles Status:$(NC)\n"
 	@if grep -q "# BEGIN DOTFILES" $(HOME)/.bashrc 2>/dev/null; then printf "  $(GREEN)[installed]$(NC) Bash\n"; else printf "  $(RED)[missing]  $(NC) Bash\n"; fi
-	@if [ -L $(HOME)/.vimrc ]; then printf "  $(GREEN)[installed]$(NC) Vim\n"; else printf "  $(RED)[missing]  $(NC) Vim\n"; fi
-	@if [ -L $(HOME)/.config/nvim ]; then printf "  $(GREEN)[installed]$(NC) Neovim\n"; else printf "  $(RED)[missing]  $(NC) Neovim\n"; fi
-	@if [ -L $(HOME)/.tmux.conf ]; then printf "  $(GREEN)[installed]$(NC) Tmux\n"; else printf "  $(RED)[missing]  $(NC) Tmux\n"; fi
+	@if [ -e $(HOME)/.vimrc ]; then printf "  $(GREEN)[installed]$(NC) Vim\n"; else printf "  $(RED)[missing]  $(NC) Vim\n"; fi
+	@if [ -e $(HOME)/.config/nvim/init.lua ]; then printf "  $(GREEN)[installed]$(NC) Neovim\n"; else printf "  $(RED)[missing]  $(NC) Neovim\n"; fi
+	@if [ -e $(HOME)/.tmux.conf ]; then printf "  $(GREEN)[installed]$(NC) Tmux\n"; else printf "  $(RED)[missing]  $(NC) Tmux\n"; fi
 
 update:
 	git pull
