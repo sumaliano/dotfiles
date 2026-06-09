@@ -8,7 +8,7 @@ Minimal, portable shell and editor configurations for **Bash**, **Vim**, and **N
 - **Neovim**: Plugin-free config with LSP, Git integration, fzf navigation
 - **Portability**: Graceful degradation on minimal systems, auto-detect modern tools
 - **No bloat**: Single files, no plugins (except nvim LSP)
-- **Stow-Compatible**: Organized folders for use with GNU Stow or the provided Makefile.
+- **Stow-Compatible**: Organized folders for use with GNU Stow (`--dotfiles`) or the provided Makefile.
 
 ## Quick Start
 
@@ -25,14 +25,14 @@ make vim bash tmux
 
 ## What's Included
 
-The repository is organized into components compatible with **GNU Stow**:
+The repository is organized into components compatible with **GNU Stow** using the `--dotfiles` naming convention (this keeps the repository free of hidden files):
 
-- **bash/**: `.bashrc_ext`, `.dir_colors`
-- **nvim/**: Neovim configuration (`.config/nvim`)
-- **vim/**: Vim configuration (`.vimrc`, `.vim/`)
-- **tmux/**: `.tmux.conf`
-- **git/**: `.gitconfig`, `.gitignore_global`
-- **utils/**: Custom scripts in `.bin/`
+- **bash/**: `dot-bashrc_ext`, `dot-dir_colors`
+- **nvim/**: Neovim configuration (`dot-config/nvim`)
+- **vim/**: Vim configuration (`dot-vimrc`, `dot-vim/`)
+- **tmux/**: `dot-tmux.conf`
+- **git/**: `dot-gitconfig`, `dot-gitignore_global`
+- **utils/**: Custom scripts in `dot-bin/`
 - **fonts/**: System fonts
 - **inputrc/**: Readline settings
 
@@ -66,10 +66,10 @@ Check status with `:lua print(vim.lsp.get_log_path())` or press `<leader>li`.
 ## Customization
 
 ### Bash
-Edit `bash/.bashrc_ext`. Local overrides go in `~/.bashrc.local`.
+Edit `bash/dot-bashrc_ext`. Local overrides go in `~/.bashrc.local`.
 
 ### Vim
-Edit `vim/.vimrc`.
+Edit `vim/dot-vimrc`.
 
 ### Neovim
-Edit `nvim/.config/nvim/init.lua`.
+Edit `nvim/dot-config/nvim/init.lua`.
