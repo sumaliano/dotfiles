@@ -8,6 +8,7 @@ Minimal, portable shell and editor configurations for **Bash**, **Vim**, and **N
 - **Neovim**: Plugin-free config with LSP, Git integration, fzf navigation
 - **Portability**: Graceful degradation on minimal systems, auto-detect modern tools
 - **No bloat**: Single files, no plugins (except nvim LSP)
+- **Stow-Compatible**: Organized folders for use with GNU Stow or the provided Makefile.
 
 ## Quick Start
 
@@ -15,27 +16,32 @@ Minimal, portable shell and editor configurations for **Bash**, **Vim**, and **N
 git clone https://github.com/username/dotfiles ~/dotfiles
 cd ~/dotfiles
 
-# Install to home directory
-./install.sh
+# Install to home directory (uses GNU Stow if available, otherwise falls back to ln)
+make install
 
 # Or install selectively
-./install.sh vim bash tmux
+make vim bash tmux
 ```
 
 ## What's Included
 
-### Config Files
-- `_gitconfig` - Git aliases and settings
-- `_tmuxrc` - Tmux configuration
-- `_inputrc` - Readline settings
-- `_dir_colors` - LS color scheme
+The repository is organized into components compatible with **GNU Stow**:
+
+- **bash/**: `.bashrc_ext`, `.dir_colors`
+- **nvim/**: Neovim configuration (`.config/nvim`)
+- **vim/**: Vim configuration (`.vimrc`, `.vim/`)
+- **tmux/**: `.tmux.conf`
+- **git/**: `.gitconfig`, `.gitignore_global`
+- **utils/**: Custom scripts in `.bin/`
+- **fonts/**: System fonts
+- **inputrc/**: Readline settings
 
 ## Compatibility
 
 - **Bash 3.2+** (minimal systems), **4.0+** recommended
 - **Vim 7.x+** (core), **8.0+** (persistent undo)
 - **Neovim 0.8+** (LSP requires 0.9+)
-- **Graceful degradation**: Older versions work fine, just with fewer features
+- **Graceful degradation**: Works on any system with `make` or `stow`.
 
 ## LSP Setup (Neovim)
 
@@ -53,10 +59,6 @@ rustup component add rust-analyzer
 
 # C/C++
 sudo apt install clangd  # or your package manager
-
-# Java
-# Download from https://github.com/eclipse-jdtls/eclipse.jdt.ls
-# Put `jdtls` binary in PATH
 ```
 
 Check status with `:lua print(vim.lsp.get_log_path())` or press `<leader>li`.
@@ -64,10 +66,10 @@ Check status with `:lua print(vim.lsp.get_log_path())` or press `<leader>li`.
 ## Customization
 
 ### Bash
-Edit `_bashrc` directly. Local overrides go in `~/.bashrc.local`.
+Edit `bash/.bashrc_ext`. Local overrides go in `~/.bashrc.local`.
 
 ### Vim
-Edit `_vimrc`. Sections are fold-marked for easy navigation.
+Edit `vim/.vimrc`.
 
 ### Neovim
-Edit `_config/nvim/init.lua`. All settings in one file.
+Edit `nvim/.config/nvim/init.lua`.
