@@ -14,7 +14,7 @@ NC     := \033[0m
 # Helpers
 INFO    := @printf "$(BLUE)==>$(NC) $(BOLD)%s$(NC)\n"
 SUCCESS := @printf "$(GREEN)[ok]$(NC) %s\n"
-WARN    := @printf "$(YELLOW}[warn]$(NC) %s\n"
+WARN    := @printf "$(YELLOW)[warn]$(NC) %s\n"
 
 .PHONY: all install sync status update clean bash vim neovim tmux git utils fonts inputrc help uninstall
 
@@ -32,12 +32,12 @@ help:
 
 # Macro for linking (Manual Fallback)
 define link_file
-	@dest=$(2); \
+	dest=$(2); \
 	if [ -L "$$dest" ]; then \
 		rm "$$dest"; \
 	elif [ -e "$$dest" ]; then \
 		backup="$$dest.backup.$$(date +%Y%m%d_%H%M%S)"; \
-		printf "$(YELLOW}[warn]$(NC) Backing up %s to %s\n" "$$dest" "$$backup"; \
+		printf "$(YELLOW)[warn]$(NC) Backing up %s to %s\n" "$$dest" "$$backup"; \
 		mv "$$dest" "$$backup"; \
 	fi; \
 	mkdir -p "$$(dirname "$$dest")"; \
@@ -76,7 +76,7 @@ bash:
 vim:
 	$(INFO) "Configuring Vim..."
 	$(call stow_or_link,vim,$(call link_file,$(DOTFILES_DIR)/vim/dot-vimrc,$(HOME)/.vimrc); $(call link_file,$(DOTFILES_DIR)/vim/dot-vim,$(HOME)/.vim))
-	@mkdir -p $(HOME)/.vim/{undo,backup,swap}
+	@mkdir -p $(DOTFILES_DIR)/vim/dot-vim/undo $(DOTFILES_DIR)/vim/dot-vim/backup $(DOTFILES_DIR)/vim/dot-vim/swap
 	@if [ -d "$(DOTFILES_DIR)/nvim/dot-config/nvim/colors" ]; then \
 		$(call link_file,$(DOTFILES_DIR)/nvim/dot-config/nvim/colors,$(HOME)/.vim/colors); \
 	fi
@@ -93,7 +93,7 @@ git:
 	$(INFO) "Configuring Git..."
 	$(call stow_or_link,git,$(call link_file,$(DOTFILES_DIR)/git/dot-gitignore_global,$(HOME)/.gitignore_global))
 	@if [ -f $(HOME)/.gitconfig ] && ! grep -q "Git configuration template" $(HOME)/.gitconfig 2>/dev/null; then \
-		printf "$(YELLOW}[warn]$(NC) ~/.gitconfig exists and isn't a dotfiles template. Skipping.\n"; \
+		printf "$(YELLOW)[warn]$(NC) ~/.gitconfig exists and isn't a dotfiles template. Skipping.\n"; \
 	else \
 		cp $(DOTFILES_DIR)/git/dot-gitconfig $(HOME)/.gitconfig; \
 		printf "$(GREEN)[ok]$(NC) Git config installed\n"; \
