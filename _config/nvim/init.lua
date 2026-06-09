@@ -114,14 +114,6 @@ map("v", ">", ">gv")
 map("v", "<A-j>", ":m '>+1<cr>gv=gv", { desc = "Move down" })
 map("v", "<A-k>", ":m '<-2<cr>gv=gv", { desc = "Move up" })
 
--- Lightweight Auto-Pairs (Parentheses, Brackets, Quotes)
-map("i", "(", "()<left>", { desc = "Auto-pair (" })
-map("i", "[", "[]<left>", { desc = "Auto-pair [" })
-map("i", "{", "{}<left>", { desc = "Auto-pair {" })
-map("i", "\"", "\"\"<left>", { desc = "Auto-pair \"" })
-map("i", "'", "''<left>", { desc = "Auto-pair '" })
-map("i", "`", "``<left>", { desc = "Auto-pair `" })
-
 -- Quick-close brackets with <C-j>
 map("i", "<C-j>", "<esc>A;<esc>", { desc = "Close line with semicolon" })
 map("i", "<C-k>", "<esc>A<cr>", { desc = "Break line at end" })
