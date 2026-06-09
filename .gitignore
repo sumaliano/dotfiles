@@ -10,8 +10,8 @@ GEMINI.md
 *~
 .*.sw?
 Session.vim
-_vim/.netrwhist
-_vim/undo/
+vim/dot-vim/.netrwhist
+vim/dot-vim/undo/
 
 # OS files
 .DS_Store
@@ -37,7 +37,7 @@ tmp/
 .idea/
 
 # neovim lazy
-_config/nvim/lazy-lock.json
+nvim/dot-config/nvim/lazy-lock.json
 
 # symbolic links
-_vim/colors
+vim/dot-vim/colors
