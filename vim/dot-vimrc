@@ -1,321 +1,556 @@
-" Joel Silva's Consolidated Vimrc
-" Minimal, modern, and functional
+" Joel Silva's .vimrc — mirrors nvim/init.lua as closely as vim allows
 
-"""" Basic Settings {{{1
 set nocompatible
-set number                " show line numbers
-set relativenumber        " hybrid line numbers
-set wrap                  " wrap lines
-set encoding=utf-8        " UTF-8 encoding
-set mouse=a               " enable mouse support
-set history=1000          " command history
-set laststatus=2          " always show statusline
-set ruler                 " show cursor position
-set showcmd               " show partial commands
-set showmatch             " highlight matching brackets
-set visualbell            " blink instead of beep
-set wildmenu              " visual autocomplete for command menu
-set wildmode=longest:full,full
-set lazyredraw            " redraw only when needed
-set hidden                " allow hidden buffers with unsaved changes
-set autoread              " reload files changed outside vim
-set scrolloff=3           " keep 3 lines visible above/below cursor
-set sidescrolloff=5       " keep 5 columns visible
-set updatetime=250        " faster updates
-
-" Better splits
-set splitbelow            " open new split below
-set splitright            " open new vsplit to right
-
-" Ignore common files
-set wildignore+=*/node_modules/*,*/__pycache__/*,*.pyc,*/.git/*
-set wildignore+=*.o,*.obj,*.swp,*.bak
-
-"""" Key Bindings {{{1
-let mapleader = " "
-
-" Quick escape from insert mode
-inoremap jk <esc>
-
-" Move by visual line (don't skip wrapped lines)
-nnoremap j gj
-nnoremap k gk
-
-" Clear search highlighting
-nnoremap <CR> :nohlsearch<CR><CR>
-
-" Search for visually selected text
-vnoremap // y/<C-R>"<CR>
-
-" Move lines up/down with Alt+j/k
-nnoremap <A-j> :m .+1<CR>==
-nnoremap <A-k> :m .-2<CR>==
-vnoremap <A-j> :m '>+1<CR>gv=gv
-vnoremap <A-k> :m '<-2<CR>gv=gv
-
-" Buffer navigation
-nnoremap <leader>bn :bnext<CR>
-nnoremap <leader>bp :bprevious<CR>
-nnoremap <leader>bd :bdelete<CR>
-nnoremap <leader>bo :call CloseHiddenBuffers()<CR>
-nnoremap <silent> <tab> :bnext<CR>
-nnoremap <silent> <s-tab> :bprevious<CR>
-
-" File explorer
-nnoremap <leader>e :edit .<CR>
-nnoremap - :edit %:h<CR>
-
-" Tab navigation
-nnoremap <leader>tn :tabnew<CR>
-nnoremap <leader>tq :tabclose<CR>
-nnoremap <leader>tl :tabnext<CR>
-nnoremap <leader>th :tabprevious<CR>
-
-" Quick line break in normal mode
-nnoremap <NL> i<CR><esc>
-
-" Change directory to current file
-nnoremap <leader>cd :lcd %:p:h<CR>
-
-" Strip trailing whitespace
-nnoremap <leader>sw :call StripWhitespace()<CR>
-
-"""" Appearance {{{1
-set t_Co=256
-set background=dark
-set cursorline            " highlight current line
-
-" Colorscheme with fallback
-silent! colorscheme badwolf
-if !exists('g:colors_name')
-    silent! colorscheme srcery
-    if !exists('g:colors_name')
-        colorscheme desert
-    endif
-endif
-
-" Syntax highlighting
 syntax enable
 filetype plugin indent on
 
-" Status line colors
-hi StatusLine ctermbg=39 ctermfg=16
-hi StatusLineNC ctermbg=234 ctermfg=245
-au InsertEnter * hi StatusLine ctermbg=178 ctermfg=16
-au InsertLeave * hi StatusLine ctermbg=39 ctermfg=16
+" ── Settings ──────────────────────────────────────────────────────────────────
 
-" Simple but informative status line
-set statusline=%<\ %f\ %m%r%w
-set statusline+=%=
-set statusline+=\ %y\
-set statusline+=%{&fenc!=''?&fenc:&enc}[%{&ff}]\
-set statusline+=%3p%%\ %l:%c\
+set number relativenumber cursorline
+set expandtab shiftwidth=4 tabstop=4 softtabstop=4 smarttab
+set smartindent autoindent
+set ignorecase smartcase hlsearch incsearch
+set splitright splitbelow
+set nowrap scrolloff=8 sidescrolloff=8
+set noswapfile nobackup
+set hidden autoread
+set showcmd showmatch
+set laststatus=2
+set wildmenu wildmode=longest:full,full
+set wildignore+=*/node_modules/*,*/__pycache__/*,*.pyc,*/.git/*,*.o,*.obj,*.swp,*.bak
+set encoding=utf-8
+set history=1000
+set mouse=
+set noshowmode
+set updatetime=300
+set timeoutlen=500 ttimeoutlen=50
+set pumheight=10
+set completeopt=menu,menuone,noselect,noinsert
+set list
+set listchars=tab:│\ ,trail:.,nbsp:+
 
-"""" Tab and Indent Settings {{{1
-set tabstop=4             " display width of tab character
-set shiftwidth=4          " indent width
-set softtabstop=4         " spaces inserted by <Tab>
-set expandtab             " use spaces instead of tabs
-set smarttab              " smart tab behavior
-set autoindent            " copy indent from current line
-set smartindent           " smart auto-indenting
-
-"""" Search Settings {{{1
-set incsearch             " search as you type
-set hlsearch              " highlight search matches
-set ignorecase            " ignore case in search
-set smartcase             " unless uppercase is used
-
-"""" Modern Vim Features {{{1
-" Persistent undo
 if has('persistent_undo')
-    set undofile
+    set undofile undolevels=1000 undoreload=10000
     set undodir=~/.vim/undo
-    set undolevels=1000
-    set undoreload=10000
-    " Create undo directory if it doesn't exist
     if !isdirectory(expand('~/.vim/undo'))
         call mkdir(expand('~/.vim/undo'), 'p')
     endif
 endif
 
-" Better backup and swap handling
-set backup
-set backupdir=~/.vim/backup
-set directory=~/.vim/swap
-if !isdirectory(expand('~/.vim/backup'))
-    call mkdir(expand('~/.vim/backup'), 'p')
-endif
-if !isdirectory(expand('~/.vim/swap'))
-    call mkdir(expand('~/.vim/swap'), 'p')
+if has('patch-8.1.1564')
+    set signcolumn=auto
 endif
 
-" Merge sign column with number column
-if has('nvim-0.5') || has('patch-8.1.1564')
-    set signcolumn=number
-endif
-
-" Better mouse support in terminals
 if !has('nvim') && &term =~ '^screen'
     set ttymouse=sgr
 endif
 
-"""" File Type Settings {{{1
-if has('autocmd')
-    augroup filetypes
-        autocmd!
-        autocmd FileType python,javascript set sw=4 sts=4 ts=4 et
-        autocmd FileType ruby,yaml,html,css,scss set sw=2 sts=2 ts=2 et
-        autocmd FileType tex,markdown set wrap linebreak
-        autocmd FileType c,cpp set colorcolumn=100
-        autocmd FileType vim set foldmethod=marker
-        autocmd FileType make set noexpandtab
+" ── Leader ────────────────────────────────────────────────────────────────────
 
-        " Close quickfix with q
-        autocmd FileType qf nnoremap <buffer> <silent> q :cclose<CR>
-    augroup END
+let mapleader = " "
+let maplocalleader = " "
 
-    " Auto-set makeprg for C/C++ if no Makefile
-    augroup makeprg
-        autocmd!
-        autocmd FileType c if !filereadable("Makefile") && !filereadable("makefile")
-            \ | set makeprg=gcc\ -o\ %<\ %
-            \ | endif
-        autocmd FileType cpp if !filereadable("Makefile") && !filereadable("makefile")
-            \ | set makeprg=g++\ -std=c++11\ -o\ %<\ %
-            \ | endif
-    augroup END
-endif
+" ── Colorscheme ───────────────────────────────────────────────────────────────
 
-"""" Functions {{{1
+set t_Co=256
+set background=dark
+for s:c in ['retrobox', 'badwolf', 'gruvbox', 'desert']
+    silent! execute 'colorscheme ' . s:c
+    if exists('g:colors_name') | break | endif
+endfor
 
-" Strip trailing whitespace
-function! StripWhitespace()
-    if !&binary && &filetype != 'diff'
-        let _s=@/
-        let l = line(".")
-        let c = col(".")
-        %s/\s\+$//e
-        let @/=_s
-        call cursor(l, c)
-    endif
+" ── Statusline ────────────────────────────────────────────────────────────────
+
+let g:sl_branch = ''
+function! SL_UpdateBranch()
+    let g:sl_branch = trim(system('git branch --show-current 2>/dev/null'))
 endfunction
 
-" Close all hidden buffers
-function! CloseHiddenBuffers()
-    let visible = {}
-    for t in range(1, tabpagenr('$'))
-        for b in tabpagebuflist(t)
-            let visible[b] = 1
-        endfor
+function! SL_Mode()
+    let l:m = {'n':'N','i':'I','v':'V','V':'VL',"\<C-V>":'VB','c':'C','R':'R','t':'T'}
+    return get(l:m, mode(), mode())
+endfunction
+
+function! SL_Build()
+    let l:file  = expand('%:~:.') !=# '' ? expand('%:~:.') : '[No Name]'
+    let l:flags = &modified ? ' [+]' : (!&modifiable ? ' [-]' : '')
+    let l:branch = g:sl_branch !=# '' ? '  ' . g:sl_branch : ''
+    return ' ' . SL_Mode() . l:branch . '  ' . l:file . l:flags
+endfunction
+
+augroup Statusline
+    autocmd!
+    autocmd BufEnter,DirChanged * call SL_UpdateBranch()
+    autocmd InsertEnter * hi StatusLine ctermbg=178 ctermfg=16
+    autocmd InsertLeave * hi StatusLine ctermbg=39  ctermfg=16
+augroup END
+
+hi StatusLine   ctermbg=39  ctermfg=16
+hi StatusLineNC ctermbg=234 ctermfg=245
+set statusline=%{SL_Build()}%=\ %y\ %{&fenc!=''?&fenc:&enc}[%{&ff}]\ %3p%%\ %l:%c\
+
+" ── Escape / Search ───────────────────────────────────────────────────────────
+
+inoremap jk <Esc>
+nnoremap <Esc> :nohlsearch<CR>
+nnoremap <CR>  :nohlsearch<CR><CR>
+vnoremap // y/<C-R>"<CR>
+
+" ── Save / Quit ───────────────────────────────────────────────────────────────
+
+nnoremap <leader>w :w<CR>
+nnoremap <leader>q :q<CR>
+nnoremap <leader>Q :qa<CR>
+
+" ── Alternate file ────────────────────────────────────────────────────────────
+
+nnoremap <leader><leader> <C-^>
+
+" ── Movement ──────────────────────────────────────────────────────────────────
+
+nnoremap j gj
+nnoremap k gk
+vnoremap < <gv
+vnoremap > >gv
+nnoremap <A-j> :m .+1<CR>==
+nnoremap <A-k> :m .-2<CR>==
+vnoremap <A-j> :m '>+1<CR>gv=gv
+vnoremap <A-k> :m '<-2<CR>gv=gv
+inoremap <C-j> <Esc>A;<Esc>
+inoremap <C-k> <Esc>A<CR>
+
+" ── Clipboard ─────────────────────────────────────────────────────────────────
+
+nnoremap <leader>y "+y
+vnoremap <leader>y "+y
+nnoremap <leader>p "+p
+vnoremap <leader>p "+p
+
+" ── Windows / Splits ──────────────────────────────────────────────────────────
+
+nnoremap <leader>- :split<CR>
+nnoremap <leader>\| :vsplit<CR>
+
+function! s:WinNav(d)
+    let l:cur = winnr()
+    execute 'wincmd ' . a:d
+    if winnr() == l:cur
+        call system('tmux select-pane -' . {'h':'L','j':'D','k':'U','l':'R'}[a:d])
+    endif
+endfunction
+nnoremap <M-h> :call <SID>WinNav('h')<CR>
+nnoremap <M-j> :call <SID>WinNav('j')<CR>
+nnoremap <M-k> :call <SID>WinNav('k')<CR>
+nnoremap <M-l> :call <SID>WinNav('l')<CR>
+
+" ── Quickfix ──────────────────────────────────────────────────────────────────
+
+nnoremap [q :cprev<CR>
+nnoremap ]q :cnext<CR>
+nnoremap Q  :call <SID>ToggleQuickfix()<CR>
+
+function! s:ToggleQuickfix()
+    for l:w in getwininfo()
+        if l:w.quickfix | cclose | return | endif
     endfor
-    let tally = 0
-    for b in range(1, bufnr('$'))
-        if bufloaded(b) && !has_key(visible, b)
-            let tally += 1
-            exe 'bw ' . b
+    if empty(getqflist()) | echo "Quickfix empty" | else | copen | endif
+endfunction
+
+" ── Buffers ───────────────────────────────────────────────────────────────────
+
+nnoremap <silent> <Tab>   :bnext<CR>
+nnoremap <silent> <S-Tab> :bprevious<CR>
+nnoremap <leader>bd :bdelete<CR>
+nnoremap <leader>bo :call CloseHiddenBuffers()<CR>
+
+" ── File Explorer (netrw) ─────────────────────────────────────────────────────
+
+nnoremap - :call <SID>ExploreParent()<CR>
+nnoremap <leader>e :call <SID>ToggleLexplore()<CR>
+
+function! s:ExploreParent()
+    if &filetype ==# 'netrw' | normal - | return | endif
+    try | execute 'Explore ' . expand('%:p:h') | catch | edit . | endtry
+endfunction
+
+function! s:ToggleLexplore()
+    for l:i in range(1, winnr('$'))
+        if getbufvar(winbufnr(l:i), '&filetype') ==# 'netrw'
+            execute l:i . 'wincmd w' | close | return
         endif
     endfor
-    echon "Closed " . tally . " hidden buffers"
+    execute 'Lexplore ' . expand('%:p:h')
+    vertical resize 30
 endfunction
 
-" Toggle number display modes
+" ── Tab pages ─────────────────────────────────────────────────────────────────
+
+nnoremap <leader>tn :tabnew<CR>
+nnoremap <leader>tq :tabclose<CR>
+nnoremap <leader>tl :tabnext<CR>
+nnoremap <leader>th :tabprevious<CR>
+
+" ── Terminal ──────────────────────────────────────────────────────────────────
+
+if has('terminal')
+    nnoremap <leader>t :terminal<CR>
+    tnoremap <Esc><Esc> <C-W>N
+endif
+
+" ── Config ────────────────────────────────────────────────────────────────────
+
+nnoremap <leader>cc :edit $MYVIMRC<CR>
+nnoremap <leader>cr :source $MYVIMRC<CR>:echo "Config reloaded"<CR>
+
+" ── Change directory ──────────────────────────────────────────────────────────
+
+nnoremap <leader>cd :call <SID>CdRoot()<CR>
+
+function! s:CdRoot()
+    let l:root = trim(system('git rev-parse --show-toplevel 2>/dev/null'))
+    if v:shell_error == 0 && l:root !=# ''
+        execute 'cd ' . fnameescape(l:root)
+    else
+        lcd %:p:h
+    endif
+    echo "CWD: " . getcwd()
+endfunction
+
+" ── Replace / Run ─────────────────────────────────────────────────────────────
+
+nnoremap <leader>r :call <SID>ReplaceWord()<CR>
+function! s:ReplaceWord()
+    call feedkeys(':%s/\<' . expand('<cword>') . '\>/' . expand('<cword>') . '/gc', 'n')
+endfunction
+
+nnoremap <leader>R :call <SID>RunFile()<CR>
+function! s:RunFile()
+    let l:f = shellescape(expand('%:p'))
+    let l:cmds = {'python':'python3 '.l:f,'python3':'python3 '.l:f,
+        \ 'sh':'bash '.l:f,'bash':'bash '.l:f,'lua':'lua '.l:f,
+        \ 'c':'gcc '.l:f.' -o /tmp/a.out && /tmp/a.out','rust':'cargo run'}
+    let l:cmd = get(l:cmds, &filetype, '')
+    if l:cmd ==# '' | echo "No run command for: " . &filetype | return | endif
+    if has('terminal') | execute 'terminal ' . l:cmd | else | execute '!' . l:cmd | endif
+endfunction
+
+" ── Line numbers toggle ───────────────────────────────────────────────────────
+
+nnoremap <F3> :call ToggleNumber()<CR>
+
+" ── Auto-completion toggle (F2) ───────────────────────────────────────────────
+
+let g:auto_cmp = 0
+nnoremap <F2> :call <SID>ToggleAutoCmp()<CR>
+function! s:ToggleAutoCmp()
+    let g:auto_cmp = !g:auto_cmp
+    augroup AutoCmp
+        autocmd!
+        if g:auto_cmp
+            autocmd TextChangedI * call <SID>AutoCmpTrigger()
+        endif
+    augroup END
+    echo "Auto-completion: " . (g:auto_cmp ? "ON" : "OFF")
+endfunction
+function! s:AutoCmpTrigger()
+    if pumvisible() || col('.') < 3 | return | endif
+    if getline('.')[col('.')-2] =~# '[a-zA-Z0-9_./~-]' | call feedkeys("\<C-n>", 'n') | endif
+endfunction
+
+" ── Smart completion (Tab / S-Tab / CR) ───────────────────────────────────────
+
+inoremap <expr> <Tab>   pumvisible() ? "\<C-n>" : <SID>SmartTab()
+inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+inoremap <expr> <CR>    pumvisible() ? "\<C-y>" : "\<CR>"
+
+function! s:SmartTab()
+    let l:col = col('.') - 1
+    if l:col == 0 || getline('.')[l:col-1] =~# '\s' | return "\<Tab>" | endif
+    let l:before = getline('.')[0:l:col-1]
+    if l:before =~# '[./~]$' || l:before =~# '/[a-zA-Z0-9._-]*$' | return "\<C-x>\<C-f>" | endif
+    return &omnifunc !=# '' ? "\<C-x>\<C-o>" : "\<C-n>"
+endfunction
+
+" ── Smart q for special windows ───────────────────────────────────────────────
+
+function! s:SmartClose()
+    if &filetype ==# 'qf' | cclose | return | endif
+    if &buftype =~# 'help\|nofile\|quickfix'
+        if winnr('$') > 1 | close | else | bdelete | endif
+    endif
+endfunction
+
+augroup SmartClose
+    autocmd!
+    autocmd FileType qf,help,diff,man
+        \ nnoremap <buffer> <silent> q :call <SID>SmartClose()<CR>
+    autocmd FileType netrw
+        \ nnoremap <buffer> <silent> q :close<CR>
+augroup END
+
+" ── Strip whitespace / Set tab ────────────────────────────────────────────────
+
+nnoremap <leader>sw :call StripWhitespace()<CR>
+nnoremap <leader>st :call SetTab()<CR>
+
+" ── File finders ──────────────────────────────────────────────────────────────
+
+nnoremap <leader>ff :call <SID>FindFile()<CR>
+nnoremap <leader>fr :call <SID>FindRecent()<CR>
+nnoremap <leader>fb :call <SID>FindBuffer()<CR>
+nnoremap <leader>fg :call <SID>GrepFiles()<CR>
+
+function! s:FindFile()
+    let l:pat = input('Find file: ')
+    if l:pat ==# '' | return | endif
+    let l:cmd = executable('fd')
+        \ ? 'fd -tf -H -E.git ' . shellescape(l:pat)
+        \ : 'find . -type f ! -path "*/.git/*" -name ' . shellescape('*'.l:pat.'*')
+    let l:files = systemlist(l:cmd)
+    if empty(l:files) | echo "\nNo files found" | return | endif
+    if len(l:files) == 1 | execute 'edit ' . fnameescape(l:files[0]) | return | endif
+    call setqflist(map(copy(l:files), '{"filename": v:val, "text": v:val}'), 'r')
+    copen
+endfunction
+
+function! s:FindRecent()
+    let l:files = filter(copy(v:oldfiles), 'filereadable(expand(v:val))')[:19]
+    if empty(l:files) | echo "No recent files" | return | endif
+    let l:n = inputlist(['Recent files:'] + map(copy(l:files), 'v:key+1 . ". " . v:val'))
+    if l:n > 0 && l:n <= len(l:files) | execute 'edit ' . fnameescape(l:files[l:n-1]) | endif
+endfunction
+
+function! s:FindBuffer()
+    let l:bufs = filter(range(1, bufnr('$')), 'buflisted(v:val) && bufloaded(v:val)')
+    let l:names = map(copy(l:bufs), 'bufname(v:val)')
+    if empty(l:names) | echo "No buffers" | return | endif
+    let l:n = inputlist(['Buffers:'] + map(copy(l:names), 'v:key+1 . ". " . v:val'))
+    if l:n > 0 && l:n <= len(l:names) | execute 'buffer ' . fnameescape(l:names[l:n-1]) | endif
+endfunction
+
+function! s:GrepFiles()
+    let l:pat = input('Grep: ')
+    if l:pat ==# '' | return | endif
+    execute 'grep! ' . shellescape(l:pat) | copen
+endfunction
+
+" ── Git ───────────────────────────────────────────────────────────────────────
+
+nnoremap <leader>gs :call <SID>GitStatus()<CR>
+nnoremap <leader>gd :call <SID>GitDiff()<CR>
+nnoremap <leader>gb :call <SID>GitBlame()<CR>
+nnoremap <leader>ga :!git add %<CR>:call SL_UpdateBranch()<CR>:echo "Staged"<CR>
+nnoremap <leader>gu :!git restore --staged %<CR>:echo "Unstaged"<CR>
+nnoremap <leader>gr :!git restore %<CR>:edit!<CR>:echo "Reset"<CR>
+nnoremap <leader>gP :!git push<CR>
+if has('terminal')
+    nnoremap <leader>gC :terminal git commit<CR>
+else
+    nnoremap <leader>gC :!git commit<CR>
+endif
+
+function! s:GitStatus()
+    let l:lines = systemlist('git status --porcelain')
+    if empty(l:lines) | echo "Clean" | return | endif
+    call setqflist([], 'r', {'title': 'Git Status',
+        \ 'items': map(copy(l:lines), '{"filename": v:val[3:], "text": v:val[:1]}')})
+    copen
+endfunction
+
+function! s:GitDiff()
+    let l:rel = trim(system('git ls-files --full-name ' . shellescape(expand('%:p'))))
+    if l:rel ==# '' || v:shell_error != 0 | echo "Not tracked" | return | endif
+    let l:content = systemlist('git show HEAD:' . shellescape(l:rel))
+    if empty(l:content) | echo "No HEAD version" | return | endif
+    let l:work_buf = bufnr('%')
+    let l:work_ft  = &filetype
+    leftabove vnew
+    let l:ref_buf = bufnr('%')
+    call setline(1, l:content)
+    setlocal buftype=nofile bufhidden=wipe nomodifiable
+    execute 'setlocal filetype=' . l:work_ft
+    diffthis
+    setlocal foldcolumn=0
+    execute bufwinnr(l:work_buf) . 'wincmd w'
+    diffthis
+    execute 'nnoremap <buffer> q :diffoff!<CR>:' . l:ref_buf . 'bdelete!<CR>'
+    echo "Diff: HEAD | WORKING  ]c/[c nav  q=quit"
+endfunction
+
+function! s:GitBlame()
+    let l:blame = systemlist('git blame --date=short ' . shellescape(expand('%:p')))
+    if empty(l:blame) | echo "Not tracked" | return | endif
+    tabnew
+    call setline(1, l:blame)
+    setlocal buftype=nofile bufhidden=wipe nomodifiable
+    nnoremap <buffer> q :tabclose<CR>
+    echo "Blame  q=quit"
+endfunction
+
+" ── Help cheatsheet ───────────────────────────────────────────────────────────
+
+nnoremap <leader>? :call <SID>ShowHelp()<CR>
+function! s:ShowHelp()
+    echo "GENERAL:  w/q/Q save/quit | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | M-hjkl win"
+    echo "          r replace | R run | cc/cr config | F2 auto-cmp | F3 numbers | sw strip | st tab | cd root"
+    echo "GIT:      gs status | gd diff | ga add | gu unstage | gr restore | gb blame | gC commit | gP push"
+    echo "COMPLETE: Tab=smart  S-Tab=prev  CR=confirm  F2=toggle auto"
+endfunction
+
+" ── File type settings ────────────────────────────────────────────────────────
+
+augroup filetypes
+    autocmd!
+    autocmd FileType python,javascript        setlocal sw=4 sts=4 ts=4 et
+    autocmd FileType ruby,yaml,html,css,scss  setlocal sw=2 sts=2 ts=2 et
+    autocmd FileType markdown,gitcommit       setlocal wrap linebreak spell
+    autocmd FileType yaml,yml                 setlocal commentstring=#\ %s
+    autocmd FileType c,cpp                    setlocal colorcolumn=100
+    autocmd FileType vim                      setlocal foldmethod=marker
+    autocmd FileType make                     setlocal noexpandtab
+    autocmd FileType qf                       nnoremap <buffer> <silent> q :cclose<CR>
+augroup END
+
+augroup makeprg
+    autocmd!
+    autocmd FileType c   if !filereadable("Makefile") && !filereadable("makefile")
+        \ | setlocal makeprg=gcc\ -o\ %<\ %    | endif
+    autocmd FileType cpp if !filereadable("Makefile") && !filereadable("makefile")
+        \ | setlocal makeprg=g++\ -std=c++11\ -o\ %<\ % | endif
+augroup END
+
+" ── Autocommands ──────────────────────────────────────────────────────────────
+
+augroup CoreAutoCmd
+    autocmd!
+    " Restore cursor to last position on open
+    autocmd BufReadPost *
+        \ if line("'\"") > 0 && line("'\"") <= line("$") | execute "normal! g'\"" | endif
+    " Yank highlight (requires vim 8.0.1394+)
+    if exists('##TextYankPost') && exists('*timer_start')
+        autocmd TextYankPost * call s:HighlightYank()
+    endif
+augroup END
+
+let s:hl_yank_id = -1
+function! s:HighlightYank()
+    if s:hl_yank_id != -1 | silent! call matchdelete(s:hl_yank_id) | let s:hl_yank_id = -1 | endif
+    let [l:l1, l:c1] = [line("'["), col("'[")]
+    let [l:l2, l:c2] = [line("']"), col("']")]
+    if l:l1 == l:l2
+        let s:hl_yank_id = matchaddpos('IncSearch', [[l:l1, l:c1, l:c2 - l:c1 + 1]])
+    else
+        let l:regions = [[l:l1, l:c1, 999]]
+        for l:l in range(l:l1 + 1, l:l2 - 1) | call add(l:regions, [l:l, 1, 999]) | endfor
+        call add(l:regions, [l:l2, 1, l:c2])
+        let s:hl_yank_id = matchaddpos('IncSearch', l:regions)
+    endif
+    let l:id = s:hl_yank_id
+    call timer_start(300, {-> execute('silent! call matchdelete(' . l:id . ')', '')})
+endfunction
+
+" ── Functions ─────────────────────────────────────────────────────────────────
+
+function! StripWhitespace()
+    if !&binary && &filetype !=# 'diff'
+        let [l:s, l:l, l:c] = [@/, line('.'), col('.')]
+        %s/\s\+$//e
+        let @/ = l:s | call cursor(l:l, l:c) | echo "Stripped whitespace"
+    endif
+endfunction
+
+function! CloseHiddenBuffers()
+    let l:visible = {}
+    for l:t in range(1, tabpagenr('$'))
+        for l:b in tabpagebuflist(l:t) | let l:visible[l:b] = 1 | endfor
+    endfor
+    let l:n = 0
+    for l:b in range(1, bufnr('$'))
+        if bufloaded(l:b) && !has_key(l:visible, l:b)
+            silent! execute 'bwipeout ' . l:b | let l:n += 1
+        endif
+    endfor
+    echo "Closed " . l:n . " hidden buffers"
+endfunction
+
 function! ToggleNumber()
     if &relativenumber
-        setlocal nonumber norelativenumber
-        echo "Line numbers: OFF"
+        setlocal nonumber norelativenumber | echo "Numbers: OFF"
     elseif &number
-        setlocal number relativenumber
-        echo "Line numbers: Hybrid"
+        setlocal number relativenumber    | echo "Numbers: Hybrid"
     else
-        setlocal number norelativenumber
-        echo "Line numbers: Absolute"
+        setlocal number norelativenumber  | echo "Numbers: Absolute"
     endif
 endfunction
 
-" Set consistent tab width
 function! SetTab()
-    let l:tabstop = 1 * input('set tabstop = softtabstop = shiftwidth = ')
-    if l:tabstop > 0
-        let &l:sts = l:tabstop
-        let &l:ts = l:tabstop
-        let &l:sw = l:tabstop
-    endif
-    call SummarizeTabs()
-endfunction
-
-function! SummarizeTabs()
+    let l:n = 1 * input('Tab width: ')
+    if l:n > 0 | let &l:tabstop = l:n | let &l:softtabstop = l:n | let &l:shiftwidth = l:n | endif
     echohl ModeMsg
-    echon 'tabstop='.&l:ts
-    echon ' shiftwidth='.&l:sw
-    echon ' softtabstop='.&l:sts
-    echon &l:et ? ' expandtab' : ' noexpandtab'
+    echon 'tabstop='.&l:tabstop.' shiftwidth='.&l:shiftwidth.' softtabstop='.&l:softtabstop
+    echon &l:expandtab ? ' expandtab' : ' noexpandtab'
     echohl None
 endfunction
 
-"""" Commands {{{1
-command! -nargs=0 ToggleNumber call ToggleNumber()
-command! -nargs=0 StripWhitespace call StripWhitespace()
-command! -nargs=* SetTab call SetTab()
-command! -nargs=0 CloseHidden call CloseHiddenBuffers()
+" ── Commands ──────────────────────────────────────────────────────────────────
+
+command! -nargs=0 ToggleNumber       call ToggleNumber()
+command! -nargs=0 StripWhitespace    call StripWhitespace()
+command! -nargs=* SetTab             call SetTab()
+command! -nargs=0 CloseHidden        call CloseHiddenBuffers()
 command! -nargs=0 CloseHiddenBuffers call CloseHiddenBuffers()
+command! -nargs=+ G                  execute '!git ' . <q-args>
 
-"""" Simple Commentary Plugin {{{1
-" Lightweight commenting plugin
-function! s:surroundings() abort
+" ── Commentary (inline; mirrors tpope/vim-commentary) ─────────────────────────
+
+function! s:CommentSurroundings() abort
     return split(get(b:, 'commentary_format', substitute(substitute(substitute(
-                \ &commentstring, '^$', '%s', ''), '\S\zs%s',' %s', '') ,'%s\ze\S', '%s ', '')), '%s', 1)
+        \ &commentstring, '^$', '%s', ''), '\S\zs%s', ' %s', ''), '%s\ze\S', '%s ', '')), '%s', 1)
 endfunction
 
-function! s:strip_white_space(l,r,line) abort
-    let [l, r] = [a:l, a:r]
-    if l[-1:] ==# ' ' && stridx(a:line,l) == -1 && stridx(a:line,l[0:-2]) == 0
-        let l = l[:-2]
-    endif
-    if r[0] ==# ' ' && a:line[-strlen(r):] != r && a:line[1-strlen(r):] == r[1:]
-        let r = r[1:]
-    endif
-    return [l, r]
+function! s:CommentStripWS(l, r, line) abort
+    let [l:l, l:r] = [a:l, a:r]
+    if l:l[-1:] ==# ' ' && stridx(a:line,l:l) == -1 && stridx(a:line,l:l[0:-2]) == 0 | let l:l = l:l[:-2] | endif
+    if l:r[0] ==# ' ' && a:line[-strlen(l:r):] != l:r && a:line[1-strlen(l:r):] == l:r[1:] | let l:r = l:r[1:] | endif
+    return [l:l, l:r]
 endfunction
 
-function! s:go(...) abort
+function! s:CommentGo(...) abort
     if !a:0
         let &operatorfunc = matchstr(expand('<sfile>'), '[^. ]*$')
         return 'g@'
     elseif a:0 > 1
-        let [lnum1, lnum2] = [a:1, a:2]
+        let [l:lnum1, l:lnum2] = [a:1, a:2]
     else
-        let [lnum1, lnum2] = [line("'["), line("']")]
+        let [l:lnum1, l:lnum2] = [line("'["), line("']")]
     endif
-
-    let [l, r] = s:surroundings()
-    let uncomment = 2
-    for lnum in range(lnum1,lnum2)
-        let line = matchstr(getline(lnum),'\S.*\s\@<!')
-        let [l, r] = s:strip_white_space(l,r,line)
-        if len(line) && (stridx(line,l) || line[strlen(line)-strlen(r) : -1] != r)
-            let uncomment = 0
+    let [l:l, l:r] = s:CommentSurroundings()
+    let l:uncomment = 2
+    for l:lnum in range(l:lnum1, l:lnum2)
+        let l:line = matchstr(getline(l:lnum), '\S.*\s\@<!')
+        let [l:l, l:r] = s:CommentStripWS(l:l, l:r, l:line)
+        if len(l:line) && (stridx(l:line,l:l) || l:line[strlen(l:line)-strlen(l:r):-1] != l:r)
+            let l:uncomment = 0
         endif
     endfor
-
-    for lnum in range(lnum1,lnum2)
-        let line = getline(lnum)
-        if uncomment
-            let line = substitute(line,'\S.*\s\@<!','\=submatch(0)[strlen(l):-strlen(r)-1]','')
+    for l:lnum in range(l:lnum1, l:lnum2)
+        let l:line = getline(l:lnum)
+        if l:uncomment
+            let l:line = substitute(l:line,'\S.*\s\@<!','\=submatch(0)[strlen(l:l):-strlen(l:r)-1]','')
         else
-            let line = substitute(line,'^\s*\zs.*\S\@<=','\=l.submatch(0).r','')
+            let l:line = substitute(l:line,'^\s*\zs.*\S\@<=','\=l:l.submatch(0).l:r','')
         endif
-        call setline(lnum,line)
+        call setline(l:lnum, l:line)
     endfor
     return ''
 endfunction
 
-command! -range -bar Commentary call s:go(<line1>,<line2>)
-xnoremap <expr> <Plug>Commentary <SID>go()
-nnoremap <expr> <Plug>Commentary <SID>go()
-nnoremap <expr> <Plug>CommentaryLine <SID>go() . '_'
+command! -range -bar Commentary call s:CommentGo(<line1>, <line2>)
+xnoremap <expr> <Plug>Commentary <SID>CommentGo()
+nnoremap <expr> <Plug>Commentary <SID>CommentGo()
+nnoremap <expr> <Plug>CommentaryLine <SID>CommentGo() . '_'
 
-if !hasmapto('<Plug>Commentary') || maparg('gc','n') ==# ''
+if !hasmapto('<Plug>Commentary') || maparg('gc', 'n') ==# ''
     xmap gc <Plug>Commentary
     nmap gc <Plug>Commentary
     nmap gcc <Plug>CommentaryLine
@@ -323,11 +558,9 @@ endif
 
 augroup Commentary
     autocmd!
-    autocmd FileType c,cpp,java setlocal commentstring=//\ %s
-    autocmd FileType python,bash,sh setlocal commentstring=#\ %s
-    autocmd FileType vim setlocal commentstring=\"\ %s
+    autocmd FileType c,cpp,java              setlocal commentstring=//\ %s
+    autocmd FileType python,bash,sh,yaml,yml setlocal commentstring=#\ %s
+    autocmd FileType vim                     setlocal commentstring=\"\ %s
 augroup END
 
-" 1}}}
-
-" vim: foldmethod=marker foldlevel=0
+" vim: foldmethod=marker

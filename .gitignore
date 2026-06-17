@@ -45,5 +45,4 @@ vendor/
 # neovim lazy
 nvim/dot-config/nvim/lazy-lock.json
 
-# symbolic links
-vim/dot-vim/colors
+# symbolic links (none currently)

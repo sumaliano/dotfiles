@@ -100,7 +100,7 @@ printf "\n"
 # Naming conventions differ across projects:
 #   fzf uses "amd64" / "arm64"
 #   musl Rust builds use "x86_64" / "aarch64"
-#   nvim AppImage uses "x86_64" / "arm64"
+#   nvim tarball uses "x86_64" / "arm64"
 FZF_ARCH="amd64";  [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
 NVIM_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
 TMUX_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
@@ -131,10 +131,10 @@ install_tar eza \
 install_tar delta \
     "$(gh_latest dandavison/delta "${MUSL}.tar.gz")"
 
-# nvim — AppImage (self-contained, no FUSE needed on kernel 4.18+)
-# Falls back gracefully to system vim/vi when absent.
-install_file nvim \
-    "$(gh_latest neovim/neovim "nvim-linux-${NVIM_ARCH}.appimage")"
+# nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
+# For old systems, deploy vim config instead: make install HOST=server TOOL=vim
+install_tar nvim \
+    "$(gh_latest neovim/neovim "nvim-linux-${NVIM_ARCH}.tar.gz")"
 
 # tmux — official static builds (tmux/tmux-builds)
 install_tar tmux \
