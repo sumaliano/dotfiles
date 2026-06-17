@@ -1,66 +1,78 @@
 #!/usr/bin/env bash
-# Minimalist tmux session save and restore script
-# Saves session names, windows, and pane layouts with their CWDs
+# tmux-session — save and restore tmux sessions across reboots
+#
+# Usage:
+#   tmux-session save     (prefix + Ctrl-s)
+#   tmux-session restore  (prefix + Ctrl-r)
 
-set -euo pipefail
+set -uo pipefail
 
-# Storage file
-DUMP_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/tmux/session_snapshot.txt"
-mkdir -p "$(dirname "$DUMP_FILE")"
+SAVE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tmux"
+SAVE_FILE="$SAVE_DIR/session.txt"
+D=$'\t'
 
-# Colors
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# ── Save ──────────────────────────────────────────────────────────────────────
 
 save() {
-    echo -e "${BLUE}Saving tmux sessions...${NC}"
-
-    # Format: session_name | window_index | window_name | layout | pane_index | pane_current_path
-    tmux list-windows -a -F "#{session_name}|#{window_index}|#{window_name}|#{window_layout}|#{pane_index}|#{pane_current_path}" > "$DUMP_FILE"
-
-    local count=$(wc -l < "$DUMP_FILE")
-    echo -e "${GREEN}[ok]${NC} Saved $count panes across all sessions."
+    mkdir -p "$SAVE_DIR"
+    # One line per pane: everything needed to recreate sessions, windows, panes, layouts
+    tmux list-panes -a -F \
+        "#{session_name}${D}#{window_index}${D}#{window_name}${D}#{window_layout}${D}#{window_active}${D}#{pane_index}${D}#{pane_current_path}${D}#{pane_active}" \
+        > "$SAVE_FILE"
+    tmux display-message "Saved $(wc -l < "$SAVE_FILE") panes"
 }
 
+# ── Restore ───────────────────────────────────────────────────────────────────
+
+session_exists() { tmux has-session -t "=$1" 2>/dev/null; }
+window_exists()  { tmux list-windows -t "$1" -F "#{window_index}" 2>/dev/null | grep -qx "$2"; }
+
 restore() {
-    if [[ ! -f "$DUMP_FILE" ]]; then
-        echo -e "${YELLOW}[!]${NC} No saved session found at $DUMP_FILE"
-        return 1
-    fi
+    [ -f "$SAVE_FILE" ] || { tmux display-message "No saved session found"; return 1; }
 
-    echo -e "${BLUE}Restoring tmux sessions...${NC}"
+    local -A seen  # tracks session:win_idx → first pane already placed
 
-    # Read the dump file line by line
-    while IFS='|' read -r session_name window_index window_name layout pane_index pane_path; do
-        # 1. Create session if it doesn't exist
-        if ! tmux has-session -t "$session_name" 2>/dev/null; then
-            TMUX= tmux new-session -d -s "$session_name" -n "$window_name" -c "$pane_path"
+    while IFS="$D" read -r session win_idx win_name layout win_active pane_idx pane_path pane_active; do
+        local path="${pane_path/#\~/$HOME}"
+        [ -d "$path" ] || path="$HOME"
+        local key="${session}:${win_idx}"
+
+        if [[ -z "${seen[$key]+x}" ]]; then
+            seen[$key]=1
+            if ! session_exists "$session"; then
+                local base; base=$(tmux show -gv base-index 2>/dev/null || echo 1)
+                TMUX= tmux new-session -d -s "$session" -n "$win_name" -c "$path" -x 220 -y 50
+                # new-session creates the first window at base-index; move it if needed
+                [[ "$base" != "$win_idx" ]] && \
+                    tmux move-window -s "${session}:${base}" -t "${session}:${win_idx}" 2>/dev/null || true
+            elif ! window_exists "$session" "$win_idx"; then
+                tmux new-window -d -t "${session}:${win_idx}" -n "$win_name" -c "$path"
+            fi
+            # window already exists → its first pane is there, nothing to do
+        else
+            # Subsequent pane in the same window: split and shrink to make room
+            tmux split-window -d -t "${session}:${win_idx}" -c "$path"
+            tmux resize-pane  -t "${session}:${win_idx}" -U 999
         fi
+    done < "$SAVE_FILE"
 
-        # 2. Create window if it doesn't exist
-        if ! tmux list-windows -t "$session_name" -F "#I" | grep -q "^$window_index$"; then
-            tmux new-window -d -t "$session_name:$window_index" -n "$window_name" -c "$pane_path"
+    # Second pass: apply layouts, focus active panes and windows
+    local -A laid_out
+    while IFS="$D" read -r session win_idx win_name layout win_active pane_idx pane_path pane_active; do
+        local key="${session}:${win_idx}"
+        if [[ -z "${laid_out[$key]+x}" ]]; then
+            laid_out[$key]=1
+            tmux select-layout -t "$key" "$layout" 2>/dev/null || true
         fi
+        [[ "$pane_active" == "1" ]] && tmux select-pane   -t "${key}.${pane_idx}" 2>/dev/null || true
+        [[ "$win_active"  == "1" ]] && tmux select-window -t "$key"               2>/dev/null || true
+    done < "$SAVE_FILE"
 
-        # 3. Apply the layout to the window
-        # We only need to do this once per window (when we hit the first pane)
-        if [[ "$pane_index" -eq 0 ]]; then
-            tmux select-layout -t "$session_name:$window_index" "$layout"
-        fi
-
-        # 4. Set the directory for each pane (if the pane already exists)
-        # Note: tmux doesn't easily let us 're-split' into a specific layout with CWDs
-        # but the layout command handles the structure. The panes will start in the
-        # CWD of the window's first pane.
-    done < "$DUMP_FILE"
-
-    echo -e "${GREEN}[ok]${NC} Restoration complete."
+    tmux display-message "Sessions restored"
 }
 
 case "${1:-}" in
     save)    save ;;
     restore) restore ;;
-    *)       echo "Usage: $0 {save|restore}"; exit 1 ;;
+    *) printf "Usage: tmux-session {save|restore}\n" >&2; exit 1 ;;
 esac
