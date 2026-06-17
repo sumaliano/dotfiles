@@ -159,6 +159,8 @@ install_tool() {
     if [ -n "$component" ] && declare -f "install_$component" &>/dev/null; then
         "install_$component"
     fi
+
+    warn "Run 'hash -r' (or open a new terminal) to clear the shell's command cache"
 }
 
 # ── Entry point ─────────────────────────────────────────────────────────────

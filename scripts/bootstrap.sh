@@ -103,6 +103,7 @@ printf "\n"
 #   nvim AppImage uses "x86_64" / "arm64"
 FZF_ARCH="amd64";  [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
 NVIM_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
+TMUX_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
 MUSL="${ARCH}-unknown-linux-musl"
 
 # fzf — Go static binary (junegunn/fzf)
@@ -135,9 +136,13 @@ install_tar delta \
 install_file nvim \
     "$(gh_latest neovim/neovim "nvim-linux-${NVIM_ARCH}.appimage")"
 
+# tmux — official static builds (tmux/tmux-builds)
+install_tar tmux \
+    "$(gh_latest tmux/tmux-builds "linux-${TMUX_ARCH}.tar.gz")"
+
 # ---------------------------------------------------------------------------
 
 printf "\n"
 info "Vendor directory contents:"
 ls -lh "$VENDOR_DIR" 2>/dev/null || printf "  (empty)\n"
-printf "\n${GREEN}Done.${NC} Run ${BOLD}make deploy HOST=user@server${NC} to push to a remote machine.\n"
+printf "\n${GREEN}Done.${NC} Run ${BOLD}make install HOST=user@server TOOL=<name>${NC} to push to a remote machine.\n"
