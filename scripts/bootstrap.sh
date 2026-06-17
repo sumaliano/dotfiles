@@ -138,8 +138,7 @@ install_tar nvim \
     "$(gh_latest neovim/neovim "nvim-linux-${NVIM_ARCH}.tar.gz")"
 
 # vim — static-pie single binary, no runtime needed, x86_64 + arm64 (heywoodlh/vim-builds)
-# Zero glibc dependency; works on any Linux. Use when nvim fails on old glibc servers.
-# Our vimrc acts as the runtime substitute (suppresses the defaults.vim warning).
+# Zero glibc dependency. Use when nvim fails on old glibc servers.
 install_file vim \
     "$(gh_latest heywoodlh/vim-builds "vim-${VIM_ARCH}")"
 

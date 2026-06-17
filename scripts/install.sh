@@ -139,8 +139,7 @@ declare -A TOOL_COMPONENT=(
 install_tool() {
     local tool="$1"
     local arch; arch=$(uname -m)
-    local vendor_dir="$DOTFILES/vendor/linux-$arch"
-    local src="$vendor_dir/$tool"
+    local src="$DOTFILES/vendor/linux-$arch/$tool"
 
     info "Tool: $tool"
 
@@ -151,8 +150,6 @@ install_tool() {
         chmod +x "$HOME/.local/bin/$tool"
         ok "$tool  →  ~/.local/bin/$tool"
         warn "Run 'hash -r' (or open a new terminal) to refresh the shell's command cache"
-    elif [ "$tool" = "vim" ]; then
-        ok "vim  →  using system binary (no vendor build for $arch)"
     else
         warn "Binary not found in vendor/linux-$arch/ — run 'make vendor' first"
     fi

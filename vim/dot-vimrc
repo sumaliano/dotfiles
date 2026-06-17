@@ -1,8 +1,17 @@
 " Joel Silva's .vimrc — mirrors nvim/init.lua as closely as vim allows
 
 set nocompatible
-syntax enable
-filetype plugin indent on
+
+" Locate vim runtime — the compiled-in path may not exist on servers using a
+" static binary. Fall back to any system runtime found under /usr/share/vim/.
+if !isdirectory($VIMRUNTIME)
+    for s:rt in globpath('/usr/share/vim', 'vim[0-9]*', 0, 1)
+        if isdirectory(s:rt . '/syntax') | let $VIMRUNTIME = s:rt | break | endif
+    endfor
+    unlet! s:rt
+endif
+silent! syntax enable
+silent! filetype plugin indent on
 
 " ── Settings ──────────────────────────────────────────────────────────────────
 
