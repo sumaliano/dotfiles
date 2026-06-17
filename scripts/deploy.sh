@@ -5,7 +5,7 @@
 #   ./scripts/deploy.sh user@host --tool nvim
 #   ./scripts/deploy.sh user@host --tool nvim,fzf,bat
 
-set -uo pipefail
+set -euo pipefail
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -37,8 +37,8 @@ done
 
 [ -z "$REMOTE" ] && die "Usage: $(basename "$0") [user@]host --tool name[,name]"
 [ -z "$TOOLS"  ] && die "Specify at least one tool: --tool nvim  or  --tool nvim,fzf,bat"
-command -v rsync &>/dev/null || die "rsync is required"
-command -v ssh   &>/dev/null || die "ssh is required"
+command -v ssh &>/dev/null || die "ssh is required"
+command -v scp &>/dev/null || die "scp is required"
 
 # ── Config map: tool → "source|remote_dest" pairs ────────────────────────────
 
@@ -51,12 +51,12 @@ declare -A TOOL_CONFIG=(
 # ── Connect ───────────────────────────────────────────────────────────────────
 
 info "Connecting to $REMOTE..."
-REMOTE_ARCH=$(ssh "$REMOTE" uname -m 2>/dev/null) || die "Cannot connect to $REMOTE"
+REMOTE_ARCH=$(ssh -q "$REMOTE" uname -m 2>/dev/null) || die "Cannot connect to $REMOTE"
 [ -z "$REMOTE_ARCH" ] && die "Could not detect remote architecture"
 ok "Connected  (arch: linux-$REMOTE_ARCH)"
 
 VENDOR_DIR="$DOTFILES/vendor/linux-$REMOTE_ARCH"
-ssh "$REMOTE" 'mkdir -p ~/.local/bin'
+ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
 
 # ── Deploy each tool ──────────────────────────────────────────────────────────
 
@@ -72,23 +72,28 @@ for tool in "${tool_list[@]}"; do
     tool="${tool// /}"
     info "Deploying: $tool"
 
-    # Binary
+    # Binary — scp needs no remote binary, it's handled by sshd
     src="$VENDOR_DIR/$tool"
     if [ -f "$src" ]; then
-        rsync -az --chmod=ugo+x "$src" "$REMOTE:~/.local/bin/$tool"
+        scp -q "$src" "$REMOTE:~/.local/bin/$tool"
+        ssh -q "$REMOTE" "chmod +x ~/.local/bin/$tool"
         ok "$tool  →  ~/.local/bin/$tool"
     else
         warn "Binary not in vendor/linux-$REMOTE_ARCH/ — run 'make vendor' first"
     fi
 
-    # Config
+    # Config — files via scp, directories via tar-over-ssh
     mapping="${TOOL_CONFIG[$tool]:-}"
     for pair in $mapping; do
         local_src="$DOTFILES/${pair%%|*}"
         remote_dest="${pair##*|}"
         if [ -e "$local_src" ]; then
-            ssh "$REMOTE" "mkdir -p \"\$(dirname $remote_dest)\""
-            rsync -az "$local_src" "$REMOTE:$remote_dest"
+            ssh -q "$REMOTE" "mkdir -p '$remote_dest'"
+            if [ -d "$local_src" ]; then
+                tar czf - -C "$local_src" . | ssh -q "$REMOTE" "tar xzf - -C '$remote_dest'"
+            else
+                scp -q "$local_src" "$REMOTE:$remote_dest"
+            fi
             ok "config  →  $remote_dest"
         fi
     done
