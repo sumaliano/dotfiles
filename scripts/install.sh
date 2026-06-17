@@ -126,10 +126,9 @@ install_inputrc() {
     stow_pkg inputrc
 }
 
-# ── Vendor tool local install ────────────────────────────────────────────────
-# Maps a vendor binary name to its dotfile config component (if any).
-# Binary is copied from vendor/linux-<arch>/ to ~/.local/bin/.
-# Config is installed via the existing install_<component> function.
+# ── Vendor tool install ──────────────────────────────────────────────────────
+# Maps tool name → dotfile component (runs install_<component> for config).
+# CONFIG_ONLY tools have no vendor binary — system binary is assumed present.
 
 declare -A TOOL_COMPONENT=(
     [nvim]="neovim"
@@ -139,7 +138,8 @@ declare -A TOOL_COMPONENT=(
 
 install_tool() {
     local tool="$1"
-    local vendor_dir="$DOTFILES/vendor/linux-$(uname -m)"
+    local arch; arch=$(uname -m)
+    local vendor_dir="$DOTFILES/vendor/linux-$arch"
     local src="$vendor_dir/$tool"
 
     info "Tool: $tool"
@@ -149,9 +149,12 @@ install_tool() {
         mkdir -p "$HOME/.local/bin"
         cp "$src" "$HOME/.local/bin/$tool"
         chmod +x "$HOME/.local/bin/$tool"
-        ok "$tool → ~/.local/bin/$tool"
+        ok "$tool  →  ~/.local/bin/$tool"
+        warn "Run 'hash -r' (or open a new terminal) to refresh the shell's command cache"
+    elif [ "$tool" = "vim" ]; then
+        ok "vim  →  using system binary (no vendor build for $arch)"
     else
-        warn "Binary not found in vendor/linux-$(uname -m)/ — run 'make vendor' first"
+        warn "Binary not found in vendor/linux-$arch/ — run 'make vendor' first"
     fi
 
     # Config — reuse the existing component installer when one exists
@@ -159,8 +162,6 @@ install_tool() {
     if [ -n "$component" ] && declare -f "install_$component" &>/dev/null; then
         "install_$component"
     fi
-
-    warn "Run 'hash -r' (or open a new terminal) to clear the shell's command cache"
 }
 
 # ── Entry point ─────────────────────────────────────────────────────────────

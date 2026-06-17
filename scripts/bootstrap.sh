@@ -100,9 +100,10 @@ printf "\n"
 # Naming conventions differ across projects:
 #   fzf uses "amd64" / "arm64"
 #   musl Rust builds use "x86_64" / "aarch64"
-#   nvim tarball uses "x86_64" / "arm64"
+#   nvim/vim/tmux use "x86_64" / "arm64"
 FZF_ARCH="amd64";  [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
 NVIM_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
+VIM_ARCH="$ARCH";  [ "$ARCH" = "aarch64" ] && VIM_ARCH="arm64"
 TMUX_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
 MUSL="${ARCH}-unknown-linux-musl"
 
@@ -132,9 +133,15 @@ install_tar delta \
     "$(gh_latest dandavison/delta "${MUSL}.tar.gz")"
 
 # nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
-# For old systems, deploy vim config instead: make install HOST=server TOOL=vim
+# For old systems, deploy vim instead: make install HOST=server TOOL=vim
 install_tar nvim \
     "$(gh_latest neovim/neovim "nvim-linux-${NVIM_ARCH}.tar.gz")"
+
+# vim — static-pie single binary, no runtime needed, x86_64 + arm64 (heywoodlh/vim-builds)
+# Zero glibc dependency; works on any Linux. Use when nvim fails on old glibc servers.
+# Our vimrc acts as the runtime substitute (suppresses the defaults.vim warning).
+install_file vim \
+    "$(gh_latest heywoodlh/vim-builds "vim-${VIM_ARCH}")"
 
 # tmux — official static builds (tmux/tmux-builds)
 install_tar tmux \

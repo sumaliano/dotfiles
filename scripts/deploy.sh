@@ -60,7 +60,7 @@ ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
 
 # ── Deploy each tool ──────────────────────────────────────────────────────────
 
-# Expand 'all' to every binary present in the vendor directory
+# Expand 'all' to vendored binaries + all config-only tools with known configs
 if [ "$TOOLS" = "all" ]; then
     [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
     TOOLS=$(ls "$VENDOR_DIR" | tr '\n' ',' | sed 's/,$//')
@@ -79,13 +79,15 @@ for tool in "${tool_list[@]}"; do
         if [ "$tool" = "nvim" ]; then
             remote_glibc=$(ssh -q "$REMOTE" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)
             if [ -n "$remote_glibc" ] && awk "BEGIN{exit !($remote_glibc < 2.32)}"; then
-                warn "nvim requires glibc 2.32+ but remote has $remote_glibc — deploy vim config instead (make install HOST=... TOOL=vim)"
+                warn "nvim requires glibc 2.32+ but remote has $remote_glibc — try: make install HOST=... TOOL=vim"
                 continue
             fi
         fi
         scp -q "$src" "$REMOTE:~/.local/bin/$tool"
         ssh -q "$REMOTE" "chmod +x ~/.local/bin/$tool"
         ok "$tool  →  ~/.local/bin/$tool"
+    elif [ "$tool" = "vim" ]; then
+        ok "vim  →  using system binary (no vendor build for $REMOTE_ARCH)"
     else
         warn "Binary not in vendor/linux-$REMOTE_ARCH/ — run 'make vendor' first"
     fi
