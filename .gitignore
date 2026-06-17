@@ -12,6 +12,8 @@ GEMINI.md
 Session.vim
 vim/dot-vim/.netrwhist
 vim/dot-vim/undo/
+vim/dot-vim/backup/
+vim/dot-vim/swap/
 
 # OS files
 .DS_Store
