@@ -557,7 +557,11 @@ if command -v tmux &>/dev/null; then
     tat() {
         local name="${1:-$(basename "$(pwd)" | tr '.' '-')}"
         if tmux has-session -t "=$name" 2>/dev/null; then
-            tmux attach-session -t "=$name"
+            if [ -n "$TMUX" ]; then
+                tmux switch-client -t "=$name"
+            else
+                tmux attach-session -t "=$name"
+            fi
         else
             tmux new-session -s "$name"
         fi
