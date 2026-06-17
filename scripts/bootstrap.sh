@@ -57,12 +57,12 @@ install_tar() {
         if [ -n "$found" ]; then
             cp "$found" "$VENDOR_DIR/$dest"
             chmod +x "$VENDOR_DIR/$dest"
-            ok "$dest"
+            printf "\r\033[K"; ok "$dest"
         else
-            fail "$dest: binary '$bin' not found in archive"
+            printf "\r\033[K"; fail "$dest: binary '$bin' not found in archive"
         fi
     else
-        fail "$dest: download or extract failed — check URL: $url"
+        printf "\r\033[K"; fail "$dest: download or extract failed — check URL: $url"
     fi
 
     rm -rf "$tmp"
@@ -85,9 +85,9 @@ install_file() {
     printf "  Fetching %-10s ...\r" "$dest"
     if curl -fsSL -o "$VENDOR_DIR/$dest" "$url"; then
         chmod +x "$VENDOR_DIR/$dest"
-        ok "$dest"
+        printf "\r\033[K"; ok "$dest"
     else
-        fail "$dest: download failed"
+        printf "\r\033[K"; fail "$dest: download failed"
         rm -f "$VENDOR_DIR/$dest"
     fi
 }

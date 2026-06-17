@@ -98,10 +98,11 @@ for tool in "${tool_list[@]}"; do
         local_src="$DOTFILES/${pair%%|*}"
         remote_dest="${pair##*|}"
         if [ -e "$local_src" ]; then
-            ssh -q "$REMOTE" "mkdir -p '$remote_dest'"
             if [ -d "$local_src" ]; then
-                tar czf - -C "$local_src" . | ssh -q "$REMOTE" "tar xzf - -C '$remote_dest'"
+                ssh -q "$REMOTE" "mkdir -p $remote_dest"
+                tar czf - -C "$local_src" . | ssh -q "$REMOTE" "tar xzf - -C $remote_dest"
             else
+                ssh -q "$REMOTE" "mkdir -p $(dirname "$remote_dest")"
                 scp -q "$local_src" "$REMOTE:$remote_dest"
             fi
             ok "config  →  $remote_dest"
