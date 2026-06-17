@@ -16,16 +16,16 @@ INFO    := @printf "$(BLUE)==>$(NC) $(BOLD)%s$(NC)\n"
 SUCCESS := @printf "$(GREEN)[ok]$(NC) %s\n"
 WARN    := @printf "$(YELLOW)[warn]$(NC) %s\n"
 
-.PHONY: all install sync status update clean bash vim neovim tmux git utils fonts inputrc help uninstall
+.PHONY: all install status update clean bash vim neovim tmux git utils fonts inputrc help uninstall
 
 all: help
 
 help:
 	@printf "$(BOLD)Usage: make [target]$(NC)\n\n"
 	@printf "Targets:\n"
-	@printf "  install (or sync)  Link all dotfiles to home directory\n"
+	@printf "  install            Link all dotfiles to home directory\n"
 	@printf "  status             Check installation status\n"
-	@printf "  update             Pull latest changes and sync\n"
+	@printf "  update             Pull latest changes and install\n"
 	@printf "  clean (uninstall)  Remove dotfiles symlinks\n"
 	@printf "\nComponents:\n"
 	@printf "  bash, vim, neovim, tmux, git, utils, fonts, inputrc\n"
@@ -55,9 +55,7 @@ define stow_or_link
 	fi
 endef
 
-install: sync
-
-sync: bash vim neovim tmux git utils fonts inputrc
+install: bash vim neovim tmux git utils fonts inputrc
 
 bash:
 	$(INFO) "Configuring Bash..."
@@ -138,4 +136,4 @@ status:
 
 update:
 	git pull
-	$(MAKE) sync
+	$(MAKE) install

@@ -119,11 +119,15 @@ _set_prompt() {
     local j=($(jobs -p))
     [ ${#j[@]} -gt 0 ] && jobs_info="${mag}[${#j[@]}]${r} "
 
-    # 5. Dynamic Window Title (Optional: puts user@host:dir in terminal tab)
+    # 5. SSH indicator
+    local ssh_info=""
+    [ -n "${SSH_CLIENT}${SSH_TTY}" ] && ssh_info="${red}[ssh]${r} "
+
+    # 6. Dynamic Window Title (Optional: puts user@host:dir in terminal tab)
     local title="\[\e]0;\u@\h: \w\a\]"
 
     # Construction: Using \w for full path, or \W for just the current folder
-    PS1="${title}${jobs_info}${venv}${color}\u@\h${r}:${blu}\w${r}${git_info}λ "
+    PS1="${title}${ssh_info}${jobs_info}${venv}${color}\u@\h${r}:${blu}\w${r}${git_info}λ "
 }
 
 # Proper PROMPT_COMMAND assignment
@@ -137,7 +141,7 @@ fi
 
 # Colors (if supported)
 if command -v dircolors &>/dev/null; then
-    [ -r ~/dotfiles/_dir_colors ] && eval "$(dircolors -b ~/dotfiles/_dir_colors)" || eval "$(dircolors -b)"
+    [ -r ~/.dir_colors ] && eval "$(dircolors -b ~/.dir_colors)" || eval "$(dircolors -b)"
 fi
 
 alias ls='ls --color=auto -F'
@@ -358,10 +362,13 @@ ssh-ls() {
 
 ssh-go() {
     local host
-    host=$(awk '/^[Hh]ost / && $2 !~ /\*/ {print $2}' ~/.ssh/config | fzf --height 40% --reverse --prompt="Select Host: ")
-    if [ -n "$host" ]; then
-        ssh "$host"
+    if command -v fzf &>/dev/null; then
+        host=$(awk '/^[Hh]ost / && $2 !~ /\*/ {print $2}' ~/.ssh/config | fzf --height 40% --reverse --prompt="Select Host: ")
+    else
+        ssh-ls
+        read -rp "Host: " host
     fi
+    [ -n "$host" ] && ssh "$host"
 }
 
 ssh-save() {
@@ -436,23 +443,37 @@ path_add "$HOME/.bin"
 path_add "$HOME/.cargo/bin"
 path_add "$HOME/go/bin" "after"
 
+# Language version managers
+if command -v mise &>/dev/null; then
+    eval "$(mise activate bash)"
+elif [ -d "$HOME/.pyenv" ]; then
+    export PYENV_ROOT="$HOME/.pyenv"
+    path_add "$PYENV_ROOT/bin"
+    eval "$(pyenv init - bash)"
+fi
+
 # ============================================================================
 # FZF - Fuzzy finder integration (if available)
 # ============================================================================
 
 if command -v fzf &>/dev/null; then
+    # Clipboard: WSL uses clip.exe, Linux uses xclip
+    _fzf_clip='xclip -selection clipboard'
+    grep -qi microsoft /proc/version 2>/dev/null && _fzf_clip='clip.exe'
+
     # FZF default options
-    export FZF_DEFAULT_OPTS='
+    export FZF_DEFAULT_OPTS="
         --height=40%
         --layout=reverse
         --border=rounded
         --info=inline
-        --prompt="❯ "
-        --pointer="▶"
-        --marker="✓"
-        --bind="ctrl-a:select-all,ctrl-d:deselect-all"
-        --bind="ctrl-y:execute-silent(echo {+} | xclip -selection clipboard)"
-    '
+        --prompt='❯ '
+        --pointer='▶'
+        --marker='✓'
+        --bind='ctrl-a:select-all,ctrl-d:deselect-all'
+        --bind='ctrl-y:execute-silent(echo {+} | $_fzf_clip)'
+    "
+    unset _fzf_clip
 
     # Use fd or rg for faster searches if available
     if command -v fd &>/dev/null; then
@@ -525,6 +546,87 @@ if command -v fzf &>/dev/null; then
         local files
         files=$(git status --porcelain | fzf -m --ansi --preview 'git diff --color=always {+2}' | awk '{print $2}')
         [ -n "$files" ] && git add $files
+    }
+fi
+
+# ============================================================================
+# TMUX - Session management
+# ============================================================================
+
+if command -v tmux &>/dev/null; then
+    # Attach to existing session by name, or create it (defaults to basename of CWD)
+    tat() {
+        local name="${1:-$(basename "$(pwd)" | tr '.' '-')}"
+        if tmux has-session -t "=$name" 2>/dev/null; then
+            tmux attach-session -t "=$name"
+        else
+            tmux new-session -s "$name"
+        fi
+    }
+
+    alias tls='tmux list-sessions 2>/dev/null || echo "No tmux sessions"'
+    alias tnew='tmux new-session -s'
+
+    # Kill a session interactively
+    tkill() {
+        local session
+        if command -v fzf &>/dev/null; then
+            session=$(tmux list-sessions -F '#S' 2>/dev/null | fzf --prompt="Kill session: ")
+        else
+            tmux list-sessions 2>/dev/null
+            read -rp "Kill session name: " session
+        fi
+        [ -n "$session" ] && tmux kill-session -t "$session"
+    }
+
+    # Switch session interactively (works inside or outside tmux)
+    tsw() {
+        local session
+        if command -v fzf &>/dev/null; then
+            session=$(tmux list-sessions -F '#S' 2>/dev/null | fzf --prompt="Switch to: ")
+        else
+            tmux list-sessions 2>/dev/null
+            read -rp "Session name: " session
+        fi
+        if [ -n "$session" ]; then
+            if [ -n "$TMUX" ]; then
+                tmux switch-client -t "$session"
+            else
+                tmux attach-session -t "$session"
+            fi
+        fi
+    }
+fi
+
+# ============================================================================
+# WSL - Windows Subsystem for Linux
+# ============================================================================
+
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    alias pbcopy='clip.exe'
+    alias pbpaste='powershell.exe -NoProfile Get-Clipboard 2>/dev/null | tr -d "\r"'
+    alias clip=pbcopy
+
+    # Open file/directory/URL with Windows default app
+    open() {
+        if [ -z "$1" ]; then
+            explorer.exe . 2>/dev/null
+        else
+            local target
+            target=$(wslpath -w "$1" 2>/dev/null) || target="$1"
+            explorer.exe "$target" 2>/dev/null
+            return 0
+        fi
+    }
+
+    # Convert Linux path to Windows path
+    alias winpath='wslpath -w'
+
+    # Jump to Windows home directory
+    winhome() {
+        local winhome
+        winhome=$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("UserProfile")' 2>/dev/null | tr -d '\r')
+        [ -n "$winhome" ] && cd "$(wslpath "$winhome")"
     }
 fi
 

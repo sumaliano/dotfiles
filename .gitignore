@@ -33,8 +33,9 @@ tmp/
 .tmp/
 
 # Claude plans
-.claude/plans/
+.claude/
 .idea/
+.qodo/
 
 # neovim lazy
 nvim/dot-config/nvim/lazy-lock.json
