@@ -178,7 +178,7 @@ alias path='echo -e ${PATH//:/\\n}'
 alias now='date +"%Y-%m-%d %H:%M:%S"'
 alias day='date +%j'
 alias week='date +%V'
-alias myip='echo $(curl -s ifconfig.me)'
+alias myip='curl -s ifconfig.me && echo'
 alias localip='hostname -I | awk "{print \$1}"'
 alias ports='ss -tulanp 2>/dev/null || netstat -tulanp'
 alias psg='ps aux | grep -v grep | grep -i'
@@ -225,8 +225,8 @@ fi
 # Editor
 export EDITOR="${EDITOR:-vi}"
 command -v vim &>/dev/null && alias vi='vim' && export EDITOR='vim'
-command -v nvim &>/dev/null && alias vim='nvim' && alias nvim='nvim' && export EDITOR='nvim'
-command -v nvim &>/dev/null && alias nv='nvim -u ~/.config/nvim/init_plugins.lua'
+command -v nvim &>/dev/null && alias vim='nvim' && export EDITOR='nvim'
+command -v nvim &>/dev/null && [ -f ~/.config/nvim/init_plugins.lua ] && alias nv='nvim -u ~/.config/nvim/init_plugins.lua'
 
 # Modern tools (auto-detect)
 # Note: Only alias tools with compatible syntax to avoid breaking existing commands
@@ -439,7 +439,6 @@ path_add() {
 
 path_add "$HOME/.local/bin"
 path_add "$HOME/bin"
-path_add "$HOME/.bin"
 path_add "$HOME/.cargo/bin"
 path_add "$HOME/go/bin" "after"
 

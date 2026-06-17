@@ -32,6 +32,9 @@ test/
 tmp/
 .tmp/
 
+# Portable vendor binaries (populated by: make vendor)
+vendor/
+
 # Claude plans
 .claude/
 .idea/
