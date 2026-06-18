@@ -141,6 +141,12 @@ install_tool() {
     local arch; arch=$(uname -m)
     local src="$DOTFILES/vendor/linux-$arch/$tool"
 
+    # On WSL2, prefer the gnu build for yazi/ya (musl crashes on WSL2 /dev/tty)
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        local wsl_src="$DOTFILES/vendor/linux-$arch/${tool}-wsl"
+        [ -f "$wsl_src" ] && src="$wsl_src"
+    fi
+
     info "Tool: $tool"
 
     # Binary

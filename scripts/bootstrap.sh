@@ -168,17 +168,17 @@ install_tar delta \
 
 # yazi — terminal file manager (sxyazi/yazi)
 # ya is the companion CLI (shell integration, flavours, package manager)
-# Build choice: WSL2 needs gnu (musl has /dev/tty ENXIO crash there);
-# real Linux servers use musl (no glibc dep, works on any kernel).
+# yazi/ya (musl): deploy to any Linux server — no glibc dependency
+# yazi-wsl/ya-wsl (gnu): local WSL2 use only — musl has /dev/tty ENXIO on WSL2
+_yazi_musl="$(gh_latest sxyazi/yazi "${MUSL}.zip")"
+install_zip yazi "$_yazi_musl"
+install_zip ya   "$_yazi_musl"
 if grep -qi microsoft /proc/version 2>/dev/null; then
-    _yazi_build="${ARCH}-unknown-linux-gnu"
-else
-    _yazi_build="${MUSL}"
+    _yazi_gnu="$(gh_latest sxyazi/yazi "${ARCH}-unknown-linux-gnu.zip")"
+    install_zip yazi-wsl "$_yazi_gnu" yazi
+    install_zip ya-wsl   "$_yazi_gnu" ya
 fi
-_yazi_url="$(gh_latest sxyazi/yazi "${_yazi_build}.zip")"
-install_zip yazi "$_yazi_url"
-install_zip ya   "$_yazi_url"
-unset _yazi_url _yazi_build
+unset _yazi_musl _yazi_gnu
 
 # lf — terminal file manager, Go static binary (gokcehan/lf)
 # Fully static, no glibc dependency, x86_64 + arm64

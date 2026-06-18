@@ -76,21 +76,14 @@ for tool in "${tool_list[@]}"; do
     # Binary — scp needs no remote binary, it's handled by sshd
     src="$VENDOR_DIR/$tool"
     if [ -f "$src" ]; then
-        # Check glibc requirements for tools that need a minimum version
-        case "$tool" in
-            nvim)
-                remote_glibc=$(ssh -q "$REMOTE" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)
-                if [ -n "$remote_glibc" ] && awk "BEGIN{exit !($remote_glibc < 2.32)}"; then
-                    warn "nvim requires glibc 2.32+ but remote has $remote_glibc — try: make deploy HOST=... TOOL=vim"
-                    continue
-                fi ;;
-            yazi|ya)
-                remote_glibc=${remote_glibc:-$(ssh -q "$REMOTE" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)}
-                if [ -n "$remote_glibc" ] && awk "BEGIN{exit !($remote_glibc < 2.39)}"; then
-                    warn "yazi requires glibc 2.39+ but remote has $remote_glibc — use lf or nnn instead"
-                    continue
-                fi ;;
-        esac
+        # nvim requires glibc 2.32+; warn early on old systems rather than fail at runtime
+        if [ "$tool" = "nvim" ]; then
+            remote_glibc=$(ssh -q "$REMOTE" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)
+            if [ -n "$remote_glibc" ] && awk "BEGIN{exit !($remote_glibc < 2.32)}"; then
+                warn "nvim requires glibc 2.32+ but remote has $remote_glibc — try: make deploy HOST=... TOOL=vim"
+                continue
+            fi
+        fi
         scp -q "$src" "$REMOTE:~/.local/bin/$tool"
         ssh -q "$REMOTE" "chmod +x ~/.local/bin/$tool"
         ok "$tool  →  ~/.local/bin/$tool"
