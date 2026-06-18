@@ -68,6 +68,39 @@ install_tar() {
     rm -rf "$tmp"
 }
 
+# Download a .zip, find a named binary inside it, install to VENDOR_DIR.
+# Usage: install_zip <dest-name> <url> [<binary-name-in-archive>]
+install_zip() {
+    local dest="$1" url="$2" bin="${3:-$1}"
+
+    if [ -z "$url" ]; then
+        fail "$dest: no release URL found (pattern mismatch or GitHub rate limit)"
+        return
+    fi
+    if [ -f "$VENDOR_DIR/$dest" ] && [ "$FORCE" != "true" ]; then
+        skip "$dest (exists — FORCE=true to refresh)"
+        return
+    fi
+
+    printf "  Fetching %-10s ...\r" "$dest"
+    local tmp; tmp=$(mktemp -d)
+
+    if curl -fsSL "$url" -o "$tmp/archive.zip" && unzip -q "$tmp/archive.zip" -d "$tmp/out" 2>/dev/null; then
+        local found; found=$(find "$tmp/out" -type f -name "$bin" | head -1)
+        if [ -n "$found" ]; then
+            cp "$found" "$VENDOR_DIR/$dest"
+            chmod +x "$VENDOR_DIR/$dest"
+            printf "\r\033[K"; ok "$dest"
+        else
+            printf "\r\033[K"; fail "$dest: binary '$bin' not found in archive"
+        fi
+    else
+        printf "\r\033[K"; fail "$dest: download or extract failed — check URL: $url"
+    fi
+
+    rm -rf "$tmp"
+}
+
 # Download a single-file binary (e.g. AppImage) directly.
 # Usage: install_file <dest-name> <url>
 install_file() {
@@ -98,10 +131,11 @@ info "Fetching portable binaries → vendor/linux-$ARCH/"
 printf "\n"
 
 # Naming conventions differ across projects:
-#   fzf uses "amd64" / "arm64"
+#   fzf/lf use "amd64" / "arm64"
 #   musl Rust builds use "x86_64" / "aarch64"
-#   nvim/vim/tmux use "x86_64" / "arm64"
+#   nvim/vim/tmux/yazi use "x86_64" / "arm64"
 FZF_ARCH="amd64";  [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
+LF_ARCH="amd64";   [ "$ARCH" = "aarch64" ] && LF_ARCH="arm64"
 NVIM_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
 VIM_ARCH="$ARCH";  [ "$ARCH" = "aarch64" ] && VIM_ARCH="arm64"
 TMUX_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
@@ -131,6 +165,28 @@ install_tar eza \
 # delta — git diff pager, Rust musl (dandavison/delta)
 install_tar delta \
     "$(gh_latest dandavison/delta "${MUSL}.tar.gz")"
+
+# yazi — terminal file manager, glibc build (sxyazi/yazi)
+# musl build has a /dev/tty ENXIO crash on WSL2; gnu build avoids it
+# ya is the companion CLI (shell integration, flavours, package manager)
+_yazi_url="$(gh_latest sxyazi/yazi "${ARCH}-unknown-linux-gnu.zip")"
+install_zip yazi "$_yazi_url"
+install_zip ya   "$_yazi_url"
+unset _yazi_url
+
+# lf — terminal file manager, Go static binary (gokcehan/lf)
+# Fully static, no glibc dependency, x86_64 + arm64
+install_tar lf \
+    "$(gh_latest gokcehan/lf "lf-linux-${LF_ARCH}.tar.gz")"
+
+# nnn — terminal file manager, C musl static (jarun/nnn)
+# Smallest of the three (204KB); x86_64 only for prebuilt static
+if [ "$ARCH" = "x86_64" ]; then
+    install_tar nnn \
+        "$(gh_latest jarun/nnn "nnn-musl-static-")" nnn-musl-static
+else
+    skip "nnn: no static build for $ARCH"
+fi
 
 # nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
 # For old systems, deploy vim instead: make install HOST=server TOOL=vim

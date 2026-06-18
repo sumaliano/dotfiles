@@ -1,0 +1,21 @@
+# lf config — minimal, no external dependencies
+
+set hidden true
+set ignorecase true
+set scrolloff 5
+set drawbox true
+set ratios 1:2:3
+set info size:time
+
+# Open with $EDITOR; fall back to xdg-open for non-text
+cmd open &{{
+    case $(file --mime-type -b "$f") in
+        text/*|application/json|inode/x-empty) $EDITOR "$f" ;;
+        *) xdg-open "$f" 2>/dev/null || $EDITOR "$f" ;;
+    esac
+}}
+
+# Faster navigation
+map J half-down
+map K half-up
+map <esc> clear

@@ -119,15 +119,18 @@ _set_prompt() {
     local j=($(jobs -p))
     [ ${#j[@]} -gt 0 ] && jobs_info="${mag}[${#j[@]}]${r} "
 
-    # 5. SSH indicator
-    local ssh_info=""
-    [ -n "${SSH_CLIENT}${SSH_TTY}" ] && ssh_info="${red}[ssh]${r} "
+    # 5. Always show user@host; prefix with ⌁ (remote indicator) on SSH
+    local host_info
+    if [ -n "${SSH_CLIENT:-}${SSH_TTY:-}" ]; then
+        host_info="${mag}⌁${r}${color}\u@\h${r}"
+    else
+        host_info="${color}\u@\h${r}"
+    fi
 
-    # 6. Dynamic Window Title (Optional: puts user@host:dir in terminal tab)
+    # 6. Dynamic window title
     local title="\[\e]0;\u@\h: \w\a\]"
 
-    # Construction: Using \w for full path, or \W for just the current folder
-    PS1="${title}${ssh_info}${jobs_info}${venv}${color}\u@\h${r}:${blu}\w${r}${git_info}λ "
+    PS1="${title}${jobs_info}${venv}${host_info}:${blu}\w${r}${git_info}λ "
 }
 
 # Proper PROMPT_COMMAND assignment
@@ -148,7 +151,7 @@ alias ls='ls --color=auto -F'
 alias l1='ls -1'
 alias ll='ls -lh'
 alias la='ls -lAh'
-alias l='ls -C'
+alias l='ls'
 alias lt='ls -lhtr'               # Sort by time, newest last
 alias lS='ls -lhSr'               # Sort by size
 alias l.='ls -d .*'
@@ -227,6 +230,24 @@ export EDITOR="${EDITOR:-vi}"
 command -v vim &>/dev/null && alias vi='vim' && export EDITOR='vim'
 command -v nvim &>/dev/null && alias vim='nvim' && export EDITOR='nvim'
 command -v nvim &>/dev/null && [ -f ~/.config/nvim/init_plugins.lua ] && alias nv='nvim -u ~/.config/nvim/init_plugins.lua'
+
+# File managers — CWD-on-quit wrappers (all three change your shell dir on exit)
+if command -v yazi &>/dev/null; then
+    yy() { local tmp; tmp=$(mktemp); yazi --cwd-file="$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
+fi
+if command -v lf &>/dev/null; then
+    lf() { local tmp; tmp=$(mktemp); command lf -last-dir-path="$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
+fi
+if command -v nnn &>/dev/null; then
+    # NNN_OPTS: H=show hidden, d=detail mode
+    export NNN_OPTS="Hd"
+    n() {
+        [ "${NNNLVL:-0}" -eq 0 ] || { echo "nnn is already running"; return; }
+        local tmp="${XDG_CONFIG_HOME:-$HOME/.config}/nnn/.lastd"
+        nnn "$@"
+        [ -f "$tmp" ] && builtin cd "$(cat "$tmp")" && rm -f "$tmp"
+    }
+fi
 
 # Modern tools (auto-detect)
 # Note: Only alias tools with compatible syntax to avoid breaking existing commands

@@ -46,6 +46,7 @@ declare -A TOOL_CONFIG=(
     [nvim]="nvim/dot-config/nvim|~/.config/nvim"
     [vim]="vim/dot-vimrc|~/.vimrc vim/dot-vim|~/.vim"
     [tmux]="tmux/dot-tmux.conf|~/.tmux.conf"
+    [lf]="lf/dot-config/lf|~/.config/lf"
 )
 
 # ── Connect ───────────────────────────────────────────────────────────────────
