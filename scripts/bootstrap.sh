@@ -166,27 +166,24 @@ install_tar eza \
 install_tar delta \
     "$(gh_latest dandavison/delta "${MUSL}.tar.gz")"
 
-# yazi — terminal file manager, glibc build (sxyazi/yazi)
-# musl build has a /dev/tty ENXIO crash on WSL2; gnu build avoids it
+# yazi — terminal file manager (sxyazi/yazi)
 # ya is the companion CLI (shell integration, flavours, package manager)
-_yazi_url="$(gh_latest sxyazi/yazi "${ARCH}-unknown-linux-gnu.zip")"
+# Build choice: WSL2 needs gnu (musl has /dev/tty ENXIO crash there);
+# real Linux servers use musl (no glibc dep, works on any kernel).
+if grep -qi microsoft /proc/version 2>/dev/null; then
+    _yazi_build="${ARCH}-unknown-linux-gnu"
+else
+    _yazi_build="${MUSL}"
+fi
+_yazi_url="$(gh_latest sxyazi/yazi "${_yazi_build}.zip")"
 install_zip yazi "$_yazi_url"
 install_zip ya   "$_yazi_url"
-unset _yazi_url
+unset _yazi_url _yazi_build
 
 # lf — terminal file manager, Go static binary (gokcehan/lf)
 # Fully static, no glibc dependency, x86_64 + arm64
 install_tar lf \
     "$(gh_latest gokcehan/lf "lf-linux-${LF_ARCH}.tar.gz")"
-
-# nnn — terminal file manager, C musl static (jarun/nnn)
-# Smallest of the three (204KB); x86_64 only for prebuilt static
-if [ "$ARCH" = "x86_64" ]; then
-    install_tar nnn \
-        "$(gh_latest jarun/nnn "nnn-musl-static-")" nnn-musl-static
-else
-    skip "nnn: no static build for $ARCH"
-fi
 
 # nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
 # For old systems, deploy vim instead: make install HOST=server TOOL=vim

@@ -238,16 +238,7 @@ fi
 if command -v lf &>/dev/null; then
     lf() { local tmp; tmp=$(mktemp); command lf -last-dir-path="$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
 fi
-if command -v nnn &>/dev/null; then
-    # NNN_OPTS: H=show hidden, d=detail mode
-    export NNN_OPTS="Hd"
-    n() {
-        [ "${NNNLVL:-0}" -eq 0 ] || { echo "nnn is already running"; return; }
-        local tmp="${XDG_CONFIG_HOME:-$HOME/.config}/nnn/.lastd"
-        nnn "$@"
-        [ -f "$tmp" ] && builtin cd "$(cat "$tmp")" && rm -f "$tmp"
-    }
-fi
+
 
 # Modern tools (auto-detect)
 # Note: Only alias tools with compatible syntax to avoid breaking existing commands
