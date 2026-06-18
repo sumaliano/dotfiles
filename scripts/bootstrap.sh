@@ -27,12 +27,28 @@ mkdir -p "$VENDOR_DIR"
 # Fetch the download URL for the latest GitHub release matching a filename pattern.
 gh_latest() {
     local repo="$1" pattern="$2"
-    local api_url="https://api.github.com/repos/$repo/releases/latest"
-    curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: token $GITHUB_TOKEN"} "$api_url" 2>/dev/null \
+    local auth_flag=()
+    [ -n "${GITHUB_TOKEN:-}" ] && auth_flag=(-H "Authorization: token $GITHUB_TOKEN")
+
+    # Try /releases/latest first; fall back to /releases (catches pre-releases)
+    local url
+    url=$(curl -fsSL "${auth_flag[@]}" \
+            "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null \
         | grep '"browser_download_url"' \
         | grep -o 'https://[^"]*' \
         | grep -F "$pattern" \
-        | head -1
+        | head -1)
+
+    if [ -z "$url" ]; then
+        url=$(curl -fsSL "${auth_flag[@]}" \
+                "https://api.github.com/repos/$repo/releases?per_page=10" 2>/dev/null \
+            | grep '"browser_download_url"' \
+            | grep -o 'https://[^"]*' \
+            | grep -F "$pattern" \
+            | head -1)
+    fi
+
+    printf '%s\n' "$url"
 }
 
 # Download a .tar.gz, find a named binary inside it, install to VENDOR_DIR.
