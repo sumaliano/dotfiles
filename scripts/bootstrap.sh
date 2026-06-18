@@ -131,11 +131,10 @@ info "Fetching portable binaries → vendor/linux-$ARCH/"
 printf "\n"
 
 # Naming conventions differ across projects:
-#   fzf/lf use "amd64" / "arm64"
+#   fzf uses "amd64" / "arm64"
 #   musl Rust builds use "x86_64" / "aarch64"
 #   nvim/vim/tmux/yazi use "x86_64" / "arm64"
 FZF_ARCH="amd64";  [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
-LF_ARCH="amd64";   [ "$ARCH" = "aarch64" ] && LF_ARCH="arm64"
 NVIM_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
 VIM_ARCH="$ARCH";  [ "$ARCH" = "aarch64" ] && VIM_ARCH="arm64"
 TMUX_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
@@ -166,24 +165,17 @@ install_tar eza \
 install_tar delta \
     "$(gh_latest dandavison/delta "${MUSL}.tar.gz")"
 
-# yazi — terminal file manager (sxyazi/yazi)
+# yazi — terminal file manager, musl static (sxyazi/yazi)
 # ya is the companion CLI (shell integration, flavours, package manager)
-# yazi/ya (musl): deploy to any Linux server — no glibc dependency
-# yazi-wsl/ya-wsl (gnu): local WSL2 use only — musl has /dev/tty ENXIO on WSL2
-_yazi_musl="$(gh_latest sxyazi/yazi "${MUSL}.zip")"
-install_zip yazi "$_yazi_musl"
-install_zip ya   "$_yazi_musl"
-if grep -qi microsoft /proc/version 2>/dev/null; then
-    _yazi_gnu="$(gh_latest sxyazi/yazi "${ARCH}-unknown-linux-gnu.zip")"
-    install_zip yazi-wsl "$_yazi_gnu" yazi
-    install_zip ya-wsl   "$_yazi_gnu" ya
-fi
-unset _yazi_musl _yazi_gnu
+_yazi_url="$(gh_latest sxyazi/yazi "${MUSL}.zip")"
+install_zip yazi "$_yazi_url"
+install_zip ya   "$_yazi_url"
+unset _yazi_url
 
-# lf — terminal file manager, Go static binary (gokcehan/lf)
-# Fully static, no glibc dependency, x86_64 + arm64
-install_tar lf \
-    "$(gh_latest gokcehan/lf "lf-linux-${LF_ARCH}.tar.gz")"
+# joshuto — ranger-like file manager with tabs, Rust musl (kamiyaa/joshuto)
+# Miller columns + tabs; familiar to ranger users; fully static, no glibc dep
+install_tar joshuto \
+    "$(gh_latest kamiyaa/joshuto "${MUSL}.tar.gz")"
 
 # nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
 # For old systems, deploy vim instead: make install HOST=server TOOL=vim

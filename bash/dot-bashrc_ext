@@ -235,8 +235,8 @@ command -v nvim &>/dev/null && [ -f ~/.config/nvim/init_plugins.lua ] && alias n
 if command -v yazi &>/dev/null; then
     yy() { local tmp; tmp=$(mktemp); yazi --cwd-file="$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
 fi
-if command -v lf &>/dev/null; then
-    lf() { local tmp; tmp=$(mktemp); command lf -last-dir-path="$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
+if command -v joshuto &>/dev/null; then
+    joshuto() { local tmp; tmp=$(mktemp); command joshuto --output-file "$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
 fi
 
 
