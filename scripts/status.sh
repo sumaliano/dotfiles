@@ -34,7 +34,7 @@ ok()      { printf "  ${GREEN}[installed]${NC} %s\n" "$*"; }
 missing() { printf "  ${RED}[missing]  ${NC} %s\n" "$*"; }
 
 printf "${BOLD}Vendor tools (~/.local/bin/):${NC}\n"
-for tool in nvim tmux fzf fd bat rg eza delta; do
+for tool in nvim vim tmux fzf fd bat rg eza delta btop yazi ya joshuto; do
     [ -f "$HOME/.local/bin/$tool" ] && ok "$tool" || missing "$tool"
 done
 
@@ -51,7 +51,7 @@ fi
 
 # ── Local ─────────────────────────────────────────────────────────────────────
 
-KNOWN_TOOLS=(nvim tmux fzf fd bat rg eza delta)
+KNOWN_TOOLS=(nvim vim tmux fzf fd bat rg eza delta btop yazi ya joshuto)
 
 printf "${BOLD}Vendor tools (~/.local/bin/):${NC}\n"
 for tool in "${KNOWN_TOOLS[@]}"; do

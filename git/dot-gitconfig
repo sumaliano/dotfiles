@@ -102,17 +102,3 @@
 #     insteadOf = gh:
 # [url "git@gitlab.com:"]
 #     insteadOf = gl:
-nged = yellow
-    untracked = red
-
-[help]
-    autocorrect = prompt
-
-[credential]
-    helper = cache --timeout=3600
-
-# URL shortcuts (uncomment if needed)
-# [url "git@github.com:"]
-#     insteadOf = gh:
-# [url "git@gitlab.com:"]
-#     insteadOf = gl:

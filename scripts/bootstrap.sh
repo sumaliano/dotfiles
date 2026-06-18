@@ -52,16 +52,17 @@ gh_latest() {
 }
 
 # Download a .tar.gz, find a named binary inside it, install to VENDOR_DIR.
-# Usage: install_tar <dest-name> <url> [<binary-name-in-archive>]
+# Usage: install_tar <dest-name> <repo> <pattern> [<binary-name-in-archive>]
 install_tar() {
-    local dest="$1" url="$2" bin="${3:-$1}"
+    local dest="$1" repo="$2" pattern="$3" bin="${4:-$1}"
 
-    if [ -z "$url" ]; then
-        fail "$dest: no release URL found (pattern mismatch or GitHub rate limit)"
-        return
-    fi
     if [ -f "$VENDOR_DIR/$dest" ] && [ "$FORCE" != "true" ]; then
         skip "$dest (exists — FORCE=true to refresh)"
+        return
+    fi
+    local url; url=$(gh_latest "$repo" "$pattern")
+    if [ -z "$url" ]; then
+        fail "$dest: no release URL found (pattern mismatch or GitHub rate limit)"
         return
     fi
 
@@ -85,16 +86,17 @@ install_tar() {
 }
 
 # Download a .zip, find a named binary inside it, install to VENDOR_DIR.
-# Usage: install_zip <dest-name> <url> [<binary-name-in-archive>]
+# Usage: install_zip <dest-name> <repo> <pattern> [<binary-name-in-archive>]
 install_zip() {
-    local dest="$1" url="$2" bin="${3:-$1}"
+    local dest="$1" repo="$2" pattern="$3" bin="${4:-$1}"
 
-    if [ -z "$url" ]; then
-        fail "$dest: no release URL found (pattern mismatch or GitHub rate limit)"
-        return
-    fi
     if [ -f "$VENDOR_DIR/$dest" ] && [ "$FORCE" != "true" ]; then
         skip "$dest (exists — FORCE=true to refresh)"
+        return
+    fi
+    local url; url=$(gh_latest "$repo" "$pattern")
+    if [ -z "$url" ]; then
+        fail "$dest: no release URL found (pattern mismatch or GitHub rate limit)"
         return
     fi
 
@@ -118,16 +120,17 @@ install_zip() {
 }
 
 # Download a single-file binary (e.g. AppImage) directly.
-# Usage: install_file <dest-name> <url>
+# Usage: install_file <dest-name> <repo> <pattern>
 install_file() {
-    local dest="$1" url="$2"
+    local dest="$1" repo="$2" pattern="$3"
 
-    if [ -z "$url" ]; then
-        fail "$dest: no release URL found"
-        return
-    fi
     if [ -f "$VENDOR_DIR/$dest" ] && [ "$FORCE" != "true" ]; then
         skip "$dest (exists — FORCE=true to refresh)"
+        return
+    fi
+    local url; url=$(gh_latest "$repo" "$pattern")
+    if [ -z "$url" ]; then
+        fail "$dest: no release URL found"
         return
     fi
 
@@ -157,55 +160,45 @@ TMUX_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
 MUSL="${ARCH}-unknown-linux-musl"
 
 # fzf — Go static binary (junegunn/fzf)
-install_tar fzf \
-    "$(gh_latest junegunn/fzf "linux_${FZF_ARCH}.tar.gz")"
+install_tar fzf   junegunn/fzf              "linux_${FZF_ARCH}.tar.gz"
 
 # fd — fast find replacement, Rust musl (sharkdp/fd)
-install_tar fd \
-    "$(gh_latest sharkdp/fd "${MUSL}.tar.gz")"
+install_tar fd    sharkdp/fd               "${MUSL}.tar.gz"
 
 # bat — cat with syntax highlighting, Rust musl (sharkdp/bat)
-install_tar bat \
-    "$(gh_latest sharkdp/bat "${MUSL}.tar.gz")"
+install_tar bat   sharkdp/bat              "${MUSL}.tar.gz"
 
 # rg (ripgrep) — fast grep, Rust musl (BurntSushi/ripgrep)
 # Note: archive binary is named 'rg', not 'ripgrep'
-install_tar rg \
-    "$(gh_latest BurntSushi/ripgrep "${MUSL}.tar.gz")" rg
+install_tar rg    BurntSushi/ripgrep       "${MUSL}.tar.gz"    rg
 
 # eza — modern ls replacement, Rust musl (eza-community/eza)
-install_tar eza \
-    "$(gh_latest eza-community/eza "eza_${MUSL}.tar.gz")"
+install_tar eza   eza-community/eza        "eza_${MUSL}.tar.gz"
 
 # delta — git diff pager, Rust musl (dandavison/delta)
-install_tar delta \
-    "$(gh_latest dandavison/delta "${MUSL}.tar.gz")"
+install_tar delta dandavison/delta         "${MUSL}.tar.gz"
+
+# btop — interactive system monitor, C++ musl static (aristocratos/btop)
+install_tar btop  aristocratos/btop        "btop-${MUSL}.tar.gz"  btop
 
 # yazi — terminal file manager, musl static (sxyazi/yazi)
 # ya is the companion CLI (shell integration, flavours, package manager)
-_yazi_url="$(gh_latest sxyazi/yazi "${MUSL}.zip")"
-install_zip yazi "$_yazi_url"
-install_zip ya   "$_yazi_url"
-unset _yazi_url
+install_zip yazi  sxyazi/yazi              "${MUSL}.zip"
+install_zip ya    sxyazi/yazi              "${MUSL}.zip"
 
 # joshuto — ranger-like file manager with tabs, Rust musl (kamiyaa/joshuto)
-# Miller columns + tabs; familiar to ranger users; fully static, no glibc dep
-install_tar joshuto \
-    "$(gh_latest kamiyaa/joshuto "${MUSL}.tar.gz")"
+install_tar joshuto kamiyaa/joshuto        "${MUSL}.tar.gz"
 
 # nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
 # For old systems, deploy vim instead: make install HOST=server TOOL=vim
-install_tar nvim \
-    "$(gh_latest neovim/neovim "nvim-linux-${NVIM_ARCH}.tar.gz")"
+install_tar nvim  neovim/neovim            "nvim-linux-${NVIM_ARCH}.tar.gz"
 
 # vim — static-pie single binary, no runtime needed, x86_64 + arm64 (heywoodlh/vim-builds)
 # Zero glibc dependency. Use when nvim fails on old glibc servers.
-install_file vim \
-    "$(gh_latest heywoodlh/vim-builds "vim-${VIM_ARCH}")"
+install_file vim  heywoodlh/vim-builds     "vim-${VIM_ARCH}"
 
 # tmux — official static builds (tmux/tmux-builds)
-install_tar tmux \
-    "$(gh_latest tmux/tmux-builds "linux-${TMUX_ARCH}.tar.gz")"
+install_tar tmux  tmux/tmux-builds         "linux-${TMUX_ARCH}.tar.gz"
 
 # ---------------------------------------------------------------------------
 

@@ -59,6 +59,7 @@ link_utils() {
 }
 link_fonts()   { link_file "$DOTFILES/fonts/dot-local/share/fonts"     "$HOME/.local/share/fonts"; }
 link_inputrc() { link_file "$DOTFILES/inputrc/dot-inputrc"             "$HOME/.inputrc"; }
+link_joshuto() { link_file "$DOTFILES/joshuto/dot-config/joshuto"      "$HOME/.config/joshuto"; }
 
 # ── Component installers ────────────────────────────────────────────────────
 
@@ -126,6 +127,11 @@ install_inputrc() {
     stow_pkg inputrc
 }
 
+install_joshuto() {
+    info "Joshuto"
+    stow_pkg joshuto
+}
+
 # ── Vendor tool install ──────────────────────────────────────────────────────
 # Maps tool name → dotfile component (runs install_<component> for config).
 # CONFIG_ONLY tools have no vendor binary — system binary is assumed present.
@@ -134,6 +140,7 @@ declare -A TOOL_COMPONENT=(
     [nvim]="neovim"
     [vim]="vim"
     [tmux]="tmux"
+    [joshuto]="joshuto"
 )
 
 install_tool() {
