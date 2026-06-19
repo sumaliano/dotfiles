@@ -67,6 +67,8 @@ grep -q "# BEGIN DOTFILES" "$HOME/.bashrc" 2>/dev/null \
     && installed "Neovim"  || missing "Neovim"
 [ -e "$HOME/.tmux.conf" ] \
     && installed "Tmux"    || missing "Tmux"
+[ -e "$HOME/.config/joshuto/joshuto.toml" ] \
+    && installed "Joshuto" || missing "Joshuto"
 [ -e "$HOME/.gitignore_global" ] \
     && installed "Git"     || missing "Git"
 find "$HOME/.local/bin" -maxdepth 1 -type l -lname "*/dotfiles/utils/dot-bin/*" 2>/dev/null | grep -q . \

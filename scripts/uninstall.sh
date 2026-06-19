@@ -38,6 +38,10 @@ declare -A TOOL_CONFIG=(
     [nvim]="~/.config/nvim"
     [vim]="~/.vimrc ~/.vim"
     [tmux]="~/.tmux.conf"
+    [joshuto]="~/.config/joshuto"
+    [git]="~/.gitignore_global"
+    [inputrc]="~/.inputrc"
+    [bash]="~/.bashrc_ext ~/.dir_colors"
 )
 
 # ── Remote mode ───────────────────────────────────────────────────────────────
@@ -67,6 +71,12 @@ if [ -n "$HOST" ]; then
 
         # shellcheck disable=SC2029
         ssh "$HOST" "rm -rf $paths && echo '  removed: $paths'"
+
+        # bash also injects a source block into ~/.bashrc — strip it
+        if [ "$tool" = "bash" ]; then
+            ssh "$HOST" "sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' ~/.bashrc 2>/dev/null || true"
+            ok "unwired ~/.bashrc"
+        fi
     done
 
     printf "\n${GREEN}Done!${NC}\n"
@@ -104,6 +114,12 @@ if [ -n "$TOOLS" ]; then
                 ok "config  ←  $dest"
             fi
         done
+
+        # bash also injects a source block into ~/.bashrc — strip it
+        if [ "$tool" = "bash" ]; then
+            sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' "$HOME/.bashrc" 2>/dev/null || true
+            ok "unwired ~/.bashrc"
+        fi
     done
 
     printf "\n${GREEN}Done!${NC}\n"
@@ -116,11 +132,11 @@ info "Removing dotfile symlinks"
 
 if [ -n "$STOW" ]; then
     stow --dotfiles -D -t "$HOME" -d "$DOTFILES" \
-        bash vim nvim tmux git fonts inputrc 2>/dev/null || true
+        bash vim nvim tmux git fonts inputrc joshuto 2>/dev/null || true
     ok "Removed stow links"
 else
     for f in .dir_colors .vimrc .tmux.conf .gitignore_global .inputrc \
-              .vim ".config/nvim" ".local/share/fonts"; do
+              .vim ".config/nvim" ".config/joshuto" ".local/share/fonts"; do
         if [ -L "$HOME/$f" ]; then
             rm -f "$HOME/$f"
             ok "Removed $f"
