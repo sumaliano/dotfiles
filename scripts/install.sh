@@ -181,7 +181,7 @@ install_tool() {
 
 # ── Entry point ─────────────────────────────────────────────────────────────
 
-ALL=(bash vim neovim tmux git utils fonts inputrc)
+ALL=(bash vim neovim tmux git utils fonts inputrc joshuto)
 
 # --tool <name>[,name] installs vendor binaries + their configs locally
 if [ "${1:-}" = "--tool" ]; then
@@ -205,18 +205,21 @@ if [ "${1:-}" = "--tool" ]; then
     exit 0
 fi
 
-if [ $# -eq 0 ]; then
+# No args — or the explicit keyword 'all' — means every config component.
+if [ $# -eq 0 ] || { [ $# -eq 1 ] && [ "$1" = "all" ]; }; then
     targets=("${ALL[@]}")
 else
     targets=("$@")
 fi
 
 for t in "${targets[@]}"; do
-    if declare -f "install_$t" &>/dev/null; then
-        "install_$t"
+    # User-facing name → internal component function (e.g. nvim → neovim)
+    comp="$t"; [ "$t" = "nvim" ] && comp="neovim"
+    if declare -f "install_$comp" &>/dev/null; then
+        "install_$comp"
     else
         printf "${RED}Error:${NC} Unknown component '%s'\n" "$t" >&2
-        printf "Available: %s\n" "${ALL[*]}" >&2
+        printf "Available: bash vim nvim tmux git utils fonts inputrc joshuto\n" >&2
         exit 1
     fi
 done

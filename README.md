@@ -7,8 +7,8 @@ package manager, nothing pre-installed on the remote required.
 ## Features
 
 - **Portable toolchain**: `make vendor` downloads static (musl) builds of
-  modern CLI tools into `vendor/linux-<arch>/`; `make install HOST=…` ships them
-  to any Linux box over SSH/SCP.
+  modern CLI tools into `vendor/linux-<arch>/`; `make tool <name> HOST=…` ships
+  them to any Linux box over SSH/SCP.
 - **Bash**: fast git-aware prompt (single `git status` call), WSL-aware
   clipboard/`open`, fzf helpers, SSH/tmux/bookmark utilities.
 - **Terminal theme**: gruvbox-dark palette applied via portable OSC escape
@@ -28,12 +28,30 @@ package manager, nothing pre-installed on the remote required.
 git clone https://github.com/username/dotfiles ~/dotfiles
 cd ~/dotfiles
 
-# Install all dotfile components locally (uses stow if present, else ln)
-make install
+# Link all dotfile configs locally (uses stow if present, else ln)
+make dot
 
-# Or install selectively
-make bash vim tmux
+# Or selectively — names are positional
+make dot bash vim tmux
 ```
+
+The interface has **two verbs on one axis**:
+
+- **`dot`** acts on **configs**, **`tool`** acts on **portable binaries**.
+- Add **`HOST=user@host`** to do it on a remote box over SSH; omit it for local.
+- No name means **everything**.
+
+| Command | What it does |
+|---------|--------------|
+| `make dot [name…]` | Link dotfile **configs** locally (no name = all) |
+| `make dot [name…] HOST=u@h` | Push those configs to a server over SSH |
+| `make tool [name…]` | Install vendor **binaries** to `~/.local/bin` locally |
+| `make tool [name…] HOST=u@h` | Push those binaries to a server over SSH |
+| `make vendor` | Download static binaries to `vendor/linux-<arch>/` |
+| `make clean` | Remove the downloaded binaries (the `vendor/` cache) |
+| `make remove dot [name…] [HOST=u@h]` | Remove **configs** (no name = all) |
+| `make remove tool [name…] [HOST=u@h]` | Remove **binaries** (no name = all) |
+| `make status [HOST=u@h]` | Show what's installed, locally or on a server |
 
 ## Vendoring & remote deploy
 
@@ -43,38 +61,50 @@ This is the part most dotfiles repos don't have.
 # 1. Download portable static binaries into vendor/linux-<arch>/
 make vendor
 
-# 2. Push a single tool (binary + its config) to a remote server
-make install HOST=user@server TOOL=nvim
+# 2. Push a tool to a remote server — binary and config are two steps
+make tool nvim HOST=user@server        # the nvim binary  → ~/.local/bin
+make dot  nvim HOST=user@server        # the nvim config  → ~/.config/nvim
+# (or in one line)
+make tool nvim HOST=u@s && make dot nvim HOST=u@s
 
-# 3. Push every vendored binary (and the configs of vendor tools)
-make install HOST=user@server TOOL=all
+# 3. Several at once
+make tool fzf bat rg HOST=user@server
 
-# 4. Check what's installed, locally or remotely
+# 4. Everything — all binaries, or all configs
+make tool HOST=user@server             # every vendored binary
+make dot  HOST=user@server             # every config the deployer knows
+
+# 5. Check what's installed, locally or remotely
 make status
 make status HOST=user@server
 
-# 5. Remove a tool (or everything) locally or remotely
-make clean TOOL=nvim
-make clean HOST=user@server TOOL=all
+# 6. Remove — same dot/tool split, add HOST for remote
+make remove tool nvim                        # binary, locally
+make remove dot  nvim HOST=user@server       # config, remotely
+make remove tool HOST=user@server            # every binary on the server
 ```
 
-### What `TOOL=all` deploys (and what it doesn't)
+### `dot` vs `tool`, local vs remote
 
-`TOOL=all` deploys **only the vendored binaries and the configs that belong to
-those binaries** (e.g. `nvim` → `~/.config/nvim`, `tmux` → `~/.tmux.conf`).
+The two verbs are deliberately separate so each does exactly one thing:
 
-Config-only components that don't correspond to a vendor binary — **`bash`,
-`git`, `inputrc`** — are **never** included in `all`. Deploy them explicitly:
+- **`make tool …`** moves **binaries** (`~/.local/bin`). With no name it means
+  every binary present in `vendor/linux-<arch>/`.
+- **`make dot …`** moves **configs**. Locally that's all dotfile components
+  (`bash`, `git`, `nvim`, `vim`, `tmux`, `joshuto`, `utils`, `fonts`, `inputrc`);
+  remotely it's the ones the deployer knows how to wire up over SSH (`bash`,
+  `git`, `inputrc`, `nvim`, `vim`, `tmux`, `joshuto`).
+
+So a fully-equipped remote `nvim` is binary **and** config:
 
 ```bash
-make install HOST=user@server TOOL=bash      # ships ~/.bashrc_ext + wires ~/.bashrc
-make install HOST=user@server TOOL=git       # ships ~/.gitignore_global
+make tool nvim HOST=user@server && make dot nvim HOST=user@server
 ```
 
 ### Vendored tools
 
 `fzf`, `fd`, `bat`, `rg` (ripgrep), `eza`, `delta`, `btop`, `yazi` (+ `ya`),
-`joshuto`, `nvim`, `vim`, `tmux`.
+`joshuto`, `7z`, `nvim`, `vim`, `tmux`.
 
 `nvim` needs glibc 2.32+; the deployer detects old glibc and tells you to deploy
 the static `vim` build instead.

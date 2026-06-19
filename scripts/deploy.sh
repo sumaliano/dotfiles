@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# deploy.sh — Deploy vendor binaries + their configs to a remote server
+# deploy.sh — Push configs and/or vendor binaries to a remote server
 #
 # Usage:
-#   ./scripts/deploy.sh user@host --tool nvim
-#   ./scripts/deploy.sh user@host --tool nvim,fzf,bat
+#   ./scripts/deploy.sh user@host --configs --tool nvim     # configs only
+#   ./scripts/deploy.sh user@host --bins    --tool nvim     # binaries only
+#   ./scripts/deploy.sh user@host           --tool nvim     # both
+#   ./scripts/deploy.sh user@host --bins    --tool nvim,fzf,bat
 
 set -uo pipefail
 
@@ -23,9 +25,12 @@ REMOTE="${1:-}"
 shift || true
 
 TOOLS=""
+MODE="both"   # both | configs | bins
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --configs) MODE="configs" ;;
+        --bins)    MODE="bins" ;;
         --tool)
             shift; [ $# -gt 0 ] || die "--tool requires a value (e.g. --tool nvim)"
             TOOLS="$1" ;;
@@ -66,12 +71,17 @@ ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
 
 # ── Deploy each tool ──────────────────────────────────────────────────────────
 
-# Expand 'all' to the vendored binaries only. Config-only tools (bash, git,
-# inputrc) are intentionally excluded — deploy them explicitly by name.
+# Expand 'all'. What "everything" means depends on the mode:
+#   configs → every config component the deployer knows how to push remotely
+#   bins/both → every binary present in vendor/linux-<arch>/
 if [ "$TOOLS" = "all" ]; then
-    [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
-    TOOLS=$(ls "$VENDOR_DIR" | tr '\n' ',' | sed 's/,$//')
-    [ -n "$TOOLS" ] || die "vendor/linux-$REMOTE_ARCH/ is empty — run 'make vendor' first"
+    if [ "$MODE" = "configs" ]; then
+        TOOLS="bash,git,inputrc,nvim,vim,tmux,joshuto"
+    else
+        [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
+        TOOLS=$(ls "$VENDOR_DIR" | tr '\n' ',' | sed 's/,$//')
+        [ -n "$TOOLS" ] || die "vendor/linux-$REMOTE_ARCH/ is empty — run 'make vendor' first"
+    fi
 fi
 
 IFS=',' read -ra tool_list <<< "$TOOLS"
@@ -79,14 +89,16 @@ for tool in "${tool_list[@]}"; do
     tool="${tool// /}"
     info "Deploying: $tool"
 
-    # Binary — scp needs no remote binary, it's handled by sshd
+    # ── Binary (skipped in --configs mode) ────────────────────────────────────
+    if [ "$MODE" != "configs" ]; then
+    # scp needs no remote binary, it's handled by sshd
     src="$VENDOR_DIR/$tool"
     if [ -f "$src" ]; then
         # nvim requires glibc 2.32+; warn early on old systems rather than fail at runtime
         if [ "$tool" = "nvim" ]; then
             remote_glibc=$(ssh -q "$REMOTE" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)
             if [ -n "$remote_glibc" ] && awk "BEGIN{exit !($remote_glibc < 2.32)}"; then
-                warn "nvim requires glibc 2.32+ but remote has $remote_glibc — try: make deploy HOST=... TOOL=vim"
+                warn "nvim requires glibc 2.32+ but remote has $remote_glibc — try: make tool vim HOST=..."
                 continue
             fi
         fi
@@ -99,6 +111,12 @@ for tool in "${tool_list[@]}"; do
         : # config-only tool — no binary expected
     else
         warn "Binary not in vendor/linux-$REMOTE_ARCH/ — run 'make vendor' first"
+    fi
+    fi
+
+    # ── Configs (skipped in --bins mode) ──────────────────────────────────────
+    if [ "$MODE" = "bins" ]; then
+        continue
     fi
 
     # Bash is special: copy the extension + dir_colors, then wire it into the

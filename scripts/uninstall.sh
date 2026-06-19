@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# uninstall.sh — Remove dotfile symlinks or vendor tools, locally or remotely
+# uninstall.sh — Remove dotfile configs or vendor binaries, locally or remotely
+#
+# Mirrors install.sh / deploy.sh: one axis is what (configs vs binaries), the
+# other is where (local vs --host remote).
 #
 # Usage:
-#   ./scripts/uninstall.sh                           # remove all dotfile symlinks locally
-#   ./scripts/uninstall.sh --tool nvim               # remove vendor tool locally
-#   ./scripts/uninstall.sh --tool all                # remove all vendor tools locally
-#   ./scripts/uninstall.sh --host u@h --tool nvim    # remove vendor tool on remote
-#   ./scripts/uninstall.sh --host u@h --tool all     # remove all vendor tools on remote
+#   ./scripts/uninstall.sh --configs --tool nvim            # remove nvim config locally
+#   ./scripts/uninstall.sh --bins    --tool nvim            # remove nvim binary locally
+#   ./scripts/uninstall.sh --configs --tool all             # remove all configs locally
+#   ./scripts/uninstall.sh --bins    --host u@h --tool nvim # remove nvim binary on remote
 
 set -uo pipefail
 
@@ -14,9 +16,12 @@ DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STOW=$(command -v stow 2>/dev/null || true)
 HOST=""
 TOOLS=""
+MODE=""   # configs | bins
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --configs) MODE="configs" ;;
+        --bins)    MODE="bins" ;;
         --host)    shift; HOST="${1:-}" ;;
         --host=*)  HOST="${1#--host=}" ;;
         --tool)    shift; TOOLS="${1:-}" ;;
@@ -32,156 +37,144 @@ warn() { printf "  ${YELLOW}[warn]${NC} %s\n" "$*"; }
 info() { printf "\n${BOLD}==> %s${NC}\n" "$*"; }
 die()  { printf "${RED}Error:${NC} %s\n" "$*" >&2; exit 1; }
 
-# ── Config map ────────────────────────────────────────────────────────────────
+[ -n "$MODE" ] || die "internal: pass --configs or --bins"
 
-declare -A TOOL_CONFIG=(
-    [nvim]="~/.config/nvim"
+# Config destinations, keyed by component. Paths use remote-style ~ so the same
+# map drives both local (after $HOME expansion) and remote (ssh-side) removal.
+declare -A CONFIG_PATHS=(
+    [bash]="~/.bashrc_ext ~/.dir_colors"
     [vim]="~/.vimrc ~/.vim"
+    [nvim]="~/.config/nvim"
     [tmux]="~/.tmux.conf"
-    [joshuto]="~/.config/joshuto"
     [git]="~/.gitignore_global ~/.gitconfig.dotfiles"
     [inputrc]="~/.inputrc"
-    [bash]="~/.bashrc_ext ~/.dir_colors"
+    [joshuto]="~/.config/joshuto"
+    [fonts]="~/.local/share/fonts"
 )
 
-# ── Remote mode ───────────────────────────────────────────────────────────────
+# What "all" means, per mode and location.
+CONFIG_ALL_LOCAL="bash vim nvim tmux git utils fonts inputrc joshuto"
+CONFIG_ALL_REMOTE="bash git inputrc nvim vim tmux joshuto"
 
-if [ -n "$HOST" ]; then
-    [ -n "$TOOLS" ] || die "Remote clean requires --tool (e.g. --tool nvim or --tool all)"
-    command -v ssh &>/dev/null || die "ssh is required"
+vendor_all() {
+    local vd="$DOTFILES/vendor/linux-$(uname -m)"
+    [ -d "$vd" ] || die "vendor/linux-$(uname -m)/ not found — run 'make vendor' first"
+    local list; list=$(ls "$vd" | tr '\n' ' ')
+    [ -n "$list" ] || die "vendor/linux-$(uname -m)/ is empty"
+    printf '%s' "$list"
+}
 
-    # Expand 'all' from the local vendor directory
-    if [ "$TOOLS" = "all" ]; then
-        vendor_dir="$DOTFILES/vendor/linux-$(uname -m)"
-        [ -d "$vendor_dir" ] || die "vendor/linux-$(uname -m)/ not found — run 'make vendor' first"
-        TOOLS=$(ls "$vendor_dir" | tr '\n' ',' | sed 's/,$//')
-        [ -n "$TOOLS" ] || die "vendor/linux-$(uname -m)/ is empty"
+# ── Resolve the name list ─────────────────────────────────────────────────────
+
+if [ -z "$TOOLS" ] || [ "$TOOLS" = "all" ]; then
+    if [ "$MODE" = "bins" ]; then
+        names=$(vendor_all)
+    elif [ -n "$HOST" ]; then
+        names="$CONFIG_ALL_REMOTE"
+    else
+        names="$CONFIG_ALL_LOCAL"
     fi
+else
+    names="${TOOLS//,/ }"
+fi
 
-    IFS=',' read -ra tool_list <<< "$TOOLS"
-    for tool in "${tool_list[@]}"; do
-        tool="${tool// /}"
-        info "Removing $tool from $HOST"
+# ── Binary removal ────────────────────────────────────────────────────────────
 
-        # Build removal command using remote-side ~ (not local $HOME)
-        paths="~/.local/bin/$tool"
-        for p in ${TOOL_CONFIG[$tool]:-}; do
-            paths="$paths $p"
-        done
+remove_bin() {
+    local tool="$1"
+    if [ -n "$HOST" ]; then
+        ssh "$HOST" "rm -f ~/.local/bin/$tool" && ok "$tool  ←  ~/.local/bin/$tool (on $HOST)"
+    elif [ -f "$HOME/.local/bin/$tool" ]; then
+        rm -f "$HOME/.local/bin/$tool"; ok "$tool  ←  ~/.local/bin/$tool"
+    else
+        warn "$tool not found in ~/.local/bin/"
+    fi
+}
 
+# ── Config removal ────────────────────────────────────────────────────────────
+
+# utils are individual symlinks we own in ~/.local/bin — remove just those.
+remove_utils_local() {
+    for src in "$DOTFILES/utils/dot-bin"/*; do
+        [ -f "$src" ] || continue
+        local target="$HOME/.local/bin/$(basename "$src")"
+        if [ -L "$target" ] && [ "$(readlink "$target")" = "$src" ]; then
+            rm -f "$target"; ok "config  ←  $target"
+        fi
+    done
+}
+
+remove_config_local() {
+    local comp="$1"
+    case "$comp" in
+        utils) remove_utils_local; return ;;
+    esac
+    for dest in ${CONFIG_PATHS[$comp]:-}; do
+        dest="${dest/#\~/$HOME}"
+        if [ -e "$dest" ] || [ -L "$dest" ]; then
+            rm -rf "$dest"; ok "config  ←  $dest"
+        fi
+    done
+    if [ "$comp" = "bash" ]; then
+        sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' "$HOME/.bashrc" 2>/dev/null || true
+        ok "unwired ~/.bashrc"
+    fi
+    if [ "$comp" = "git" ]; then
+        local frag="$DOTFILES/git/dot-gitconfig"
+        local re="^$(printf '%s' "$frag" | sed 's/[.[*^$\\]/\\&/g')\$"
+        git config --global --unset-all include.path "$re" 2>/dev/null || true
+        ok "removed dotfiles include from ~/.gitconfig"
+    fi
+}
+
+remove_config_remote() {
+    local comp="$1"
+    local paths="${CONFIG_PATHS[$comp]:-}"
+    if [ -n "$paths" ]; then
         # shellcheck disable=SC2029
         ssh "$HOST" "rm -rf $paths && echo '  removed: $paths'"
-
-        # bash also injects a source block into ~/.bashrc — strip it
-        if [ "$tool" = "bash" ]; then
-            ssh "$HOST" "sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' ~/.bashrc 2>/dev/null || true"
-            ok "unwired ~/.bashrc"
-        fi
-
-        # git layers itself in via [include] — drop only our include entry
-        if [ "$tool" = "git" ]; then
-            ssh "$HOST" bash <<'EOF'
+    fi
+    if [ "$comp" = "bash" ]; then
+        ssh "$HOST" "sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' ~/.bashrc 2>/dev/null || true"
+        ok "unwired ~/.bashrc"
+    fi
+    if [ "$comp" = "git" ]; then
+        ssh "$HOST" bash <<'EOF'
 inc="$HOME/.gitconfig.dotfiles"
 re="^$(printf '%s' "$inc" | sed 's/[.[*^$\\]/\\&/g')\$"
 git config --global --unset-all include.path "$re" 2>/dev/null || true
 EOF
-            ok "removed dotfiles include from ~/.gitconfig"
-        fi
-    done
-
-    printf "\n${GREEN}Done!${NC}\n"
-    exit 0
-fi
-
-# ── Local tool mode ───────────────────────────────────────────────────────────
-
-if [ -n "$TOOLS" ]; then
-    # Expand 'all' from the vendor directory
-    if [ "$TOOLS" = "all" ]; then
-        vendor_dir="$DOTFILES/vendor/linux-$(uname -m)"
-        [ -d "$vendor_dir" ] || die "vendor/linux-$(uname -m)/ not found — run 'make vendor' first"
-        TOOLS=$(ls "$vendor_dir" | tr '\n' ',' | sed 's/,$//')
-        [ -n "$TOOLS" ] || die "vendor/linux-$(uname -m)/ is empty"
+        ok "removed dotfiles include from ~/.gitconfig"
     fi
+}
 
-    IFS=',' read -ra tool_list <<< "$TOOLS"
-    for tool in "${tool_list[@]}"; do
-        tool="${tool// /}"
-        info "Removing: $tool"
+# ── Drive it ──────────────────────────────────────────────────────────────────
 
-        bin="$HOME/.local/bin/$tool"
-        if [ -f "$bin" ]; then
-            rm -f "$bin"
-            ok "$tool  ←  ~/.local/bin/$tool"
-        else
-            warn "$tool not found in ~/.local/bin/"
-        fi
+[ -n "$HOST" ] && command -v ssh &>/dev/null || [ -z "$HOST" ] || die "ssh is required"
 
-        for dest in ${TOOL_CONFIG[$tool]:-}; do
-            dest="${dest/#\~/$HOME}"
-            if [ -e "$dest" ] || [ -L "$dest" ]; then
-                rm -rf "$dest"
-                ok "config  ←  $dest"
-            fi
-        done
-
-        # bash also injects a source block into ~/.bashrc — strip it
-        if [ "$tool" = "bash" ]; then
-            sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' "$HOME/.bashrc" 2>/dev/null || true
-            ok "unwired ~/.bashrc"
-        fi
-
-        # git layers itself in via [include] — drop only our include entry
-        if [ "$tool" = "git" ]; then
-            gitfrag="$DOTFILES/git/dot-gitconfig"
-            gre="^$(printf '%s' "$gitfrag" | sed 's/[.[*^$\\]/\\&/g')\$"
-            git config --global --unset-all include.path "$gre" 2>/dev/null || true
-            ok "removed dotfiles include from ~/.gitconfig"
-        fi
-    done
-
-    printf "\n${GREEN}Done!${NC}\n"
-    exit 0
-fi
-
-# ── Local dotfiles mode (default) ─────────────────────────────────────────────
-
-info "Removing dotfile symlinks"
-
-if [ -n "$STOW" ]; then
+# Fast path for local "remove all configs" via stow's own de-link.
+if [ "$MODE" = "configs" ] && [ -z "$HOST" ] && [ -n "$STOW" ] \
+   && { [ -z "$TOOLS" ] || [ "$TOOLS" = "all" ]; }; then
+    info "Removing all dotfile configs"
     stow --dotfiles -D -t "$HOME" -d "$DOTFILES" \
         bash vim nvim tmux git fonts inputrc joshuto 2>/dev/null || true
-    ok "Removed stow links"
-else
-    for f in .dir_colors .vimrc .tmux.conf .gitignore_global .inputrc \
-              .vim ".config/nvim" ".config/joshuto" ".local/share/fonts"; do
-        if [ -L "$HOME/$f" ]; then
-            rm -f "$HOME/$f"
-            ok "Removed $f"
-        fi
-    done
+    remove_utils_local
+    remove_config_local bash   # unwire ~/.bashrc
+    remove_config_local git    # drop [include]
+    printf "\n${GREEN}Done!${NC}\n"
+    exit 0
 fi
 
-# Utils: remove only the symlinks we own in ~/.local/bin/
-for src in "$DOTFILES/utils/dot-bin"/*; do
-    [ -f "$src" ] || continue
-    name=$(basename "$src")
-    target="$HOME/.local/bin/$name"
-    if [ -L "$target" ] && [ "$(readlink "$target")" = "$src" ]; then
-        rm -f "$target"
-        ok "Removed $name"
+for name in $names; do
+    name="${name// /}"
+    [ -n "$name" ] || continue
+    if [ "$MODE" = "bins" ]; then
+        info "Removing binary: $name${HOST:+ (on $HOST)}"
+        remove_bin "$name"
+    else
+        info "Removing config: $name${HOST:+ (on $HOST)}"
+        if [ -n "$HOST" ]; then remove_config_remote "$name"; else remove_config_local "$name"; fi
     fi
 done
-
-sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' "$HOME/.bashrc" 2>/dev/null || true
-ok "Cleaned ~/.bashrc"
-
-# Remove our [include] from ~/.gitconfig — leave the user's own config intact
-gitfrag="$DOTFILES/git/dot-gitconfig"
-if git config --global --get-all include.path 2>/dev/null | grep -qxF "$gitfrag"; then
-    gre="^$(printf '%s' "$gitfrag" | sed 's/[.[*^$\\]/\\&/g')\$"
-    git config --global --unset-all include.path "$gre" 2>/dev/null || true
-    ok "Removed dotfiles include from ~/.gitconfig"
-fi
 
 printf "\n${GREEN}Done!${NC}\n"

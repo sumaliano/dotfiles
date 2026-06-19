@@ -2,7 +2,7 @@
 # bootstrap.sh — Download static/portable binaries to vendor/linux-<arch>/
 #
 # Run once on any internet-connected machine.
-# Then use: make deploy HOST=user@server
+# Then use: make tool <name> HOST=user@server
 #
 # Override GITHUB_TOKEN env var to avoid API rate limits.
 # Use FORCE=true to re-download already-present binaries.
@@ -69,7 +69,7 @@ install_tar() {
     printf "  Fetching %-10s ...\r" "$dest"
     local tmp; tmp=$(mktemp -d)
 
-    if curl -fsSL "$url" | tar -xz -C "$tmp" 2>/dev/null; then
+    if curl -fsSL -o "$tmp/archive" "$url" && tar -xf "$tmp/archive" -C "$tmp" 2>/dev/null; then
         local found; found=$(find "$tmp" -type f -name "$bin" | head -1)
         if [ -n "$found" ]; then
             cp "$found" "$VENDOR_DIR/$dest"
@@ -153,10 +153,11 @@ printf "\n"
 #   fzf uses "amd64" / "arm64"
 #   musl Rust builds use "x86_64" / "aarch64"
 #   nvim/vim/tmux/yazi use "x86_64" / "arm64"
-FZF_ARCH="amd64";  [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
-NVIM_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
-VIM_ARCH="$ARCH";  [ "$ARCH" = "aarch64" ] && VIM_ARCH="arm64"
-TMUX_ARCH="$ARCH"; [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
+FZF_ARCH="amd64";     [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
+NVIM_ARCH="$ARCH";    [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
+VIM_ARCH="$ARCH";     [ "$ARCH" = "aarch64" ] && VIM_ARCH="arm64"
+TMUX_ARCH="$ARCH";    [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
+SEVENZ_ARCH="x64";    [ "$ARCH" = "aarch64" ] && SEVENZ_ARCH="arm64"
 MUSL="${ARCH}-unknown-linux-musl"
 
 # fzf — Go static binary (junegunn/fzf)
@@ -189,8 +190,11 @@ install_zip ya    sxyazi/yazi              "${MUSL}.zip"
 # joshuto — ranger-like file manager with tabs, Rust musl (kamiyaa/joshuto)
 install_tar joshuto kamiyaa/joshuto        "${MUSL}.tar.gz"
 
+# 7z — official static build (ip7z/7zip); archive contains 7zzs (static) and 7zz (dynamic)
+install_tar 7z      ip7z/7zip             "linux-${SEVENZ_ARCH}.tar.xz"  7zzs
+
 # nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
-# For old systems, deploy vim instead: make install HOST=server TOOL=vim
+# For old systems, deploy vim instead: make tool vim HOST=server
 install_tar nvim  neovim/neovim            "nvim-linux-${NVIM_ARCH}.tar.gz"
 
 # vim — static-pie single binary, no runtime needed, x86_64 + arm64 (heywoodlh/vim-builds)
@@ -205,4 +209,4 @@ install_tar tmux  tmux/tmux-builds         "linux-${TMUX_ARCH}.tar.gz"
 printf "\n"
 info "Vendor directory contents:"
 ls -lh "$VENDOR_DIR" 2>/dev/null || printf "  (empty)\n"
-printf "\n${GREEN}Done.${NC} Run ${BOLD}make install HOST=user@server TOOL=<name>${NC} to push to a remote machine.\n"
+printf "\n${GREEN}Done.${NC} Run ${BOLD}make tool <name> HOST=user@server${NC} to push to a remote machine.\n"
