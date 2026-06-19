@@ -1,10 +1,9 @@
-# Git configuration template
-# Copy to ~/.gitconfig and customize [user] section
-
-[user]
-    # CHANGE THESE - uncomment and set your info
-    # name = Your Name
-    # email = your.email@example.com
+# Shared git configuration — layered into ~/.gitconfig via [include].
+# Your identity and credentials stay in your own ~/.gitconfig; this file holds
+# the portable settings (pager, aliases, diff/merge tools, colors).
+#
+# Wired automatically by `make git`. Manual setup:
+#   git config --global --add include.path ~/dotfiles/git/dot-gitconfig
 
 [core]
     editor = nvim
@@ -12,17 +11,19 @@
     # Use delta when it's on PATH, otherwise fall back to less.
     # `command -v` is evaluated by the shell git runs the pager through,
     # so this degrades gracefully on machines without delta installed.
-    pager = if command -v delta >/dev/null 2>&1; then delta; else less -FRX; fi
+    # Quoted because git treats ';' and '#' as comment starts in bare values.
+    pager = "if command -v delta >/dev/null 2>&1; then delta; else less -FRX; fi"
     autocrlf = input
     whitespace = trailing-space,space-before-tab
 
 [interactive]
     # Used by `git add -p` etc. Pass through unchanged when delta is absent.
-    diffFilter = if command -v delta >/dev/null 2>&1; then delta --color-only; else cat; fi
+    diffFilter = "if command -v delta >/dev/null 2>&1; then delta --color-only; else cat; fi"
 
 # Applied only when delta actually runs; ignored harmlessly otherwise.
 [delta]
     navigate = true
+    side-by-side = true
     line-numbers = true
     hyperlinks = false
 

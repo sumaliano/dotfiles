@@ -11,6 +11,10 @@ package manager, nothing pre-installed on the remote required.
   to any Linux box over SSH/SCP.
 - **Bash**: fast git-aware prompt (single `git status` call), WSL-aware
   clipboard/`open`, fzf helpers, SSH/tmux/bookmark utilities.
+- **Terminal theme**: gruvbox-dark palette applied via portable OSC escape
+  sequences at shell startup — works in any xterm-compatible terminal and over
+  SSH, no emulator config. Disable with `export DOTFILES_TERM_THEME=0`; restore
+  the terminal's own colors with `term-reset`.
 - **Neovim**: two-tier config — a standalone plugin-free `init.lua` (great for
   remote servers) and a full `init_plugins.lua` with LSP via lazy.nvim.
 - **Graceful degradation**: configs detect available tools (delta, eza, bat,

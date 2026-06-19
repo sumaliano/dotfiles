@@ -39,7 +39,7 @@ declare -A TOOL_CONFIG=(
     [vim]="~/.vimrc ~/.vim"
     [tmux]="~/.tmux.conf"
     [joshuto]="~/.config/joshuto"
-    [git]="~/.gitignore_global"
+    [git]="~/.gitignore_global ~/.gitconfig.dotfiles"
     [inputrc]="~/.inputrc"
     [bash]="~/.bashrc_ext ~/.dir_colors"
 )
@@ -76,6 +76,16 @@ if [ -n "$HOST" ]; then
         if [ "$tool" = "bash" ]; then
             ssh "$HOST" "sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' ~/.bashrc 2>/dev/null || true"
             ok "unwired ~/.bashrc"
+        fi
+
+        # git layers itself in via [include] — drop only our include entry
+        if [ "$tool" = "git" ]; then
+            ssh "$HOST" bash <<'EOF'
+inc="$HOME/.gitconfig.dotfiles"
+re="^$(printf '%s' "$inc" | sed 's/[.[*^$\\]/\\&/g')\$"
+git config --global --unset-all include.path "$re" 2>/dev/null || true
+EOF
+            ok "removed dotfiles include from ~/.gitconfig"
         fi
     done
 
@@ -120,6 +130,14 @@ if [ -n "$TOOLS" ]; then
             sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' "$HOME/.bashrc" 2>/dev/null || true
             ok "unwired ~/.bashrc"
         fi
+
+        # git layers itself in via [include] — drop only our include entry
+        if [ "$tool" = "git" ]; then
+            gitfrag="$DOTFILES/git/dot-gitconfig"
+            gre="^$(printf '%s' "$gitfrag" | sed 's/[.[*^$\\]/\\&/g')\$"
+            git config --global --unset-all include.path "$gre" 2>/dev/null || true
+            ok "removed dotfiles include from ~/.gitconfig"
+        fi
     done
 
     printf "\n${GREEN}Done!${NC}\n"
@@ -158,9 +176,12 @@ done
 sed -i '/# BEGIN DOTFILES/,/# END DOTFILES/d' "$HOME/.bashrc" 2>/dev/null || true
 ok "Cleaned ~/.bashrc"
 
-if [ -f "$HOME/.gitconfig" ] && grep -q "Git configuration template" "$HOME/.gitconfig" 2>/dev/null; then
-    rm -f "$HOME/.gitconfig"
-    ok "Removed .gitconfig"
+# Remove our [include] from ~/.gitconfig — leave the user's own config intact
+gitfrag="$DOTFILES/git/dot-gitconfig"
+if git config --global --get-all include.path 2>/dev/null | grep -qxF "$gitfrag"; then
+    gre="^$(printf '%s' "$gitfrag" | sed 's/[.[*^$\\]/\\&/g')\$"
+    git config --global --unset-all include.path "$gre" 2>/dev/null || true
+    ok "Removed dotfiles include from ~/.gitconfig"
 fi
 
 printf "\n${GREEN}Done!${NC}\n"

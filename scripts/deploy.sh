@@ -47,7 +47,6 @@ declare -A TOOL_CONFIG=(
     [vim]="vim/dot-vimrc|~/.vimrc vim/dot-vim|~/.vim"
     [tmux]="tmux/dot-tmux.conf|~/.tmux.conf"
     [joshuto]="joshuto/dot-config/joshuto|~/.config/joshuto"
-    [git]="git/dot-gitignore_global|~/.gitignore_global"
     [inputrc]="inputrc/dot-inputrc|~/.inputrc"
 )
 
@@ -113,6 +112,21 @@ if ! grep -q "# BEGIN DOTFILES" ~/.bashrc 2>/dev/null; then
 fi
 WIRE
         ok "config  →  ~/.bashrc_ext (wired into ~/.bashrc)"
+        continue
+    fi
+
+    # Git is special: the repo path doesn't exist on the remote, so copy the
+    # shared config to ~/.gitconfig.dotfiles and layer it in via [include],
+    # leaving the remote user's own ~/.gitconfig (identity/credentials) intact.
+    if [ "$tool" = "git" ]; then
+        scp -q "$DOTFILES/git/dot-gitconfig"        "$REMOTE:.gitconfig.dotfiles"
+        scp -q "$DOTFILES/git/dot-gitignore_global" "$REMOTE:.gitignore_global"
+        ssh -q "$REMOTE" bash <<'WIRE'
+inc="$HOME/.gitconfig.dotfiles"
+git config --global --get-all include.path 2>/dev/null | grep -qxF "$inc" \
+    || git config --global --add include.path "$inc"
+WIRE
+        ok "config  →  ~/.gitconfig.dotfiles (included from ~/.gitconfig)"
         continue
     fi
 

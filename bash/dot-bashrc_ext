@@ -46,6 +46,46 @@ stty -ixon 2>/dev/null
 set -o ignoreeof
 
 # ============================================================================
+# TERMINAL COLORSCHEME - Gruvbox dark via OSC (portable, any xterm terminal)
+# ============================================================================
+# Sets the terminal's 16 ANSI colors + fg/bg/cursor with OSC escape sequences
+# so the terminal matches the vim/nvim gruvbox theme. Works locally and over
+# SSH in any xterm-compatible terminal. Applied at the very end of this file
+# (after ~/.bashrc.local) so it can be disabled per-machine with:
+#   export DOTFILES_TERM_THEME=0     # in ~/.bashrc.local
+# Run `term-reset` to restore the terminal's own colors.
+
+_apply_term_theme() {
+    case "${TERM:-}" in dumb|linux|"") return ;; esac   # no OSC on VT / dumb
+    [ -t 1 ] || return                                   # real terminals only
+
+    local ESC=$'\033' BEL=$'\007'
+    local osc="${ESC}]" st="$BEL"
+    if [ -n "${TMUX:-}" ]; then                          # wrap for tmux passthrough
+        osc="${ESC}Ptmux;${ESC}${ESC}]"
+        st="${BEL}${ESC}\\"
+    fi
+
+    # Gruvbox dark — 0-7 normal, 8-15 bright
+    local pairs=(
+        0:282828  1:cc241d  2:98971a  3:d79921
+        4:458588  5:b16286  6:689d6a  7:a89984
+        8:928374  9:fb4934 10:b8bb26 11:fabd2f
+        12:83a598 13:d3869b 14:8ec07c 15:ebdbb2
+    )
+    local p
+    for p in "${pairs[@]}"; do
+        printf '%s4;%s;#%s%s' "$osc" "${p%%:*}" "${p#*:}" "$st"
+    done
+    printf '%s10;#ebdbb2%s' "$osc" "$st"   # foreground
+    printf '%s11;#282828%s' "$osc" "$st"   # background
+    printf '%s12;#ebdbb2%s' "$osc" "$st"   # cursor
+}
+
+# Restore the terminal's default palette / fg / bg / cursor
+term-reset() { printf '\033]104\007\033]110\007\033]111\007\033]112\007'; }
+
+# ============================================================================
 # PROMPT - Git-aware, exit status, jobs indicator
 # ============================================================================
 
@@ -236,7 +276,7 @@ if command -v yazi &>/dev/null; then
     yy() { local tmp; tmp=$(mktemp); yazi --cwd-file="$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
 fi
 if command -v joshuto &>/dev/null; then
-    joshuto() { local tmp; tmp=$(mktemp); command joshuto --output-file "$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
+    jj() { local tmp; tmp=$(mktemp); command joshuto --output-file "$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
 fi
 
 
@@ -669,3 +709,7 @@ fi
 # ============================================================================
 
 [ -f ~/.bashrc.local ] && source ~/.bashrc.local
+
+# Apply the terminal colorscheme last, so ~/.bashrc.local can opt out
+# (export DOTFILES_TERM_THEME=0) or override the palette beforehand.
+[ "${DOTFILES_TERM_THEME:-1}" != 0 ] && _apply_term_theme

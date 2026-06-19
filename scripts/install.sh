@@ -97,13 +97,24 @@ install_tmux() {
 
 install_git() {
     info "Git"
-    stow_pkg git
-    # .gitconfig is copied (not linked) — it contains personal info edited in-place
-    if [ -f "$HOME/.gitconfig" ] && ! grep -q "Git configuration template" "$HOME/.gitconfig" 2>/dev/null; then
-        warn "~/.gitconfig exists and isn't a dotfiles template — skipping"
+    # Link only the global ignore file. We deliberately do NOT stow the whole
+    # git package — that would symlink ~/.gitconfig into the repo. Instead we
+    # layer our shared config in via [include], preserving the user's own
+    # ~/.gitconfig (identity, credentials, machine-specific settings).
+    link_git
+
+    # Safety: if a previous install symlinked ~/.gitconfig into this repo,
+    # de-link it so `git config` below doesn't write through into the repo file.
+    if [ -L "$HOME/.gitconfig" ] && readlink "$HOME/.gitconfig" | grep -q "$DOTFILES"; then
+        rm "$HOME/.gitconfig"
+    fi
+
+    local target="$DOTFILES/git/dot-gitconfig"
+    if git config --global --get-all include.path 2>/dev/null | grep -qxF "$target"; then
+        ok "~/.gitconfig already includes dotfiles config"
     else
-        cp "$DOTFILES/git/dot-gitconfig" "$HOME/.gitconfig"
-        ok ".gitconfig"
+        git config --global --add include.path "$target"
+        ok "Wired dotfiles config into ~/.gitconfig (via [include])"
     fi
 }
 
