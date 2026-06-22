@@ -566,16 +566,20 @@ if command -v fzf &>/dev/null; then
     # matched line in $EDITOR. Pattern is optional ($1); empty browses all lines.
     fif() {
         command -v rg &>/dev/null || { echo "fif: needs ripgrep (rg)" >&2; return 1; }
-        local preview result file line
+        local q="${1:-}" preview hl='' result file line
+        # Word highlight: pipe the rendered preview through rg --passthru to paint
+        # the matched term. FIF_Q (the query) is read from fzf's environment below.
+        [ -n "$q" ] && hl=' | rg --passthru --color=always --colors "match:bg:yellow" --colors "match:fg:black" --smart-case -e "$FIF_Q"'
         if command -v bat &>/dev/null; then
-            preview='bat --color=always --style=numbers --highlight-line {2} {1}'
+            preview="bat --color=always --style=numbers --highlight-line {2} {1}$hl"
         else
-            preview='cat -n {1}'   # no bat: plain text, still scrolled to the line
+            preview="cat -n {1}$hl"   # no bat: plain text, still scrolled to the line
         fi
-        result=$(rg --line-number --no-heading --color=always --smart-case -- "${1:-}" \
-            | fzf --ansi --delimiter : \
+        # +{2}-/2 scrolls to the match line, then up half the pane → centered.
+        result=$(rg --line-number --no-heading --color=always --smart-case -- "$q" \
+            | FIF_Q="$q" fzf --ansi --delimiter : \
                   --preview "$preview" \
-                  --preview-window 'right:60%:+{2}-10') || return
+                  --preview-window 'right:60%:+{2}-/2') || return
         [ -n "$result" ] || return
         file=${result%%:*}; line=${result#*:}; line=${line%%:*}
         "${EDITOR:-vi}" +"$line" "$file"
