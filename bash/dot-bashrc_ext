@@ -541,11 +541,11 @@ if command -v fzf &>/dev/null; then
         export FZF_CTRL_T_OPTS="--preview 'bat --color=always --style=numbers --line-range=:500 {}'"
     fi
 
-    # Load fzf keybindings and completions
-    [ -f /usr/share/fzf/key-bindings.bash ] && source /usr/share/fzf/key-bindings.bash
-    [ -f /usr/share/fzf/completion.bash ] && source /usr/share/fzf/completion.bash
-    # Alternative locations (macOS homebrew, etc.)
-    [ -f ~/.fzf.bash ] && source ~/.fzf.bash
+    # Keybindings + completion: Ctrl-T (files), Ctrl-R (history), Alt-C (cd).
+    # The FZF_CTRL_T_* vars above only *configure* these widgets; this installs
+    # them. fzf >= 0.48 emits its own bindings, so the vendored binary needs no
+    # distro files. (Empty/error output on ancient fzf is a harmless no-op.)
+    eval "$(fzf --bash 2>/dev/null)"
 
     # FZF-powered functions
     # Interactive cd with preview
@@ -556,6 +556,25 @@ if command -v fzf &>/dev/null; then
         else
             dir=$(find ${1:-.} -type d 2>/dev/null | fzf --preview 'ls -la {}' +m) && cd "$dir"
         fi
+    }
+
+    # Interactive find-in-files: grep content, preview the hit, open it at the
+    # matched line in $EDITOR. Pattern is optional ($1); empty browses all lines.
+    fif() {
+        command -v rg &>/dev/null || { echo "fif: needs ripgrep (rg)" >&2; return 1; }
+        local preview result file line
+        if command -v bat &>/dev/null; then
+            preview='bat --color=always --style=numbers --highlight-line {2} {1}'
+        else
+            preview='cat -n {1}'   # no bat: plain text, still scrolled to the line
+        fi
+        result=$(rg --line-number --no-heading --color=always --smart-case -- "${1:-}" \
+            | fzf --ansi --delimiter : \
+                  --preview "$preview" \
+                  --preview-window 'right:60%:+{2}-10') || return
+        [ -n "$result" ] || return
+        file=${result%%:*}; line=${result#*:}; line=${line%%:*}
+        "${EDITOR:-vi}" +"$line" "$file"
     }
 
     # Interactive history search (Cleaned up for different HISTTIMEFORMATs)
