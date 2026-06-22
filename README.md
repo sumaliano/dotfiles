@@ -103,11 +103,19 @@ make tool nvim HOST=user@server && make dot nvim HOST=user@server
 
 ### Vendored tools
 
-`fzf`, `fd`, `bat`, `rg` (ripgrep), `eza`, `delta`, `btop`, `yazi` (+ `ya`),
-`joshuto`, `7z`, `nvim`, `vim`, `tmux`.
+`fzf`, `fd`, `bat`, `rg` (ripgrep), `eza`, `zoxide`, `delta`, `lazygit`, `btop`,
+`yazi` (+ `ya`), `joshuto`, `7z`, `nvim`, `vim`, `tmux`.
+
+`zoxide` is a frecency-based `cd` (`z`/`zi`); it needs the shell-init line in
+`bash/dot-bashrc_ext` and is fed by joshuto navigation (`zoxide_update = true`).
 
 `nvim` needs glibc 2.32+; the deployer detects old glibc and tells you to deploy
 the static `vim` build instead.
+
+`lazygit` is **local-only**: it's vendored and installed locally, but excluded
+from the bulk remote deploy (`make tool HOST=…`) so you keep your raw git skills
+sharp on bare servers. You can still push it explicitly with
+`make tool lazygit HOST=…` if you really want it on a box.
 
 ## What's Included
 

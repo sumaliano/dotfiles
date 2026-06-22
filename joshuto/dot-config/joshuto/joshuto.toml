@@ -1,3 +1,6 @@
+# Feed zoxide's database as you navigate in joshuto, so `z` learns from here too.
+zoxide_update = true
+
 [display]
 show_hidden = true
 line_number_style = "relative"

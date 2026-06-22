@@ -158,6 +158,7 @@ NVIM_ARCH="$ARCH";    [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
 VIM_ARCH="$ARCH";     [ "$ARCH" = "aarch64" ] && VIM_ARCH="arm64"
 TMUX_ARCH="$ARCH";    [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
 SEVENZ_ARCH="x64";    [ "$ARCH" = "aarch64" ] && SEVENZ_ARCH="arm64"
+LG_ARCH="x86_64";     [ "$ARCH" = "aarch64" ] && LG_ARCH="arm64"
 MUSL="${ARCH}-unknown-linux-musl"
 
 # fzf — Go static binary (junegunn/fzf)
@@ -176,8 +177,17 @@ install_tar rg    BurntSushi/ripgrep       "${MUSL}.tar.gz"    rg
 # eza — modern ls replacement, Rust musl (eza-community/eza)
 install_tar eza   eza-community/eza        "eza_${MUSL}.tar.gz"
 
+# zoxide — frecency-based 'cd' (z / zi), Rust musl (ajeetdsouza/zoxide)
+# Needs a shell-init line to hook cd — see bash/dot-bashrc_ext.
+install_tar zoxide ajeetdsouza/zoxide      "${MUSL}.tar.gz"
+
 # delta — git diff pager, Rust musl (dandavison/delta)
 install_tar delta dandavison/delta         "${MUSL}.tar.gz"
+
+# lazygit — git TUI, static Go binary (jesseduffield/lazygit)
+# Local-only: vendored and installed locally, but excluded from the remote
+# "all" deploy (see deploy.sh). Keep your git fundamentals sharp for bare boxes.
+install_tar lazygit jesseduffield/lazygit  "linux_${LG_ARCH}.tar.gz"
 
 # btop — interactive system monitor, C++ musl static (aristocratos/btop)
 install_tar btop  aristocratos/btop        "btop-${MUSL}.tar.gz"  btop

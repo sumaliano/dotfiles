@@ -503,6 +503,10 @@ elif [ -d "$HOME/.pyenv" ]; then
     eval "$(pyenv init - bash)"
 fi
 
+# zoxide - frecency 'cd' (defines z / zi). Needs this init to hook cd; it only
+# augments PROMPT_COMMAND, so it coexists with the prompt above. zi uses fzf.
+command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
+
 # ============================================================================
 # FZF - Fuzzy finder integration (if available)
 # ============================================================================
