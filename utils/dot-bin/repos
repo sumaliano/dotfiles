@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Show git status for all repos in a directory
-# Usage: gitstatus           # Check subdirectories of current dir
-#        gitstatus --fetch   # Fetch all remotes before checking
+# Usage: repos           # Check subdirectories of current dir
+#        repos --fetch   # Fetch all remotes before checking
 
 set -euo pipefail
 
@@ -16,7 +16,7 @@ DO_FETCH=0
 DIR="."
 
 usage() {
-    echo "Usage: gitstatus [OPTIONS] [DIRECTORY]"
+    echo "Usage: $(basename "$0") [OPTIONS] [DIRECTORY]"
     echo ""
     echo "Options:"
     echo "  -f, --fetch    Run 'git fetch' on all repos before checking"
