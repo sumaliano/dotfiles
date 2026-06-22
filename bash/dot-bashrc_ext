@@ -566,23 +566,23 @@ if command -v fzf &>/dev/null; then
     # matched line in $EDITOR. Pattern is optional ($1); empty browses all lines.
     fif() {
         command -v rg &>/dev/null || { echo "fif: needs ripgrep (rg)" >&2; return 1; }
-        local q="${1:-}" preview hl='' result file line
-        # Word highlight: pipe the rendered preview through rg --passthru to paint
-        # the matched term. FIF_Q (the query) is read from fzf's environment below.
-        [ -n "$q" ] && hl=' | rg --passthru --color=always --colors "match:fg:red" --colors "match:style:bold" --colors "match:style:underline" --smart-case -e "$FIF_Q"'
-        if command -v bat &>/dev/null; then
-            preview="bat --color=always --style=numbers --highlight-line {2} {1}$hl"
-        else
-            preview="cat -n {1}$hl"   # no bat: plain text, still scrolled to the line
-        fi
-        # +{2}-/2 scrolls to the match line, then up half the pane → centered.
-        result=$(rg --line-number --no-heading --color=always --smart-case -- "$q" \
-            | FIF_Q="$q" fzf --ansi --delimiter : \
-                  --preview "$preview" \
-                  --preview-window 'right:60%:+{2}-/2') || return
-        [ -n "$result" ] || return
-        file=${result%%:*}; line=${result#*:}; line=${line%%:*}
-        "${EDITOR:-vi}" +"$line" "$file"
+
+        local INITIAL_QUERY="${1:-}"
+
+        # We use fzf to dynamically rerun ripgrep on every keystroke.
+        # {q} represents the exact string currently typed into fzf.
+        IFS=: read -r file line _ < <(
+            rg --line-number --no-heading --color=always --smart-case -- "${INITIAL_QUERY}" 2>/dev/null \
+                | fzf --ansi \
+                --disabled \
+                --query "${INITIAL_QUERY}" \
+                --bind "change:reload:sleep 0.1; rg --line-number --no-heading --color=always --smart-case -- {q} || true" \
+                --delimiter : \
+                --preview 'bat --color=always --style=numbers --highlight-line {2} --theme="Monokai Subliminal" {1} 2>/dev/null | rg --passthru --color=always --smart-case "{q}" 2>/dev/null' \
+                --preview-window 'right:60%:+{2}-/2'
+            )
+
+            [ -n "$file" ] && "${EDITOR:-vi}" +"$line" "$file"
     }
 
     # Interactive history search (Cleaned up for different HISTTIMEFORMATs)
