@@ -91,9 +91,9 @@ The two verbs are deliberately separate so each does exactly one thing:
 - **`make tool …`** moves **binaries** (`~/.local/bin`). With no name it means
   every binary present in `vendor/linux-<arch>/`.
 - **`make dot …`** moves **configs**. Locally that's all dotfile components
-  (`bash`, `git`, `nvim`, `vim`, `tmux`, `joshuto`, `utils`, `fonts`, `inputrc`);
+  (`bash`, `git`, `nvim`, `vim`, `tmux`, `joshuto`, `yazi`, `utils`, `fonts`, `inputrc`);
   remotely it's the ones the deployer knows how to wire up over SSH (`bash`,
-  `git`, `inputrc`, `nvim`, `vim`, `tmux`, `joshuto`).
+  `git`, `inputrc`, `nvim`, `vim`, `tmux`, `joshuto`, `yazi`).
 
 So a fully-equipped remote `nvim` is binary **and** config:
 
@@ -118,7 +118,8 @@ the static `vim` build instead.
 | **vim/**    | `dot-vimrc`, `dot-vim/` |
 | **tmux/**   | `dot-tmux.conf` (incl. session save/restore) |
 | **git/**    | `dot-gitconfig` (delta-aware), `dot-gitignore_global` |
-| **joshuto/**| `dot-config/joshuto` |
+| **joshuto/**| `dot-config/joshuto` (preview script + `$EDITOR` mimetypes) |
+| **yazi/**   | `dot-config/yazi` (icons disabled for non-Nerd-Font terminals) |
 | **utils/**  | helper scripts in `dot-bin/` |
 | **fonts/**  | bundled monospace fonts |
 | **inputrc/**| readline settings |

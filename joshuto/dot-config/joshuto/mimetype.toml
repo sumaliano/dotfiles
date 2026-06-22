@@ -1,0 +1,80 @@
+# mimetype.toml — what `open` (Enter / l) launches for each file type.
+#
+# joshuto ships NO defaults here, and joshuto.toml has xdg_open = false, so
+# without this file `open` on a file does nothing. Every text/code/config type
+# below routes to the user's editor.
+#
+# The editor is resolved at open time: $VISUAL, then $EDITOR, then whatever is
+# installed (nvim → vim → vi). We go through `sh -c` instead of naming an editor
+# directly so the choice follows the environment — including a remote box that
+# only received the vendored vim. joshuto appends the selected file(s) as extra
+# args, which land in "$@".
+#
+# Schema note: in joshuto 0.9.x a [class] is a *list* of app entries, and each
+# [extension] entry either inherits a class or defines its own command.
+
+[class]
+editor = [
+    { command = "sh", args = ['-c', 'exec "${VISUAL:-${EDITOR:-$(command -v nvim || command -v vim || echo vi)}}" "$@"', 'sh'] },
+]
+
+[extension]
+# plain text / docs
+txt      = { inherit = "editor" }
+md       = { inherit = "editor" }
+markdown = { inherit = "editor" }
+rst      = { inherit = "editor" }
+log      = { inherit = "editor" }
+csv      = { inherit = "editor" }
+tex      = { inherit = "editor" }
+
+# config / data
+toml = { inherit = "editor" }
+yaml = { inherit = "editor" }
+yml  = { inherit = "editor" }
+json = { inherit = "editor" }
+ini  = { inherit = "editor" }
+conf = { inherit = "editor" }
+cfg  = { inherit = "editor" }
+env  = { inherit = "editor" }
+xml  = { inherit = "editor" }
+
+# shells / scripting
+sh   = { inherit = "editor" }
+bash = { inherit = "editor" }
+zsh  = { inherit = "editor" }
+fish = { inherit = "editor" }
+vim  = { inherit = "editor" }
+lua  = { inherit = "editor" }
+py   = { inherit = "editor" }
+rb   = { inherit = "editor" }
+pl   = { inherit = "editor" }
+
+# compiled languages
+c    = { inherit = "editor" }
+h    = { inherit = "editor" }
+cpp  = { inherit = "editor" }
+hpp  = { inherit = "editor" }
+cc   = { inherit = "editor" }
+rs   = { inherit = "editor" }
+go   = { inherit = "editor" }
+java = { inherit = "editor" }
+kt   = { inherit = "editor" }
+
+# web
+js   = { inherit = "editor" }
+ts   = { inherit = "editor" }
+jsx  = { inherit = "editor" }
+tsx  = { inherit = "editor" }
+css  = { inherit = "editor" }
+scss = { inherit = "editor" }
+html = { inherit = "editor" }
+
+# build / misc
+mk         = { inherit = "editor" }
+makefile   = { inherit = "editor" }
+dockerfile = { inherit = "editor" }
+gitignore  = { inherit = "editor" }
+gitconfig  = { inherit = "editor" }
+bashrc     = { inherit = "editor" }
+vimrc      = { inherit = "editor" }

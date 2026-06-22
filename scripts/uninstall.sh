@@ -49,12 +49,13 @@ declare -A CONFIG_PATHS=(
     [git]="~/.gitignore_global ~/.gitconfig.dotfiles"
     [inputrc]="~/.inputrc"
     [joshuto]="~/.config/joshuto"
+    [yazi]="~/.config/yazi"
     [fonts]="~/.local/share/fonts"
 )
 
 # What "all" means, per mode and location.
-CONFIG_ALL_LOCAL="bash vim nvim tmux git utils fonts inputrc joshuto"
-CONFIG_ALL_REMOTE="bash git inputrc nvim vim tmux joshuto"
+CONFIG_ALL_LOCAL="bash vim nvim tmux git utils fonts inputrc joshuto yazi"
+CONFIG_ALL_REMOTE="bash git inputrc nvim vim tmux joshuto yazi"
 
 vendor_all() {
     local vd="$DOTFILES/vendor/linux-$(uname -m)"
@@ -157,7 +158,7 @@ if [ "$MODE" = "configs" ] && [ -z "$HOST" ] && [ -n "$STOW" ] \
    && { [ -z "$TOOLS" ] || [ "$TOOLS" = "all" ]; }; then
     info "Removing all dotfile configs"
     stow --dotfiles -D -t "$HOME" -d "$DOTFILES" \
-        bash vim nvim tmux git fonts inputrc joshuto 2>/dev/null || true
+        bash vim nvim tmux git fonts inputrc joshuto yazi 2>/dev/null || true
     remove_utils_local
     remove_config_local bash   # unwire ~/.bashrc
     remove_config_local git    # drop [include]

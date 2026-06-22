@@ -4,6 +4,8 @@ line_number_style = "relative"
 
 [preview]
 max_preview_size = 2097152  # 2MB
+# joshuto shells out to this script to fill the preview pane (must be +x).
+preview_script = "~/.config/joshuto/preview_file.sh"
 
 [tab]
 home_page = "home"

@@ -1,0 +1,23 @@
+# theme.toml — disable Nerd Font icons so yazi renders on any terminal.
+#
+# yazi is the one tool in this repo that shows file-type icons by default, and
+# those glyphs only exist in a Nerd Font. On a plain terminal (or over SSH to a
+# box whose *local* terminal lacks the font) they show as tofu boxes. eza (no
+# --icons) and joshuto (show_icons = false) already avoid this; this file brings
+# yazi in line.
+#
+# yazi's icon rules live under [icon]. The base keys REPLACE yazi's built-in
+# defaults (the prepend_/append_ variants would merge instead), so setting them
+# all empty means "no icons at all".
+#
+# Want the icons back? Install a Nerd Font locally — this repo bundles one:
+#   make dot fonts   # → ~/.local/share/fonts (UbuntuMono Nerd Font)
+# then point your terminal emulator at "UbuntuMono Nerd Font" and delete this
+# file (or comment the rules out).
+
+[icon]
+globs = []
+dirs  = []
+files = []
+exts  = []
+conds = []

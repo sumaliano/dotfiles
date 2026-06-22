@@ -52,6 +52,7 @@ declare -A TOOL_CONFIG=(
     [vim]="vim/dot-vimrc|~/.vimrc vim/dot-vim|~/.vim"
     [tmux]="tmux/dot-tmux.conf|~/.tmux.conf"
     [joshuto]="joshuto/dot-config/joshuto|~/.config/joshuto"
+    [yazi]="yazi/dot-config/yazi|~/.config/yazi"
     [inputrc]="inputrc/dot-inputrc|~/.inputrc"
 )
 
@@ -76,7 +77,7 @@ ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
 #   bins/both → every binary present in vendor/linux-<arch>/
 if [ "$TOOLS" = "all" ]; then
     if [ "$MODE" = "configs" ]; then
-        TOOLS="bash,git,inputrc,nvim,vim,tmux,joshuto"
+        TOOLS="bash,git,inputrc,nvim,vim,tmux,joshuto,yazi"
     else
         [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
         TOOLS=$(ls "$VENDOR_DIR" | tr '\n' ',' | sed 's/,$//')
