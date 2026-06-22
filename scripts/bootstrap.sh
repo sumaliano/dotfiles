@@ -174,6 +174,10 @@ install_tar bat   sharkdp/bat              "${MUSL}.tar.gz"
 # Note: archive binary is named 'rg', not 'ripgrep'
 install_tar rg    BurntSushi/ripgrep       "${MUSL}.tar.gz"    rg
 
+# grex — generate a regex from example strings, Rust musl (pemistahl/grex)
+# Local-only: a regex-authoring aid, excluded from the remote "all" deploy.
+install_tar grex  pemistahl/grex           "${MUSL}.tar.gz"
+
 # eza — modern ls replacement, Rust musl (eza-community/eza)
 install_tar eza   eza-community/eza        "eza_${MUSL}.tar.gz"
 

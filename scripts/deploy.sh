@@ -82,7 +82,7 @@ if [ "$TOOLS" = "all" ]; then
         [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
         # Local-only tools are vendored for local use but kept out of the bulk
         # remote deploy. They remain deployable by explicit name (make tool lazygit HOST=…).
-        TOOLS=$(ls "$VENDOR_DIR" | grep -vxE 'lazygit' | tr '\n' ',' | sed 's/,$//')
+        TOOLS=$(ls "$VENDOR_DIR" | grep -vxE 'lazygit|grex' | tr '\n' ',' | sed 's/,$//')
         [ -n "$TOOLS" ] || die "vendor/linux-$REMOTE_ARCH/ is empty — run 'make vendor' first"
     fi
 fi

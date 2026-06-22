@@ -76,8 +76,8 @@ help:
 	@printf "\n$(BOLD)Management:$(NC)\n"
 	@printf "  status   [HOST=u@h]   Show what's installed, locally or on a server\n"
 	@printf "\n$(DIM)Configs: bash vim nvim tmux git utils fonts inputrc joshuto yazi$(NC)\n"
-	@printf "$(DIM)Tools:   fzf fd bat rg eza zoxide delta lazygit btop yazi ya joshuto 7z nvim vim tmux$(NC)\n"
-	@printf "$(DIM)         (lazygit is local-only — not pushed by 'make tool HOST=...')$(NC)\n"
+	@printf "$(DIM)Tools:   fzf fd bat rg grex eza zoxide delta lazygit btop yazi ya joshuto 7z nvim vim tmux$(NC)\n"
+	@printf "$(DIM)         (lazygit, grex are local-only — not pushed by 'make tool HOST=...')$(NC)\n"
 
 # ── Configs (dot) ────────────────────────────────────────────────────────────
 # When 'dot' follows 'remove' it's a sub-verb, not a command — stay inert and

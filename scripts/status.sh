@@ -51,7 +51,7 @@ fi
 
 # ── Local ─────────────────────────────────────────────────────────────────────
 
-KNOWN_TOOLS=(nvim vim tmux fzf fd bat rg eza zoxide delta lazygit btop yazi ya joshuto 7z)
+KNOWN_TOOLS=(nvim vim tmux fzf fd bat rg grex eza zoxide delta lazygit btop yazi ya joshuto 7z)
 
 printf "${BOLD}Vendor tools (~/.local/bin/):${NC}\n"
 for tool in "${KNOWN_TOOLS[@]}"; do
