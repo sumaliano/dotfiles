@@ -569,7 +569,7 @@ if command -v fzf &>/dev/null; then
         local q="${1:-}" preview hl='' result file line
         # Word highlight: pipe the rendered preview through rg --passthru to paint
         # the matched term. FIF_Q (the query) is read from fzf's environment below.
-        [ -n "$q" ] && hl=' | rg --passthru --color=always --colors "match:bg:yellow" --colors "match:fg:black" --smart-case -e "$FIF_Q"'
+        [ -n "$q" ] && hl=' | rg --passthru --color=always --colors "match:fg:red" --colors "match:style:bold" --colors "match:style:underline" --smart-case -e "$FIF_Q"'
         if command -v bat &>/dev/null; then
             preview="bat --color=always --style=numbers --highlight-line {2} {1}$hl"
         else
