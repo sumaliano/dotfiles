@@ -12,7 +12,7 @@
     # `command -v` is evaluated by the shell git runs the pager through,
     # so this degrades gracefully on machines without delta installed.
     # Quoted because git treats ';' and '#' as comment starts in bare values.
-    pager = "if command -v delta >/dev/null 2>&1; then delta; else less -FRX; fi"
+    pager = "if command -v delta >/dev/null 2>&1; then delta --features sidebyside; else less -FRX; fi"
     autocrlf = input
     whitespace = trailing-space,space-before-tab
 
@@ -21,11 +21,20 @@
     diffFilter = "if command -v delta >/dev/null 2>&1; then delta --color-only; else cat; fi"
 
 # Applied only when delta actually runs; ignored harmlessly otherwise.
+# side-by-side lives in its own [delta "sidebyside"] feature (below) rather than
+# here, so it can be toggled per-invocation: delta's base [delta] section beats
+# features, so a key set here could never be overridden to off. Keeping it in a
+# feature lets the pager opt in (--features sidebyside) or omit it for inline.
 [delta]
     navigate = true
-    side-by-side = true
     line-numbers = true
     hyperlinks = false
+
+# Opt-in side-by-side layout. Enabled by core.pager above (so CLI `git diff` is
+# side-by-side as before) and by lazygit's side-by-side pager; omitting the
+# feature falls back to inline/unified. See lazygit/dot-config/lazygit/config.yml.
+[delta "sidebyside"]
+    side-by-side = true
 
 [init]
     defaultBranch = main
