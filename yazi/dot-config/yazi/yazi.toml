@@ -1,0 +1,18 @@
+# yazi.toml — yazi core configuration.
+#
+# Registers the vendored git plugin (plugins/git.yazi) as a fetcher so yazi
+# computes git status for files (name = "*") and directories (name = "*/") as
+# you browse. Pairs with init.lua's `require("git"):setup()`, which draws the
+# status sign next to each entry. Signs themselves are themed in theme.toml.
+
+[[plugin.prepend_fetchers]]
+id    = "git"
+url   = "*"
+run   = "git"
+group = "git"
+
+[[plugin.prepend_fetchers]]
+id    = "git"
+url   = "*/"
+run   = "git"
+group = "git"
