@@ -21,3 +21,17 @@ dirs  = []
 files = []
 exts  = []
 conds = []
+
+# git status signs for the vendored git plugin (plugins/git.yazi, wired up in
+# init.lua + yazi.toml). The plugin's own defaults are Nerd Font glyphs, which
+# render as tofu boxes on a plain terminal — exactly what the [icon] block above
+# avoids. So we override the signs with plain ASCII letters here; the plugin's
+# default colors (yellow/green/red/etc.) still apply. Trailing space keeps the
+# sign clear of the filename.
+[git]
+modified_sign  = "M "
+added_sign     = "A "
+deleted_sign   = "D "
+updated_sign   = "U "
+untracked_sign = "? "
+ignored_sign   = "! "
