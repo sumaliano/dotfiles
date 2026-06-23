@@ -78,7 +78,7 @@ _apply_term_theme() {
         printf '%s4;%s;#%s%s' "$osc" "${p%%:*}" "${p#*:}" "$st"
     done
     printf '%s10;#ebdbb2%s' "$osc" "$st"   # foreground
-    printf '%s11;#282828%s' "$osc" "$st"   # background
+    printf '%s11;#1c1c1c%s' "$osc" "$st"   # background
     printf '%s12;#ebdbb2%s' "$osc" "$st"   # cursor
 }
 
