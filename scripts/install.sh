@@ -61,6 +61,7 @@ link_fonts()   { link_file "$DOTFILES/fonts/dot-local/share/fonts"     "$HOME/.l
 link_inputrc() { link_file "$DOTFILES/inputrc/dot-inputrc"             "$HOME/.inputrc"; }
 link_joshuto() { link_file "$DOTFILES/joshuto/dot-config/joshuto"      "$HOME/.config/joshuto"; }
 link_yazi()    { link_file "$DOTFILES/yazi/dot-config/yazi"            "$HOME/.config/yazi"; }
+link_lazygit() { link_file "$DOTFILES/lazygit/dot-config/lazygit/config.yml" "$HOME/.config/lazygit/config.yml"; }
 
 # ── Component installers ────────────────────────────────────────────────────
 
@@ -149,6 +150,14 @@ install_yazi() {
     stow_pkg yazi
 }
 
+install_lazygit() {
+    info "Lazygit"
+    # lazygit auto-creates an empty ~/.config/lazygit/config.yml on first run, so
+    # we back-up-and-link the single file rather than stow the package (stow would
+    # conflict with that auto-created file). Same direct-link pattern as git.
+    link_lazygit
+}
+
 # ── Vendor tool install ──────────────────────────────────────────────────────
 # Maps tool name → dotfile component (runs install_<component> for config).
 # CONFIG_ONLY tools have no vendor binary — system binary is assumed present.
@@ -159,6 +168,7 @@ declare -A TOOL_COMPONENT=(
     [tmux]="tmux"
     [joshuto]="joshuto"
     [yazi]="yazi"
+    [lazygit]="lazygit"
 )
 
 install_tool() {
@@ -188,7 +198,7 @@ install_tool() {
 
 # ── Entry point ─────────────────────────────────────────────────────────────
 
-ALL=(bash vim neovim tmux git utils fonts inputrc joshuto yazi)
+ALL=(bash vim neovim tmux git utils fonts inputrc joshuto yazi lazygit)
 
 # --tool <name>[,name] installs vendor binaries + their configs locally
 if [ "${1:-}" = "--tool" ]; then
@@ -226,7 +236,7 @@ for t in "${targets[@]}"; do
         "install_$comp"
     else
         printf "${RED}Error:${NC} Unknown component '%s'\n" "$t" >&2
-        printf "Available: bash vim nvim tmux git utils fonts inputrc joshuto yazi\n" >&2
+        printf "Available: bash vim nvim tmux git utils fonts inputrc joshuto yazi lazygit\n" >&2
         exit 1
     fi
 done

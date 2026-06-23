@@ -75,7 +75,7 @@ help:
 	@printf "  remove tool [name...] [HOST=u@h]   Remove binaries (no name = all)\n"
 	@printf "\n$(BOLD)Management:$(NC)\n"
 	@printf "  status   [HOST=u@h]   Show what's installed, locally or on a server\n"
-	@printf "\n$(DIM)Configs: bash vim nvim tmux git utils fonts inputrc joshuto yazi$(NC)\n"
+	@printf "\n$(DIM)Configs: bash vim nvim tmux git utils fonts inputrc joshuto yazi lazygit$(NC)\n"
 	@printf "$(DIM)Tools:   fzf fd bat rg grex eza zoxide delta lazygit btop yazi ya joshuto 7z nvim vim tmux$(NC)\n"
 	@printf "$(DIM)         (lazygit, grex are local-only — not pushed by 'make tool HOST=...')$(NC)\n"
 

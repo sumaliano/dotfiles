@@ -1,0 +1,14 @@
+# lazygit config — supercharge the diff view with delta.
+#
+# delta reads its own options (side-by-side, line-numbers, navigate, theme)
+# from the [delta] section of the git config regardless of how it's launched,
+# so routing lazygit's pager through delta makes lazygit's diffs look identical
+# to `git diff` on the CLI — no options duplicated here.
+#
+# The `command -v delta` guard mirrors ~/.gitconfig's pager: use delta when it's
+# on PATH, otherwise fall back to less. lazygit runs the pager through a shell,
+# so this degrades gracefully on a machine where the delta binary isn't present.
+git:
+  pagers:
+    - colorArg: always
+      pager: "if command -v delta >/dev/null 2>&1; then delta --paging=never; else less -FRX; fi"
