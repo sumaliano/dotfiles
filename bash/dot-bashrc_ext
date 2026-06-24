@@ -364,8 +364,9 @@ fdd() {
 }
 
 # Find-and-replace a literal substring across any number of files, in place.
-#   replace OLD NEW [path ...]      paths default to the current dir (recursive)
-#   replace -n OLD NEW [path ...]   dry run — show files/lines, change nothing
+#   replace OLD NEW [path ...]         paths default to the current dir (recursive)
+#   replace -n "OLD" "NEW" [path ...]  dry run — show files/lines, change nothing
+#   replace "OLD" "NEW" -n [path ...]  -n is accepted anywhere in the arg list
 #
 # ripgrep locates the files that actually contain OLD (fast, honours .gitignore;
 # falls back to grep -rl). The edit uses perl with \Q…\E so OLD and NEW are
@@ -374,13 +375,20 @@ fdd() {
 # fallback (with metachars escaped) covers the rare box without perl.
 replace() {
     local dry=0
-    if [ "$1" = "-n" ] || [ "$1" = "--dry-run" ]; then dry=1; shift; fi
-    if [ $# -lt 2 ]; then
-        echo "Usage: replace [-n] OLD NEW [path ...]   (-n = dry run)"
+    # Separate -n/--dry-run from positional args — flag is accepted anywhere.
+    local -a posargs=()
+    for arg in "$@"; do
+        case "$arg" in
+            -n|--dry-run) dry=1 ;;
+            *) posargs+=("$arg") ;;
+        esac
+    done
+    if [ ${#posargs[@]} -lt 2 ]; then
+        echo "Usage: replace [-n] OLD NEW [path ...]   (-n = dry run, accepted anywhere)"
         return 1
     fi
-    local old="$1" new="$2"; shift 2
-    local -a paths=("$@"); [ ${#paths[@]} -eq 0 ] && paths=(.)
+    local old="${posargs[0]}" new="${posargs[1]}"
+    local -a paths=("${posargs[@]:2}"); [ ${#paths[@]} -eq 0 ] && paths=(.)
 
     # Collect the files that contain the literal substring.
     local -a files
