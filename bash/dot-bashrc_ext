@@ -363,6 +363,66 @@ fdd() {
     fi
 }
 
+# Find-and-replace a literal substring across any number of files, in place.
+#   replace OLD NEW [path ...]      paths default to the current dir (recursive)
+#   replace -n OLD NEW [path ...]   dry run — show files/lines, change nothing
+#
+# ripgrep locates the files that actually contain OLD (fast, honours .gitignore;
+# falls back to grep -rl). The edit uses perl with \Q…\E so OLD and NEW are
+# treated as plain text, not regex — no escaping of . * / $ & etc. NEW is read
+# from the environment, so it can't be misread as a backreference. A sed
+# fallback (with metachars escaped) covers the rare box without perl.
+replace() {
+    local dry=0
+    if [ "$1" = "-n" ] || [ "$1" = "--dry-run" ]; then dry=1; shift; fi
+    if [ $# -lt 2 ]; then
+        echo "Usage: replace [-n] OLD NEW [path ...]   (-n = dry run)"
+        return 1
+    fi
+    local old="$1" new="$2"; shift 2
+    local -a paths=("$@"); [ ${#paths[@]} -eq 0 ] && paths=(.)
+
+    # Collect the files that contain the literal substring.
+    local -a files
+    if command -v rg &>/dev/null; then
+        mapfile -t files < <(rg -lF -- "$old" "${paths[@]}")
+    else
+        mapfile -t files < <(grep -rlF -- "$old" "${paths[@]}")
+    fi
+    if [ ${#files[@]} -eq 0 ]; then
+        echo "No files contain: $old"
+        return 1
+    fi
+
+    if [ "$dry" = 1 ]; then
+        if command -v rg &>/dev/null; then
+            rg -nF --color=auto -- "$old" "${files[@]}"
+        else
+            grep -nF -- "$old" "${files[@]}"
+        fi
+        printf '\n%d file(s) would be modified.\n' "${#files[@]}"
+        return 0
+    fi
+
+    if command -v perl &>/dev/null; then
+        OLD="$old" NEW="$new" perl -i -pe 's/\Q$ENV{OLD}\E/$ENV{NEW}/g' "${files[@]}"
+    else
+        # Escape regex metacharacters (pattern) and replacement specials for sed.
+        # Write via temp file rather than `sed -i`: GNU wants `-i`, BSD/macOS
+        # wants `-i ''`, but redirect + cat-back is identical on both — and
+        # cat-ing into the original preserves its permissions and inode.
+        local eo en f tmp
+        eo=$(printf '%s' "$old" | sed -e 's/[][\\/.*^$]/\\&/g')
+        en=$(printf '%s' "$new" | sed -e 's/[\\/&]/\\&/g')
+        for f in "${files[@]}"; do
+            tmp=$(mktemp) || return 1
+            sed "s/$eo/$en/g" "$f" > "$tmp" && cat "$tmp" > "$f"
+            command rm -f "$tmp"
+        done
+    fi
+    printf 'Replaced in %d file(s).\n' "${#files[@]}"
+}
+
 # Serve current directory via HTTP
 serve() {
     local port="${1:-8000}"
