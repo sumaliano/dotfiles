@@ -134,6 +134,7 @@ nnoremap <leader>y "+y
 vnoremap <leader>y "+y
 nnoremap <leader>p "+p
 vnoremap <leader>p "+p
+xnoremap p "0p
 
 " ── Windows / Splits ──────────────────────────────────────────────────────────
 

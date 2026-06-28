@@ -48,7 +48,7 @@ local function statusline()
     if file == "" then file = "[No Name]" end
     local flags = vim.bo.modified and " [+]" or (not vim.bo.modifiable and " [-]" or "")
     local branch = cached_branch ~= "" and " " .. cached_branch or ""
-    local lsp = #vim.lsp.get_clients({ bufnr = 0 }) > 0 and "LSP " or ""
+    local lsp = vim.lsp and #vim.lsp.get_clients({ bufnr = 0 }) > 0 and "LSP " or ""
     return " " .. mode .. " " .. branch .. " " .. file .. flags .. "%=" .. lsp .. "%l:%c %p%% "
 end
 
@@ -105,6 +105,7 @@ map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal" })
 -- Clipboard
 map({ "n", "v" }, "<leader>y", '"+y', { desc = "Yank to clipboard" })
 map({ "n", "v" }, "<leader>p", '"+p', { desc = "Paste from clipboard" })
+map("x", "p", '"0p', { desc = "Paste (keep yank register)" })
 
 -- Indent
 map("v", "<", "<gv")
