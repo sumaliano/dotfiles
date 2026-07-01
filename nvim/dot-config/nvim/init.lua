@@ -106,6 +106,8 @@ map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal" })
 map({ "n", "v" }, "<leader>y", '"+y', { desc = "Yank to clipboard" })
 map({ "n", "v" }, "<leader>p", '"+p', { desc = "Paste from clipboard" })
 map("x", "p", '"0p', { desc = "Paste (keep yank register)" })
+map("n", "p", '"0p', { desc = "Paste from yank register" })
+map("n", "P", '"0P', { desc = "Paste from yank register" })
 
 -- Indent
 map("v", "<", "<gv")
@@ -909,7 +911,10 @@ end
 
 
 -- LSP (Minimal Native Setup)
-vim.lsp.enable({ "bashls", "pyright", "clangd", "rust_analyzer", "jdtls" })
+-- vim.lsp.enable() is Neovim 0.11+; guard so older binaries don't crash.
+if vim.fn.has("nvim-0.11") == 1 then
+    vim.lsp.enable({ "bashls", "pyright", "clangd", "rust_analyzer", "jdtls" })
+end
 vim.api.nvim_create_autocmd("LspAttach", {
     callback = function(ev)
         vim.bo[ev.buf].omnifunc = "v:lua.vim.lsp.omnifunc"

@@ -135,6 +135,8 @@ vnoremap <leader>y "+y
 nnoremap <leader>p "+p
 vnoremap <leader>p "+p
 xnoremap p "0p
+nnoremap p "0p
+nnoremap P "0P
 
 " ── Windows / Splits ──────────────────────────────────────────────────────────
 
@@ -401,10 +403,77 @@ endfunction
 
 nnoremap <leader>? :call <SID>ShowHelp()<CR>
 function! s:ShowHelp()
-    echo "GENERAL:  w/q/Q save/quit | ff/fr/fb/fg find | e/- explore | y/p clip | bd/bo buf | Tab nav | M-hjkl win"
-    echo "          r replace | R run | cc/cr config | F2 auto-cmp | F3 numbers | sw strip | st tab | cd root"
-    echo "GIT:      gs status | gd diff | ga add | gu unstage | gr restore | gb blame | gC commit | gP push"
-    echo "COMPLETE: Tab=smart  S-Tab=prev  CR=confirm  F2=toggle auto"
+    let l:lines = [
+        \ '  GENERAL',
+        \ '  SPC w / q / Q    save / quit / quit all',
+        \ '  SPC - / |        split horizontal / vertical',
+        \ '  SPC e  /  -      explorer sidebar / parent dir',
+        \ '  SPC y / p        clipboard yank / paste',
+        \ '  SPC bd / bo      buf delete / close hidden',
+        \ '  <Tab> / <S-Tab>  buffer next / previous',
+        \ '  <M-hjkl>         window nav (falls through to tmux)',
+        \ '  SPC tn tq tl th  tab new / close / next / prev',
+        \ '  SPC t            terminal  (<Esc><Esc> to normal)',
+        \ '',
+        \ '  FIND & EDIT',
+        \ '  SPC ff / fr      find file / recent files',
+        \ '  SPC fb / fg      buffer list / grep',
+        \ '  SPC r / R        replace word / run file',
+        \ '  SPC sw / st      strip whitespace / set tab width',
+        \ '  SPC cd           cd to git root',
+        \ '  SPC cc / cr      edit config / reload config',
+        \ '  gc / gcc         comment  (operator / line)',
+        \ '  <F2> / <F3>      auto-complete / line numbers',
+        \ '  [q / ]q / Q      quickfix prev / next / toggle',
+        \ '',
+        \ '  GIT',
+        \ '  SPC gs / gd      status (qf) / diff vs HEAD',
+        \ '  SPC gb           blame (new tab)',
+        \ '  SPC ga / gu      stage / unstage file',
+        \ '  SPC gr / gC      restore / commit',
+        \ '  SPC gP           push',
+        \ '',
+        \ '  COMPLETE',
+        \ '  <Tab> / <S-Tab>  smart complete / previous',
+        \ '  <CR>             confirm selection',
+        \ '  <F2>             toggle auto-complete',
+        \ '',
+        \ '  press any key to close',
+        \ ]
+
+    if exists('*popup_create')
+        " Vim 8.2+: centered floating popup, any keypress closes it.
+        " The filter lambda returns 1 (consumed) so the closing key doesn't
+        " fall through to the buffer.
+        let l:win = popup_create(l:lines, {
+            \ 'title':          ' KEY BINDINGS ',
+            \ 'padding':        [0, 1, 0, 1],
+            \ 'border':         [1, 1, 1, 1],
+            \ 'borderchars':    ['─', '│', '─', '│', '╭', '╮', '╯', '╰'],
+            \ 'borderhighlight':['Comment'],
+            \ 'highlight':      'Normal',
+            \ 'pos':            'center',
+            \ 'mapping':        0,
+            \ 'wrap':           0,
+            \ 'scrollbar':      1,
+            \ 'zindex':         200,
+            \ 'filter':         {id, key -> popup_close(id) >= -1},
+            \ })
+        " Section headers — lines whose non-indent content is only A-Z, space, &
+        call win_execute(l:win, "syn match HelpSection /^  [A-Z &]\\{2,\\}$/")
+        " Key tokens: <Xxx> angle-bracket notation and the SPC leader shorthand
+        call win_execute(l:win, "syn match HelpKey /<[^>]\\+>/")
+        call win_execute(l:win, "syn match HelpKey /\\<SPC\\>/")
+        " Dismiss hint at the bottom
+        call win_execute(l:win, "syn match HelpDim /press any key to close/")
+        call win_execute(l:win, "hi HelpSection ctermfg=214 cterm=bold guifg=#fabd2f gui=bold")
+        call win_execute(l:win, "hi HelpKey     ctermfg=81              guifg=#61afef")
+        call win_execute(l:win, "hi HelpDim     ctermfg=240             guifg=#585858")
+    else
+        " Fallback for Vim < 8.2: plain echo (original behaviour)
+        echo "\n── KEY BINDINGS ──────────────────────────────────"
+        for l:line in l:lines | echo l:line | endfor
+    endif
 endfunction
 
 " ── File type settings ────────────────────────────────────────────────────────

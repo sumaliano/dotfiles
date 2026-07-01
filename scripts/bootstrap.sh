@@ -207,9 +207,59 @@ install_tar joshuto kamiyaa/joshuto        "${MUSL}.tar.gz"
 # 7z — official static build (ip7z/7zip); archive contains 7zzs (static) and 7zz (dynamic)
 install_tar 7z      ip7z/7zip             "linux-${SEVENZ_ARCH}.tar.xz"  7zzs
 
-# nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems)
+# nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems).
 # For old systems, deploy vim instead: make tool vim HOST=server
-install_tar nvim  neovim/neovim            "nvim-linux-${NVIM_ARCH}.tar.gz"
+#
+# nvim is special: install_tar only copies the binary, but a standalone nvim
+# needs three things from the tarball (all placed relative to the binary prefix):
+#   bin/nvim                → ~/.local/bin/nvim          (the binary)
+#   share/nvim/runtime/     → ~/.local/share/nvim/runtime (Lua/VimScript runtime, VIMRUNTIME)
+#   lib/nvim/parser/*.so    → ~/.local/lib/nvim/parser/   (compiled treesitter grammars)
+# Without the parsers, neovim loads queries for the bundled grammar version but
+# runs them against old/missing .so files → "Invalid field name" errors on open.
+install_nvim() {
+    local pattern="nvim-linux-${NVIM_ARCH}.tar.gz"
+    # Skip only when binary, runtime, AND parsers are all present.
+    if [ -f "$VENDOR_DIR/nvim" ] && [ -d "$VENDOR_DIR/nvim-runtime" ] \
+       && [ -d "$VENDOR_DIR/nvim-parsers" ] && [ "$FORCE" != "true" ]; then
+        skip "nvim (exists — FORCE=true to refresh)"
+        return
+    fi
+    local url; url=$(gh_latest "neovim/neovim" "$pattern")
+    if [ -z "$url" ]; then
+        fail "nvim: no release URL found (pattern mismatch or GitHub rate limit)"
+        return
+    fi
+    printf "  Fetching %-10s ...\r" "nvim"
+    local tmp; tmp=$(mktemp -d)
+    if curl -fsSL -o "$tmp/archive" "$url" && tar -xf "$tmp/archive" -C "$tmp" 2>/dev/null; then
+        local found_bin; found_bin=$(find "$tmp" -type f -name "nvim" | head -1)
+        local found_rt;  found_rt=$(find  "$tmp" -type d -name "runtime" -path "*/nvim/*" | head -1)
+        local found_pr;  found_pr=$(find  "$tmp" -type d -name "parser"  -path "*/nvim/*" | head -1)
+        if [ -n "$found_bin" ]; then
+            cp "$found_bin" "$VENDOR_DIR/nvim" && chmod +x "$VENDOR_DIR/nvim"
+        else
+            printf "\r\033[K"; fail "nvim: binary not found in archive"; rm -rf "$tmp"; return
+        fi
+        if [ -n "$found_rt" ]; then
+            rm -rf "$VENDOR_DIR/nvim-runtime"
+            cp -r "$found_rt" "$VENDOR_DIR/nvim-runtime"
+        else
+            printf "\r\033[K"; fail "nvim: runtime dir not found — nvim will error on startup"
+        fi
+        if [ -n "$found_pr" ]; then
+            rm -rf "$VENDOR_DIR/nvim-parsers"
+            cp -r "$found_pr" "$VENDOR_DIR/nvim-parsers"
+        else
+            printf "\r\033[K"; fail "nvim: parser dir not found — treesitter will not work"
+        fi
+        printf "\r\033[K"; ok "nvim"
+    else
+        printf "\r\033[K"; fail "nvim: download or extract failed — check URL: $url"
+    fi
+    rm -rf "$tmp"
+}
+install_nvim
 
 # vim — static-pie single binary, no runtime needed, x86_64 + arm64 (heywoodlh/vim-builds)
 # Zero glibc dependency. Use when nvim fails on old glibc servers.

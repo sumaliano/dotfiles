@@ -189,6 +189,33 @@ install_tool() {
         warn "Binary not found in vendor/linux-$arch/ — run 'make vendor' first"
     fi
 
+    # nvim needs three pieces from the tarball, all resolved relative to the
+    # binary prefix (~/.local/ when binary is in ~/.local/bin/):
+    #   share/nvim/runtime/   → VIMRUNTIME  (Lua/VimScript stdlib)
+    #   lib/nvim/parser/*.so  → treesitter grammars (must match bundled queries)
+    # Copied (not symlinked) so that 'make clean' can wipe vendor/ without
+    # breaking the installed nvim — same principle as the binary itself.
+    if [ "$tool" = "nvim" ]; then
+        local rt_src="$DOTFILES/vendor/linux-$arch/nvim-runtime"
+        local pr_src="$DOTFILES/vendor/linux-$arch/nvim-parsers"
+        if [ -d "$rt_src" ]; then
+            mkdir -p "$HOME/.local/share/nvim"
+            rm -rf "$HOME/.local/share/nvim/runtime"
+            cp -r "$rt_src" "$HOME/.local/share/nvim/runtime"
+            ok "nvim runtime  →  ~/.local/share/nvim/runtime"
+        else
+            warn "nvim runtime not in vendor/ — run 'make vendor' first, then re-run 'make tool nvim'"
+        fi
+        if [ -d "$pr_src" ]; then
+            mkdir -p "$HOME/.local/lib/nvim"
+            rm -rf "$HOME/.local/lib/nvim/parser"
+            cp -r "$pr_src" "$HOME/.local/lib/nvim/parser"
+            ok "nvim parsers  →  ~/.local/lib/nvim/parser"
+        else
+            warn "nvim parsers not in vendor/ — run 'make vendor' first, then re-run 'make tool nvim'"
+        fi
+    fi
+
     # Config — reuse the existing component installer when one exists
     local component="${TOOL_COMPONENT[$tool]:-}"
     if [ -n "$component" ] && declare -f "install_$component" &>/dev/null; then
