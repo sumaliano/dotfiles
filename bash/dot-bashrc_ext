@@ -461,13 +461,13 @@ topcmd() {
 }
 
 ssh-ls() {
-    printf "%-20s %-15s %-25s\n" "ALIAS" "USER" "HOSTNAME/IP"
-    printf "%-20s %-15s %-25s\n" "-----" "----" "-----------"
+    printf "%-26s %-15s %-25s\n" "ALIAS" "USER" "HOSTNAME/IP"
+    printf "%-26s %-15s %-25s\n" "-----" "----" "-----------"
 
     awk '
         # Reset and Print logic
         /^[Hh]ost / && $2 !~ /\*/ {
-            if (alias) printf "%-20s %-15s %-25s\n", alias, user, host
+            if (alias) printf "%-26s %-15s %-25s\n", alias, user, host
             alias=$2; host="?"; user="-"
             next
         }
@@ -476,7 +476,7 @@ ssh-ls() {
         tolower($1) == "user"     { user=$2 }
 
         # Print the very last entry in the file
-        END { if (alias) printf "%-20s %-15s %-25s\n", alias, user, host }
+        END { if (alias) printf "%-26s %-15s %-25s\n", alias, user, host }
     ' ~/.ssh/config
 }
 
