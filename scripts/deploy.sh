@@ -82,7 +82,9 @@ if [ "$TOOLS" = "all" ]; then
         [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
         # Local-only tools are vendored for local use but kept out of the bulk
         # remote deploy. They remain deployable by explicit name (make tool lazygit HOST=…).
-        TOOLS=$(ls "$VENDOR_DIR" | grep -vxE 'lazygit|grex' | tr '\n' ',' | sed 's/,$//')
+        # nvim-runtime / nvim-parsers are not standalone tools — they ride along
+        # with the nvim binary below, so exclude them from the bulk list.
+        TOOLS=$(ls "$VENDOR_DIR" | grep -vxE 'lazygit|grex|nvim-runtime|nvim-parsers' | tr '\n' ',' | sed 's/,$//')
         [ -n "$TOOLS" ] || die "vendor/linux-$REMOTE_ARCH/ is empty — run 'make vendor' first"
     fi
 fi
@@ -108,6 +110,22 @@ for tool in "${tool_list[@]}"; do
         scp -q "$src" "$REMOTE:~/.local/bin/$tool"
         ssh -q "$REMOTE" "chmod +x ~/.local/bin/$tool"
         ok "$tool  →  ~/.local/bin/$tool"
+        # nvim needs its runtime + treesitter parsers alongside the binary,
+        # resolved relative to the binary prefix (~/.local/).
+        if [ "$tool" = "nvim" ]; then
+            if [ -d "$VENDOR_DIR/nvim-runtime" ]; then
+                ssh -q "$REMOTE" "mkdir -p ~/.local/share/nvim && rm -rf ~/.local/share/nvim/runtime"
+                tar czf - -C "$VENDOR_DIR/nvim-runtime" . \
+                    | ssh -q "$REMOTE" "mkdir -p ~/.local/share/nvim/runtime && tar xzf - -C ~/.local/share/nvim/runtime"
+                ok "nvim runtime  →  ~/.local/share/nvim/runtime"
+            fi
+            if [ -d "$VENDOR_DIR/nvim-parsers" ]; then
+                ssh -q "$REMOTE" "mkdir -p ~/.local/lib/nvim && rm -rf ~/.local/lib/nvim/parser"
+                tar czf - -C "$VENDOR_DIR/nvim-parsers" . \
+                    | ssh -q "$REMOTE" "mkdir -p ~/.local/lib/nvim/parser && tar xzf - -C ~/.local/lib/nvim/parser"
+                ok "nvim parsers  →  ~/.local/lib/nvim/parser"
+            fi
+        fi
     elif [ "$tool" = "vim" ]; then
         ok "vim  →  using system binary (no vendor build for $REMOTE_ARCH)"
     elif [[ " $CONFIG_ONLY " == *" $tool "* ]]; then
