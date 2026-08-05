@@ -86,7 +86,7 @@ _apply_term_theme() {
 term-reset() { printf '\033]104\007\033]110\007\033]111\007\033]112\007'; }
 
 # ============================================================================
-# PROMPT - Git-aware, exit status, jobs indicator
+# PROMPT - Git-aware
 # ============================================================================
 
 _git_prompt() {
@@ -134,49 +134,36 @@ _git_prompt() {
     echo "${branch}${bits:+ $bits}"
 }
 
-_set_prompt() {
-    local last_exit=$?
-    local r='\[\e[0m\]'
-    local red='\[\e[31m\]'    local grn='\[\e[32m\]'
-    local yel='\[\e[33m\]'    local blu='\[\e[34m\]'
-    local cyn='\[\e[36m\]'    local mag='\[\e[35m\]'
-
-    # 1. Exit status: Green if 0, Red if error
-    local color=$grn
-    [ $last_exit -ne 0 ] && color=$red
-
-    # 2. Git
-    local git_info=""
-    local branch=$(_git_prompt)
-    [ -n "$branch" ] && git_info=" ${yel}($branch)${r}"
-
-    # 3. Virtualenv
-    local venv=""
-    [ -n "$VIRTUAL_ENV" ] && venv="${cyn}[${VIRTUAL_ENV##*/}]${r} "
-
-    # 4. Jobs
-    local jobs_info=""
-    local j=($(jobs -p))
-    [ ${#j[@]} -gt 0 ] && jobs_info="${mag}[${#j[@]}]${r} "
-
-    # 5. Always show user@host; prefix with ⌁ (remote indicator) on SSH
-    local host_info
-    if [ -n "${SSH_CLIENT:-}${SSH_TTY:-}" ]; then
-        host_info="${mag}⌁${r}${color}\u@\h${r}"
-    else
-        host_info="${color}\u@\h${r}"
-    fi
-
-    # 6. Dynamic window title
-    local title="\[\e]0;\u@\h: \w\a\]"
-
-    PS1="${title}${jobs_info}${venv}${host_info}:${blu}\w${r}${git_info}λ "
+_git_prompt_fmt() {
+    local b=$(_git_prompt)
+    [ -n "$b" ] && printf ' \001\e[33m\002(%s)\001\e[0m\002' "$b"
 }
 
-# Proper PROMPT_COMMAND assignment
-if [[ ! "$PROMPT_COMMAND" =~ _set_prompt ]]; then
-  PROMPT_COMMAND="_set_prompt${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
-fi
+_venv_fmt() {
+    [ -n "$VIRTUAL_ENV" ] && printf '\001\e[36m\002[%s]\001\e[0m\002 ' "${VIRTUAL_ENV##*/}"
+}
+
+_jobs_fmt() {
+    local j=($(jobs -p))
+    [ ${#j[@]} -gt 0 ] && printf '\001\e[35m\002[%s]\001\e[0m\002 ' "${#j[@]}"
+}
+
+# SSH prefix computed once at startup
+_host_prefix=""
+[ -n "${SSH_CLIENT:-}${SSH_TTY:-}" ] && _host_prefix='\[\e[35m\]⌁\[\e[0m\]'
+
+_PS1_SINGLE="\[\e]0;\u@\h: \w\a\]\$(_jobs_fmt)\$(_venv_fmt)${_host_prefix}\u@\h:\[\e[34m\]\W\[\e[0m\]\$(_git_prompt_fmt)λ "
+_PS1_DOUBLE="\[\e]0;\u@\h: \w\a\]\$(_jobs_fmt)\$(_venv_fmt)${_host_prefix}\u@\h:\[\e[34m\]\w\[\e[0m\]\$(_git_prompt_fmt)"$'\n'"λ "
+
+prompt-toggle() {
+    if [[ "$PS1" == *$'\n'* ]]; then
+        PS1="$_PS1_SINGLE"
+    else
+        PS1="$_PS1_DOUBLE"
+    fi
+}
+
+PS1="$_PS1_SINGLE"
 
 # ============================================================================
 # ALIASES - Essential shortcuts
