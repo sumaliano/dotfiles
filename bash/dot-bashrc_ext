@@ -163,7 +163,7 @@ prompt-toggle() {
     fi
 }
 
-PS1="$_PS1_SINGLE"
+PS1="$_PS1_DOUBLE"
 
 # ============================================================================
 # ALIASES - Essential shortcuts

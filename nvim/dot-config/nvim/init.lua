@@ -105,9 +105,10 @@ map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal" })
 -- Clipboard
 map({ "n", "v" }, "<leader>y", '"+y', { desc = "Yank to clipboard" })
 map({ "n", "v" }, "<leader>p", '"+p', { desc = "Paste from clipboard" })
-map("x", "p", '"0p', { desc = "Paste (keep yank register)" })
-map("n", "p", '"0p', { desc = "Paste from yank register" })
-map("n", "P", '"0P', { desc = "Paste from yank register" })
+-- p/P read the unnamed register, which holds both yanks and deletes. Visual p
+-- maps to P, which pastes over the selection without absorbing it, so the
+-- register survives for the next paste.
+map("x", "p", "P", { desc = "Paste (keep register)" })
 
 -- Indent
 map("v", "<", "<gv")
