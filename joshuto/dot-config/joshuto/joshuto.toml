@@ -2,6 +2,15 @@
 zoxide_update = true
 
 [display]
+# parent | current | preview. The only other layout worth having is "hsplit",
+# which drops the preview column and draws tabs side by side in pairs
+# (1|2, 3|4, ...). joshuto reads this key once at startup and offers no runtime
+# toggle, so rather than committing the whole setup to one layout, the dual-pane
+# variant lives in its own generated config dir — launch it with `jjs` instead
+# of `jj` (see bash/dot-bashrc_ext). Keep this line as-is: scripts/install.sh
+# greps for it to generate that variant.
+mode = "default"
+
 show_hidden = true
 line_number_style = "relative"
 

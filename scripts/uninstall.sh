@@ -48,7 +48,7 @@ declare -A CONFIG_PATHS=(
     [tmux]="~/.tmux.conf"
     [git]="~/.gitignore_global ~/.gitconfig.dotfiles"
     [inputrc]="~/.inputrc"
-    [joshuto]="~/.config/joshuto"
+    [joshuto]="~/.config/joshuto ~/.config/joshuto-hsplit"
     [yazi]="~/.config/yazi"
     [fonts]="~/.local/share/fonts"
 )
@@ -160,8 +160,9 @@ if [ "$MODE" = "configs" ] && [ -z "$HOST" ] && [ -n "$STOW" ] \
     stow --dotfiles -D -t "$HOME" -d "$DOTFILES" \
         bash vim nvim tmux git fonts inputrc joshuto yazi 2>/dev/null || true
     remove_utils_local
-    remove_config_local bash   # unwire ~/.bashrc
-    remove_config_local git    # drop [include]
+    remove_config_local bash    # unwire ~/.bashrc
+    remove_config_local git     # drop [include]
+    remove_config_local joshuto # drop the generated joshuto-hsplit dir
     printf "\n${GREEN}Done!${NC}\n"
     exit 0
 fi
