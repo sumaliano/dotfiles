@@ -1,0 +1,37 @@
+# keymap.toml — yazi keybindings.
+#
+# Unlike joshuto (whose keymap.toml REPLACES the compiled-in defaults wholesale,
+# which is why that one is vendored in full), yazi's `prepend_keymap` layers on
+# top of its defaults — so only the lines that differ belong here.
+#
+# These drive plugins/split-tabs.yazi (vendored; see init.lua). Split mode is
+# OFF at startup and `\` toggles it at runtime, which is the whole reason for
+# the plugin over joshuto's hsplit — that one is fixed when the process starts.
+#
+# Key choices, checked against yazi 26.5.6's default [mgr] keymap:
+#   \        free.
+#   <F3>     free. Midnight Commander's "view" slot.
+#   <Tab>    TAKEN by `spot`. Claimed anyway: Tab-to-switch-pane is the
+#            dual-pane convention and matches joshuto. `spot` moves to <C-p>
+#            below, so nothing is actually lost.
+
+[mgr]
+prepend_keymap = [
+    { on = "\\",    run = "plugin split-tabs spl_toggle",     desc = "Toggle dual-pane" },
+    { on = "<Tab>", run = "plugin split-tabs spl_switch_tab", desc = "Switch to the other pane" },
+    { on = "<F3>",  run = "plugin split-tabs spl_preview",    desc = "Toggle the preview pane" },
+
+    # Displaced by <Tab> above — yazi's default binding for it.
+    { on = "<C-p>", run = "spot",                             desc = "Spot hovered file" },
+
+    # The plugin also ships spl_copy / spl_move (its README binds them to F5/F6,
+    # Midnight Commander style). They are DELIBERATELY not bound here: they call
+    # `ya.task("copy"/"move", ...)`, which the vendored yazi 26.5.6 does not have
+    # — it fails silently in the UI and only says so in the log:
+    #     Failed to execute async block in `split-tabs`: unsupported spawn kind: copy
+    # Both panes are ordinary tabs sharing one yank register, so yazi's own
+    # y / <Tab> / p does the same job today. Uncomment after bumping yazi past
+    # 26.5.6 (upstream tracks this in terrakok/split-tabs.yazi#14).
+    # { on = "<F5>", run = [ "escape --visual", "plugin split-tabs spl_copy" ], desc = "Copy to the other pane" },
+    # { on = "<F6>", run = [ "escape --visual", "plugin split-tabs spl_move" ], desc = "Move to the other pane" },
+]

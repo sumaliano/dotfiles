@@ -10,3 +10,12 @@
 -- a terminal without the font (same reason theme.toml disables file icons).
 
 require("git"):setup()
+
+-- plugins/split-tabs.yazi — dual-pane view, also vendored rather than fetched
+-- with `ya pkg add`, same reason as above. Upstream is terrakok/split-tabs.yazi
+-- pinned at d0531f495030; it declares `@since 26.5.6`, which is exactly the yazi
+-- version vendored here, so re-check that line before bumping either one.
+--
+-- Nothing to call at startup: the plugin exposes a `spl_activate` action that
+-- would open in split mode, but it is deliberately not used — the point is the
+-- runtime toggle on `\` (see keymap.toml). yazi starts single-pane as always.
