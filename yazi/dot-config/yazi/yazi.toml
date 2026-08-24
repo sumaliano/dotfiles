@@ -6,13 +6,11 @@
 # status sign next to each entry. Signs themselves are themed in theme.toml.
 
 [[plugin.prepend_fetchers]]
-id    = "git"
 url   = "*"
 run   = "git"
 group = "git"
 
 [[plugin.prepend_fetchers]]
-id    = "git"
 url   = "*/"
 run   = "git"
 group = "git"

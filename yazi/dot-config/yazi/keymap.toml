@@ -8,7 +8,7 @@
 # OFF at startup and `\` toggles it at runtime, which is the whole reason for
 # the plugin over joshuto's hsplit — that one is fixed when the process starts.
 #
-# Key choices, checked against yazi 26.5.6's default [mgr] keymap:
+# Key choices, checked against yazi 26.8.15's default [mgr] keymap:
 #   \        free.
 #   <F3>     free. Midnight Commander's "view" slot.
 #   <Tab>    TAKEN by `spot`. Claimed anyway: Tab-to-switch-pane is the
@@ -25,13 +25,12 @@ prepend_keymap = [
     { on = "<C-p>", run = "spot",                             desc = "Spot hovered file" },
 
     # The plugin also ships spl_copy / spl_move (its README binds them to F5/F6,
-    # Midnight Commander style). They are DELIBERATELY not bound here: they call
-    # `ya.task("copy"/"move", ...)`, which the vendored yazi 26.5.6 does not have
-    # — it fails silently in the UI and only says so in the log:
-    #     Failed to execute async block in `split-tabs`: unsupported spawn kind: copy
-    # Both panes are ordinary tabs sharing one yank register, so yazi's own
-    # y / <Tab> / p does the same job today. Uncomment after bumping yazi past
-    # 26.5.6 (upstream tracks this in terrakok/split-tabs.yazi#14).
+    # Midnight Commander style). They work on the vendored yazi 26.8.15 — on the
+    # older 26.5.6 they failed silently, because `ya.task("copy"/"move", ...)`
+    # did not exist there yet. Left unbound by preference, not by limitation:
+    # both panes are ordinary tabs sharing one yank register, so yazi's own
+    # y / <Tab> / p already does the job with keys that work everywhere else.
+    # Uncomment if the dedicated keys are ever worth the two extra bindings.
     # { on = "<F5>", run = [ "escape --visual", "plugin split-tabs spl_copy" ], desc = "Copy to the other pane" },
     # { on = "<F6>", run = [ "escape --visual", "plugin split-tabs spl_move" ], desc = "Move to the other pane" },
 ]
