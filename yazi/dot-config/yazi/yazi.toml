@@ -1,9 +1,15 @@
 # yazi.toml — yazi core configuration.
 #
 # Registers the vendored git plugin (plugins/git.yazi) as a fetcher so yazi
-# computes git status for files (name = "*") and directories (name = "*/") as
-# you browse. Pairs with init.lua's `require("git"):setup()`, which draws the
-# status sign next to each entry. Signs themselves are themed in theme.toml.
+# computes git status for files (url = "*") and directories (url = "*/") as you
+# browse. Pairs with init.lua's `require("git"):setup { order = 1500 }`, which
+# draws the status sign next to each entry. The signs use the plugin's own
+# defaults — see init.lua for why there is no theme.toml.
+
+[mgr]
+# Show each entry's size in the right-hand column. yazi's default is "none";
+# other values are btime, mtime, permissions and owner.
+linemode = "size"
 
 [[plugin.prepend_fetchers]]
 url   = "*"
