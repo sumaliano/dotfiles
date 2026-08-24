@@ -1,13 +1,14 @@
 # keymap.toml — joshuto keybindings.
 #
 # This is the verbatim compiled-in DEFAULT keymap for joshuto 0.9.9 (the version
-# vendored in this repo), with ONE change: `q` now quits *and* reports the cwd so
-# the shell can follow joshuto on exit. See the marked line below.
+# vendored in this repo), with TWO changes, both marked below:
+#   q      quits *and* reports the cwd, so the shell can follow joshuto on exit
+#   d P    permanently deletes, for machines with no trash tool installed
 #
 # Why the whole file is vendored: joshuto does NOT merge keymap.toml with its
 # defaults — if this file exists it REPLACES them entirely. A partial file would
 # silently drop every other binding, so we ship the complete default and patch
-# the one line. Regenerate with:  joshuto --config-type keymap   (prints default)
+# those lines. Regenerate with:  joshuto --config-type keymap  (prints default)
 #
 # How "cd on exit" works: the `jj` shell wrapper (bash/dot-bashrc_ext) runs
 # joshuto with --output-file; `quit --output-current-directory` writes the final
@@ -86,6 +87,13 @@ keymap = [
   { keys = ["p", "L"], commands = ["symlink_files --relative=true"] },
   { keys = ["delete"], commands = ["delete_files"] },
   { keys = ["d", "D"], commands = ["delete_files"] },
+  # ADDED to the default keymap. `delete_files` honours use_trash (default true),
+  # which shells out to the first of `gio trash` / `trash-put` / `trash` /
+  # `gtrash put` that exists. A bare server has none of them, so every delete
+  # there fails with a red "Failed to trash file" — joshuto discards the real
+  # stderr, so that message is all you get. This bypasses trash entirely and
+  # works anywhere. It still asks "Are you sure? (y/N)", defaulting to No.
+  { keys = ["d", "P"], commands = ["delete_files --permanently"] },
   { keys = ["p", "p"], commands = ["paste_files"] },
   { keys = ["p", "o"], commands = ["paste_files --overwrite=true"] },
   { keys = ["a"], commands = ["rename_append"] },
