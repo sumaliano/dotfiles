@@ -10,10 +10,17 @@
 # defaults (the prepend_/append_ variants would merge instead), so setting them
 # all empty means "no icons at all".
 #
-# Want the icons back? Install a Nerd Font locally — this repo bundles one:
-#   make dot fonts   # → ~/.local/share/fonts (UbuntuMono Nerd Font)
-# then point your terminal emulator at "UbuntuMono Nerd Font" and delete this
-# file (or comment the rules out).
+# Want the icons back? Run `make dot fonts` and follow the two Windows-side
+# steps it prints (under WSL the Linux font dir is invisible to the terminal —
+# see stage_fonts_windows in scripts/install.sh), then set the terminal font
+# face to "UbuntuMono Nerd Font Mono" and delete the [icon] block below.
+#
+# The bundled font must stay a Nerd Fonts v3 build. Pre-v3 releases stop at
+# U+FFFF, and yazi's icons are Material Design glyphs above it (U+F0001+), so an
+# older font renders them as tofu no matter how the terminal is configured. The
+# same applies to yazi's own chrome — [which] separator, [notify]/[cmp] icons,
+# [tabs]/[status] separators — which this file does NOT override, so they rely
+# on the font being complete rather than on suppression here.
 
 [icon]
 globs = []

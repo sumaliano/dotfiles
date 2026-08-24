@@ -126,6 +126,37 @@ install_utils() {
     link_utils
 }
 
+# Under WSL the terminal drawing your text is a WINDOWS application, and it can
+# only use fonts installed on the WINDOWS side — it cannot see the Linux
+# ~/.local/share/fonts this package just linked. That is why glyphs render as
+# tofu even with the font "installed". Registering a font from WSL means writing
+# to the Windows registry, so we stage the files where Explorer can reach them
+# and print the two steps that must happen over there. No-op outside WSL.
+stage_fonts_windows() {
+    grep -qi microsoft /proc/version 2>/dev/null || return 0
+
+    local win_user dest
+    win_user=$(cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r\n')
+    if [ -z "$win_user" ] || [ ! -d "/mnt/c/Users/$win_user" ]; then
+        warn "WSL detected, but could not resolve the Windows user — install the"
+        warn "Nerd Font manually from fonts/dot-local/share/fonts/UbuntuMono/"
+        return 0
+    fi
+
+    dest="/mnt/c/Users/$win_user/Downloads/nerd-fonts"
+    if ! mkdir -p "$dest" 2>/dev/null; then
+        warn "Cannot write to $dest — skipping the Windows-side staging"
+        return 0
+    fi
+
+    cp "$DOTFILES"/fonts/dot-local/share/fonts/UbuntuMono/UbuntuMonoNerdFontMono-*.ttf "$dest"/ 2>/dev/null
+    ok "Staged Nerd Font → $dest"
+    printf "  ${BOLD}Two steps left, on the Windows side (once per machine):${NC}\n"
+    printf "    1. Open that folder, select the .ttf files, right-click → Install\n"
+    printf "    2. Terminal → Settings → your profile → Appearance → Font face:\n"
+    printf "       ${BOLD}UbuntuMono Nerd Font Mono${NC}\n"
+}
+
 install_fonts() {
     info "Fonts"
     stow_pkg fonts
@@ -133,6 +164,7 @@ install_fonts() {
         fc-cache -f
         ok "Font cache refreshed"
     fi
+    stage_fonts_windows
 }
 
 install_inputrc() {
