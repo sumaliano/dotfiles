@@ -11,6 +11,22 @@
 # other values are btime, mtime, permissions and owner.
 linemode = "size"
 
+# Default is [ "click", "scroll", "drag" ]. "click" is dropped because it is
+# actively wrong under plugins/split-tabs.yazi (see init.lua): a click resolves
+# to the file under the cursor in whichever pane was clicked, then emits
+# `reveal`, which is a global command that always acts on the ACTIVE tab. So
+# clicking in the inactive pane teleports the *other* pane to that directory.
+#
+# "scroll" has the same flaw in a milder form — the wheel over the inactive
+# pane moves the active pane's cursor — and "drag" on the rail rewrites
+# rt.mgr.ratio, which split mode ignores but single-pane mode does not. Both
+# are kept because neither loses your place.
+#
+# Set this to [] to turn the mouse off entirely: yazi then never sends the
+# terminal's mouse-tracking sequences (verified: no ?1000h/?1002h on startup),
+# so click-drag text selection works natively again.
+mouse_events = [ "scroll", "drag" ]
+
 [[plugin.prepend_fetchers]]
 url   = "*"
 run   = "git"
