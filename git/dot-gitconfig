@@ -53,6 +53,7 @@
     tool = nvimdiff
     colorMoved = default
     algorithm = histogram
+    mnemonicPrefix = true
 
 [difftool "nvimdiff"]
     # -d starts nvim in diff mode
@@ -81,6 +82,19 @@
 
 [rerere]
     enabled = true
+    autoupdate = true
+
+[commit]
+    verbose = true
+
+[column]
+    ui = auto
+
+[branch]
+    sort = -committerdate
+
+[tag]
+    sort = -version:refname
 
 [alias]
     # Undo
