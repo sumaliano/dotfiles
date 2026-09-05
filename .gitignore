@@ -45,4 +45,7 @@ vendor/
 # neovim lazy
 nvim/dot-config/nvim/lazy-lock.json
 
+# hyprland: monitor layout/scale is per-machine, not portable
+hypr/dot-config/hypr/monitors.lua
+
 # symbolic links (none currently)

@@ -47,6 +47,7 @@ link_vim()     {
     link_file "$DOTFILES/vim/dot-vim"   "$HOME/.vim"
 }
 link_nvim()    { link_file "$DOTFILES/nvim/dot-config/nvim"            "$HOME/.config/nvim"; }
+link_hypr()    { link_file "$DOTFILES/hypr/dot-config/hypr"            "$HOME/.config/hypr"; }
 link_tmux()    { link_file "$DOTFILES/tmux/dot-tmux.conf"              "$HOME/.tmux.conf"; }
 link_git()     { link_file "$DOTFILES/git/dot-gitignore_global"        "$HOME/.gitignore_global"; }
 link_utils() {
@@ -90,6 +91,30 @@ install_vim() {
 install_neovim() {
     info "Neovim"
     stow_pkg nvim
+}
+
+install_hypr() {
+    info "Hyprland"
+    stow_pkg hypr
+}
+
+# LazyVim is not a stowed dotfile — it's an upstream starter template that
+# lazy.nvim then self-manages (its own lockfile, its own plugin updates).
+# NVIM_APPNAME isolates it in ~/.config/lazyvim, entirely separate from the
+# nvim/ component above, so the two configs can't collide. Opt-in only (not
+# in ALL): it needs network + git on first run, and re-running this must NOT
+# clobber your subsequent in-editor plugin changes, so an existing install is
+# left untouched.
+install_lazyvim() {
+    info "LazyVim"
+    if [ -d "$HOME/.config/lazyvim" ]; then
+        ok "~/.config/lazyvim already present — leaving your install untouched"
+        return 0
+    fi
+    command -v git &>/dev/null || { warn "git not found — cannot clone the LazyVim starter"; return 0; }
+    git clone --depth=1 https://github.com/LazyVim/starter "$HOME/.config/lazyvim" \
+        && rm -rf "$HOME/.config/lazyvim/.git" \
+        && ok "Cloned LazyVim starter → ~/.config/lazyvim  (launch with: lvim)"
 }
 
 install_tmux() {
@@ -283,7 +308,7 @@ install_tool() {
 
 # ── Entry point ─────────────────────────────────────────────────────────────
 
-ALL=(bash vim neovim tmux git utils fonts inputrc joshuto yazi lazygit)
+ALL=(bash vim neovim tmux git hypr utils fonts inputrc joshuto yazi lazygit)
 
 # --tool <name>[,name] installs vendor binaries + their configs locally
 if [ "${1:-}" = "--tool" ]; then
@@ -321,7 +346,7 @@ for t in "${targets[@]}"; do
         "install_$comp"
     else
         printf "${RED}Error:${NC} Unknown component '%s'\n" "$t" >&2
-        printf "Available: bash vim nvim tmux git utils fonts inputrc joshuto yazi lazygit\n" >&2
+        printf "Available: bash vim nvim tmux git hypr utils fonts inputrc joshuto yazi lazygit lazyvim\n" >&2
         exit 1
     fi
 done

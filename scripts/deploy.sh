@@ -54,6 +54,7 @@ declare -A TOOL_CONFIG=(
     [joshuto]="joshuto/dot-config/joshuto|~/.config/joshuto"
     [yazi]="yazi/dot-config/yazi|~/.config/yazi"
     [inputrc]="inputrc/dot-inputrc|~/.inputrc"
+    [lazygit]="lazygit/dot-config/lazygit/config.yml|~/.config/lazygit/config.yml"
 )
 
 # Config-only tools have no vendor binary (skip the "missing binary" warning).
@@ -77,14 +78,14 @@ ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
 #   bins/both → every binary present in vendor/linux-<arch>/
 if [ "$TOOLS" = "all" ]; then
     if [ "$MODE" = "configs" ]; then
-        TOOLS="bash,git,inputrc,nvim,vim,tmux,joshuto,yazi"
+        TOOLS="bash,git,inputrc,nvim,vim,tmux,joshuto,yazi,lazygit"
     else
         [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
-        # Local-only tools are vendored for local use but kept out of the bulk
-        # remote deploy. They remain deployable by explicit name (make tool lazygit HOST=…).
-        # nvim-runtime / nvim-parsers are not standalone tools — they ride along
-        # with the nvim binary below, so exclude them from the bulk list.
-        TOOLS=$(ls "$VENDOR_DIR" | grep -vxE 'lazygit|grex|nvim-runtime|nvim-parsers' | tr '\n' ',' | sed 's/,$//')
+        # grex is vendored for local use but kept out of the bulk remote deploy —
+        # regex authoring is a local task. It remains deployable by explicit name
+        # (make tool grex HOST=…). nvim-runtime / nvim-parsers are not standalone
+        # tools — they ride along with the nvim binary below, so exclude them too.
+        TOOLS=$(ls "$VENDOR_DIR" | grep -vxE 'grex|nvim-runtime|nvim-parsers' | tr '\n' ',' | sed 's/,$//')
         [ -n "$TOOLS" ] || die "vendor/linux-$REMOTE_ARCH/ is empty — run 'make vendor' first"
     fi
 fi

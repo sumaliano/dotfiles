@@ -257,6 +257,9 @@ export EDITOR="${EDITOR:-vi}"
 command -v vim &>/dev/null && alias vi='vim' && export EDITOR='vim'
 command -v nvim &>/dev/null && alias vim='nvim' && export EDITOR='nvim'
 command -v nvim &>/dev/null && [ -f ~/.config/nvim/init_plugins.lua ] && alias nv='nvim -u ~/.config/nvim/init_plugins.lua'
+# LazyVim lives in its own NVIM_APPNAME sandbox (~/.config/lazyvim), entirely
+# separate from the init.lua/init_plugins.lua config above — see `make dot lazyvim`.
+command -v nvim &>/dev/null && [ -d ~/.config/lazyvim ] && alias lvim='NVIM_APPNAME=lazyvim nvim'
 
 # File managers — CWD-on-quit wrappers (all three change your shell dir on exit)
 if command -v yazi &>/dev/null; then

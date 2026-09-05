@@ -91,9 +91,15 @@ The two verbs are deliberately separate so each does exactly one thing:
 - **`make tool …`** moves **binaries** (`~/.local/bin`). With no name it means
   every binary present in `vendor/linux-<arch>/`.
 - **`make dot …`** moves **configs**. Locally that's all dotfile components
-  (`bash`, `git`, `nvim`, `vim`, `tmux`, `joshuto`, `yazi`, `utils`, `fonts`, `inputrc`);
+  (`bash`, `git`, `nvim`, `vim`, `tmux`, `hypr`, `joshuto`, `yazi`, `lazygit`, `utils`, `fonts`, `inputrc`);
   remotely it's the ones the deployer knows how to wire up over SSH (`bash`,
-  `git`, `inputrc`, `nvim`, `vim`, `tmux`, `joshuto`, `yazi`).
+  `git`, `inputrc`, `nvim`, `vim`, `tmux`, `joshuto`, `yazi`, `lazygit`). `hypr`
+  is local-only — a Wayland compositor config has no reason to deploy to a
+  headless server. `lazyvim` is local-only for a different reason: it's a
+  live `git clone` that lazy.nvim then self-manages, so it needs network on
+  whichever machine runs it — pushing it to an offline remote over SSH
+  wouldn't leave a working install there anyway. It's also excluded from the
+  no-name `make dot` (must be named explicitly: `make dot lazyvim`).
 
 So a fully-equipped remote `nvim` is binary **and** config:
 
@@ -112,10 +118,13 @@ make tool nvim HOST=user@server && make dot nvim HOST=user@server
 `nvim` needs glibc 2.32+; the deployer detects old glibc and tells you to deploy
 the static `vim` build instead.
 
-`lazygit` and `grex` are **local-only**: vendored and installed locally, but
-excluded from the bulk remote deploy (`make tool HOST=…`) — `lazygit` to keep
-your raw git skills sharp on bare servers, `grex` because regex authoring is a
-local task. You can still push either explicitly, e.g. `make tool grex HOST=…`.
+`grex` is **local-only**: vendored and installed locally, but excluded from
+the bulk remote deploy (`make tool HOST=…`) because regex authoring is a
+local task. You can still push it explicitly: `make tool grex HOST=…`.
+
+`lazygit`'s config (`~/.config/lazygit/config.yml`) is portable and included
+in both the bulk config deploy (`make dot HOST=…`) and, as of the delta-aware
+config below, the bulk binary deploy too.
 
 ## What's Included
 
@@ -126,6 +135,9 @@ local task. You can still push either explicitly, e.g. `make tool grex HOST=…`
 | **vim/**    | `dot-vimrc`, `dot-vim/` |
 | **tmux/**   | `dot-tmux.conf` (incl. session save/restore) |
 | **git/**    | `dot-gitconfig` (delta-aware), `dot-gitignore_global` |
+| **hypr/**   | `dot-config/hypr` (Hyprland Lua config; `monitors.lua` is machine-local, gitignored) |
+| **lazygit/**| `dot-config/lazygit/config.yml` (delta-aware pagers) |
+| **lazyvim** | Not stowed — `make dot lazyvim` clones the LazyVim starter into `~/.config/lazyvim`, isolated via `NVIM_APPNAME`. Launch with `lvim`. Opt-in only (needs network + git; not part of the no-name `make dot`) |
 | **joshuto/**| `dot-config/joshuto` (preview script + `$EDITOR` mimetypes) |
 | **yazi/**   | `dot-config/yazi` (icons disabled for non-Nerd-Font terminals) |
 | **utils/**  | helper scripts in `dot-bin/` |
