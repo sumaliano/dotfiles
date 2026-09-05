@@ -66,6 +66,12 @@ map("i", "jk", "<Esc>", { desc = "Exit insert mode with jk" })
 map("n", "<leader>w", "<cmd>w<cr>", { desc = "Save" })
 map("n", "<leader>q", "<cmd>q<cr>", { desc = "Quit" })
 map("n", "<leader>Q", "<cmd>qa<cr>", { desc = "Quit all" })
+map({ "i", "x", "n", "s" }, "<C-s>", "<cmd>w<cr><esc>", { desc = "Save file" })
+
+-- n/N always search in the direction you last searched, regardless of
+-- whether that search itself was a forward (/) or backward (?) one.
+map({ "n", "x", "o" }, "n", "'Nn'[v:searchforward]", { expr = true, desc = "Next search result" })
+map({ "n", "x", "o" }, "N", "'nN'[v:searchforward]", { expr = true, desc = "Prev search result" })
 
 -- Toggle quickfix
 map("n", "Q", function()
@@ -92,10 +98,37 @@ map('n', '<M-l>', function() nvim_tmux_nav('l') end, { desc = "Right" })
 
 map("n", "<leader>-", "<cmd>split<cr>", { desc = "Split horizontal" })
 map("n", "<leader>|", "<cmd>vsplit<cr>", { desc = "Split vertical" })
+map("n", "<leader>wd", "<C-w>c", { desc = "Delete window" })
+
+-- Zoom the current window to fill the tab, toggle back to restore layout
+do
+    local zoom_restore
+    map("n", "<leader>wm", function()
+        if zoom_restore then
+            vim.cmd(zoom_restore)
+            zoom_restore = nil
+        else
+            zoom_restore = vim.fn.winrestcmd()
+            vim.cmd("wincmd _")
+            vim.cmd("wincmd |")
+        end
+    end, { desc = "Zoom window" })
+end
 
 -- Buffers
 map("n", "<Tab>", "<cmd>bnext<cr>", { desc = "Next buffer" })
 map("n", "<S-Tab>", "<cmd>bprevious<cr>", { desc = "Prev buffer" })
+map("n", "[b", "<cmd>bprevious<cr>", { desc = "Prev buffer" })
+map("n", "]b", "<cmd>bnext<cr>", { desc = "Next buffer" })
+
+-- Tabs
+map("n", "<leader><tab><tab>", "<cmd>tabnew<cr>", { desc = "New tab" })
+map("n", "<leader><tab>d", "<cmd>tabclose<cr>", { desc = "Close tab" })
+map("n", "<leader><tab>o", "<cmd>tabonly<cr>", { desc = "Close other tabs" })
+map("n", "<leader><tab>]", "<cmd>tabnext<cr>", { desc = "Next tab" })
+map("n", "<leader><tab>[", "<cmd>tabprevious<cr>", { desc = "Prev tab" })
+map("n", "<leader><tab>f", "<cmd>tabfirst<cr>", { desc = "First tab" })
+map("n", "<leader><tab>l", "<cmd>tablast<cr>", { desc = "Last tab" })
 map("n", "<leader>bd", "<cmd>bdelete<cr>", { desc = "Delete buffer" })
 
 -- Terminal
@@ -103,6 +136,79 @@ map("n", "<leader>t", "<cmd>terminal<cr>", { desc = "Terminal" })
 map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal" })
 
 -- Clipboard
+-- Clipboard for sessions whose yanks may need to reach another machine:
+-- every copy is emitted as OSC 52 (inside tmux this becomes a tmux buffer,
+-- rebroadcast to every attached client, local or SSH). Paste prefers the
+-- local Wayland clipboard when one is available, so content copied in other
+-- apps remains pasteable; without a display, paste is an OSC 52 query that
+-- tmux (or the terminal) answers. Only kicks in over tmux/SSH — a plain
+-- local session keeps using the regular +/* registers below untouched.
+local function setup_remote_clipboard()
+    local function proc_lines(pid, file)
+        local ok, lines = pcall(vim.fn.readfile, "/proc/" .. pid .. "/" .. file)
+        return ok and lines or {}
+    end
+    local function proc_ppid(pid)
+        for _, line in ipairs(proc_lines(pid, "status")) do
+            local ppid = line:match("^PPid:%s+(%d+)")
+            if ppid then return tonumber(ppid) end
+        end
+    end
+    local function ancestor_process_named(name)
+        local pid = vim.fn.getpid()
+        for _ = 1, 16 do
+            local ppid = proc_ppid(pid)
+            if not ppid or ppid <= 1 then return false end
+            local comm = proc_lines(ppid, "comm")[1] or ""
+            if comm:find(name, 1, true) then return true end
+            pid = ppid
+        end
+        return false
+    end
+
+    local in_tmux = vim.env.TMUX ~= nil
+    local in_ssh = vim.env.SSH_TTY ~= nil or vim.env.SSH_CONNECTION ~= nil
+    local in_herdr = vim.env.HERDR_PANE_ID ~= nil or ancestor_process_named("herdr")
+    if not (in_tmux or in_ssh or in_herdr) then return end
+
+    local ok, osc52 = pcall(require, "vim.ui.clipboard.osc52")
+    if not ok then return end
+
+    local has_wayland = vim.env.WAYLAND_DISPLAY ~= nil
+        and vim.fn.executable("wl-copy") == 1
+        and vim.fn.executable("wl-paste") == 1
+
+    local function copy(register)
+        local emit = osc52.copy(register)
+        return function(lines)
+            if has_wayland then
+                local cmd = { "wl-copy", "--type", "text/plain" }
+                if register == "*" then cmd[#cmd + 1] = "--primary" end
+                vim.fn.system(cmd, lines)
+            end
+            emit(lines)
+        end
+    end
+
+    local function paste(register)
+        if not has_wayland then return osc52.paste(register) end
+        return function()
+            local cmd = { "wl-paste", "--no-newline" }
+            if register == "*" then cmd[#cmd + 1] = "--primary" end
+            local lines = vim.fn.systemlist(cmd, "", 1)
+            return vim.v.shell_error == 0 and lines or {}
+        end
+    end
+
+    vim.g.clipboard = {
+        name = "RemoteClipboard",
+        copy = { ["+"] = copy("+"), ["*"] = copy("*") },
+        paste = { ["+"] = paste("+"), ["*"] = paste("*") },
+        cache_enabled = 0,
+    }
+end
+setup_remote_clipboard()
+
 map({ "n", "v" }, "<leader>y", '"+y', { desc = "Yank to clipboard" })
 map({ "n", "v" }, "<leader>p", '"+p', { desc = "Paste from clipboard" })
 -- p/P read the unnamed register, which holds both yanks and deletes. Visual p
@@ -117,6 +223,18 @@ map("v", ">", ">gv")
 -- Move lines
 map("v", "<A-j>", ":m '>+1<cr>gv=gv", { desc = "Move down" })
 map("v", "<A-k>", ":m '<-2<cr>gv=gv", { desc = "Move up" })
+
+-- Add a comment on the line below/above using the built-in `gcc` (Neovim
+-- 0.10+ ships gc/gcc as default mappings, driven by 'commentstring' — no
+-- plugin needed).
+map("n", "gco", "o<esc>Vcx<esc><cmd>normal gcc<cr>fxa<bs>", { desc = "Add comment below" })
+map("n", "gcO", "O<esc>Vcx<esc><cmd>normal gcc<cr>fxa<bs>", { desc = "Add comment above" })
+
+-- Undo break-points: commit the undo history before these punctuation
+-- marks, so a single `u` doesn't wipe out a whole typed sentence at once.
+map("i", ",", ",<c-g>u")
+map("i", ".", ".<c-g>u")
+map("i", ";", ";<c-g>u")
 
 -- Quick-close brackets with <C-j>
 map("i", "<C-j>", "<esc>A;<esc>", { desc = "Close line with semicolon" })
@@ -245,6 +363,20 @@ autocmd("TextYankPost", { callback = function() vim.highlight.on_yank() end })
 autocmd("BufReadPost", { callback = function()
     local mark = vim.api.nvim_buf_get_mark(0, '"')
     if mark[1] > 0 and mark[1] <= vim.api.nvim_buf_line_count(0) then pcall(vim.api.nvim_win_set_cursor, 0, mark) end
+end })
+
+-- Create any missing intermediate directories on save
+autocmd("BufWritePre", { callback = function(ev)
+    if ev.match:match("^%w%w+:[\\/][\\/]") then return end
+    local file = vim.uv.fs_realpath(ev.match) or ev.match
+    vim.fn.mkdir(vim.fn.fnamemodify(file, ":p:h"), "p")
+end })
+
+-- Keep splits evenly sized when the terminal itself is resized
+autocmd("VimResized", { callback = function()
+    local current_tab = vim.fn.tabpagenr()
+    vim.cmd("tabdo wincmd =")
+    vim.cmd("tabnext " .. current_tab)
 end })
 
 -- YAML/Markdown fixes
@@ -928,6 +1060,11 @@ vim.api.nvim_create_autocmd("LspAttach", {
 vim.diagnostic.config { virtual_text = { prefix = ">" }, float = { border = "rounded", source = true } }
 vim.keymap.set("n", "[e", function() vim.diagnostic.goto_prev { severity = vim.diagnostic.severity.ERROR } end)
 vim.keymap.set("n", "]e", function() vim.diagnostic.goto_next { severity = vim.diagnostic.severity.ERROR } end)
+vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Prev diagnostic" })
+vim.keymap.set("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+vim.keymap.set("n", "[w", function() vim.diagnostic.goto_prev { severity = vim.diagnostic.severity.WARN } end)
+vim.keymap.set("n", "]w", function() vim.diagnostic.goto_next { severity = vim.diagnostic.severity.WARN } end)
+vim.keymap.set("n", "<leader>d", vim.diagnostic.open_float, { desc = "Line diagnostics" })
 
 -- Completion (Native logic)
 local function smart_trigger()
