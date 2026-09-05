@@ -261,6 +261,12 @@ command -v nvim &>/dev/null && [ -f ~/.config/nvim/init_plugins.lua ] && alias n
 # separate from the init.lua/init_plugins.lua config above — see `make dot lazyvim`.
 command -v nvim &>/dev/null && [ -d ~/.config/lazyvim ] && alias lvim='NVIM_APPNAME=lazyvim nvim'
 
+# Colored man pages (pipe through bat)
+if command -v bat &>/dev/null; then
+    export MANROFFOPT="-c"
+    export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+fi
+
 # File managers — CWD-on-quit wrappers (all three change your shell dir on exit)
 if command -v yazi &>/dev/null; then
     yy() { local tmp; tmp=$(mktemp); yazi --cwd-file="$tmp" "$@"; [ -s "$tmp" ] && cd "$(cat "$tmp")"; rm -f "$tmp"; }
@@ -279,7 +285,6 @@ fi
 
 # Modern tools (auto-detect)
 # Note: Only alias tools with compatible syntax to avoid breaking existing commands
-command -v bat &>/dev/null && alias cat='bat --style=plain --paging=never' && alias less='bat'
 command -v eza &>/dev/null && alias ls='eza --group-directories-first' && alias ll='eza -l --group-directories-first' && alias lt='eza -l --sort=modified' && alias tree='eza --tree'
 command -v btop &>/dev/null && alias top='btop'
 command -v duf &>/dev/null && alias df='duf'
@@ -457,6 +462,123 @@ topcmd() {
     history | awk '{CMD[$2]++;count++;}END { for (a in CMD)print CMD[a] " " CMD[a]/count*100 "% " a;}' | grep -v "./" | sort -rn | head -20
 }
 
+# ============================================================================
+# SSH - Reconnect wrapper + port forwarding
+# ============================================================================
+
+# Wrap ssh to clean up the terminal and reconnect when a connection drops.
+#
+# A remote tmux or editor arms terminal modes over the SSH pipe (mouse
+# tracking, focus reporting, the alternate screen) that only it can disarm.
+# If the connection dies instead of exiting cleanly, those modes stay armed
+# on the local terminal, and every mouse move floods the prompt with escape
+# junk.
+ssh() {
+    local rc started
+
+    started=$SECONDS
+    command ssh "$@"
+    rc=$?
+
+    [[ -t 1 ]] || return $rc
+    _ssh_disarm
+
+    # Reconnect only when an interactive session drops: ssh exits 255 for
+    # transport failures, but a fast 255 with no established session is a
+    # connect/auth failure, a remote command's own 255 passes through
+    # indistinguishably and must not replay its side effects, and redirected
+    # stdin would feed the remaining piped input to a fresh remote shell.
+    if (( rc != 255 )) || [[ ! -t 0 ]] || ! _ssh_interactive "$@" ||
+        (( SECONDS - started < 30 )); then
+        return $rc
+    fi
+
+    # Retry in a subshell: Ctrl-C reaches the whole foreground process group,
+    # so it cancels both the in-flight attempt and the loop itself. Keep
+    # retrying fast failures, since a rebooting server refuses connections too.
+    (
+        while true; do
+            echo "Connection lost. Reconnecting (Ctrl-C to stop)..."
+            sleep 2
+            command ssh "$@"
+            rc=$?
+            _ssh_disarm
+            (( rc != 255 )) && exit $rc
+        done
+    )
+}
+
+# Disarm mouse tracking (1000/1002/1003, 1006 encoding), focus reporting
+# (1004), and the alternate screen (1049), and show the cursor again.
+_ssh_disarm() {
+    printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h'
+}
+
+# True for an interactive session: a destination and no remote command. The
+# letters are the ssh(1) options that consume a value, so their arguments are
+# not mistaken for the destination.
+_ssh_interactive() {
+    local value_opts="BbcDEeFIiJLlmOoPpQRSWw"
+    local argv=("$@") arg letters i dest="" opts_done=""
+
+    while (($#)); do
+        arg="$1"
+        shift
+
+        if [[ -z $opts_done && $arg == "--" ]]; then
+            opts_done=1
+        elif [[ -z $opts_done && $arg == -?* ]]; then
+            letters="${arg#-}"
+            for ((i = 0; i < ${#letters}; i++)); do
+                if [[ $value_opts == *"${letters:i:1}"* ]]; then
+                    # The value is glued to the letter (-p2222) unless the
+                    # letter ends the argument, in which case it consumes the
+                    # next one (-p 2222).
+                    (( i == ${#letters} - 1 )) && shift
+                    break
+                fi
+            done
+        elif [[ -z $dest ]]; then
+            dest="$arg"
+        else
+            return 1
+        fi
+    done
+
+    [[ -n $dest ]] || return 1
+
+    # A RemoteCommand from ssh_config or -o replays on reconnect just like a
+    # positional command; ssh -G resolves the effective configuration for
+    # this exact invocation without connecting. Fail closed when it cannot
+    # resolve, since an undetected RemoteCommand must not replay. The
+    # explicit "none" cancels a configured command, and some versions emit
+    # it when unset.
+    local resolved
+    resolved=$(command ssh -G "${argv[@]}" 2>/dev/null) || return 1
+    ! grep -i '^remotecommand ' <<<"$resolved" | grep -qvi '^remotecommand none$'
+}
+
+# SSH port forwarding
+fip() {
+    (( $# < 2 )) && echo "Usage: fip <host> <port1> [port2] ..." && return 1
+    local host="$1"
+    shift
+    for port in "$@"; do
+        ssh -f -N -L "${port}:localhost:${port}" "$host" && echo "Forwarding localhost:$port -> $host:$port"
+    done
+}
+
+dip() {
+    (( $# == 0 )) && echo "Usage: dip <port1> [port2] ..." && return 1
+    for port in "$@"; do
+        pkill -f "ssh.*-L ${port}:localhost:${port}" && echo "Stopped forwarding port $port" || echo "No forwarding on port $port"
+    done
+}
+
+lip() {
+    pgrep -af "ssh.*-L [0-9]+:localhost:[0-9]+" || echo "No active forwards"
+}
+
 ssh-ls() {
     printf "%-26s %-15s %-25s\n" "ALIAS" "USER" "HOSTNAME/IP"
     printf "%-26s %-15s %-25s\n" "-----" "----" "-----------"
@@ -570,7 +692,24 @@ fi
 
 # zoxide - frecency 'cd' (defines z / zi). Needs this init to hook cd; it only
 # augments PROMPT_COMMAND, so it coexists with the prompt above. zi uses fzf.
-command -v zoxide &>/dev/null && eval "$(zoxide init bash)"
+if command -v zoxide &>/dev/null; then
+    eval "$(zoxide init bash)"
+
+    # cd falls back to zoxide's frecency match when the path doesn't exist as
+    # a literal directory — an alias (not a function override of cd itself),
+    # so it only ever fires in this interactive shell, never inside scripts.
+    zd() {
+        if (( $# == 0 )); then
+            builtin cd ~ || return
+        elif [[ -d $1 ]]; then
+            builtin cd "$1" || return
+        else
+            z "$@" || { echo "Error: Directory not found"; return 1; }
+            printf '→ '; pwd
+        fi
+    }
+    alias cd='zd'
+fi
 
 # ============================================================================
 # FZF - Fuzzy finder integration (if available)
@@ -690,6 +829,22 @@ if command -v fzf &>/dev/null; then
         files=$(git status --porcelain | fzf -m --ansi --preview 'git diff --color=always {+2}' | awk '{print $2}')
         [ -n "$files" ] && git add $files
     }
+
+    # Browse files with a live preview (image preview in kitty, else bat).
+    # eff opens the picked file in $EDITOR; sff scp's it to a destination.
+    if command -v bat &>/dev/null; then
+        if [[ "$TERM" == "xterm-kitty" ]]; then
+            alias ff="fzf --preview 'case \$(file --mime-type -b {}) in image/*) kitty icat --clear --transfer-mode=memory --stdin=no --place=\${FZF_PREVIEW_COLUMNS}x\${FZF_PREVIEW_LINES}@0x0 {} ;; *) bat --style=numbers --color=always {} ;; esac'"
+        else
+            alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
+        fi
+        alias eff='$EDITOR "$(ff)"'
+        sff() {
+            [ $# -eq 0 ] && { echo "Usage: sff <destination> (e.g. sff host:/tmp/)"; return 1; }
+            local file
+            file=$(find . -type f -printf '%T@\t%p\n' | sort -rn | cut -f2- | ff) && [ -n "$file" ] && scp "$file" "$1"
+        }
+    fi
 fi
 
 # ============================================================================
