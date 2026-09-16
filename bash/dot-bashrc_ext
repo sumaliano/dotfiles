@@ -286,7 +286,7 @@ fi
 # Modern tools (auto-detect)
 # Note: Only alias tools with compatible syntax to avoid breaking existing commands
 command -v eza &>/dev/null && \
-    alias ls='eza --group-directories-first --icons=auto' && \
+    alias ls='eza -h --group-directories-first --icons=auto' && \
     alias lsa='ls -a' && \
     alias ll='eza -lh --group-directories-first --icons=auto' && \
     alias lt='eza --tree --level=2 --long --icons --git' && \
