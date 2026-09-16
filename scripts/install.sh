@@ -6,6 +6,12 @@ set -uo pipefail
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STOW=$(command -v stow 2>/dev/null || true)
+# shellcheck source=components.sh
+source "$(dirname "${BASH_SOURCE[0]}")/components.sh"
+
+# Respect an overridden $XDG_CONFIG_HOME (e.g. per-session sandboxing on some
+# hosts) instead of assuming every XDG-aware app reads ~/.config.
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 info() { printf "\n${BOLD}==> %s${NC}\n" "$*"; }
@@ -27,10 +33,14 @@ link_file() {
     ok "$(basename "$dest")"
 }
 
-# Use stow if available; otherwise call the link_<pkg> fallback for that package
+# Use stow if available; otherwise call the link_<pkg> fallback for that package.
+# stow --dotfiles always resolves relative to $HOME (translating a package's
+# dot-config/X -> $HOME/.config/X), so it can't be retargeted at a $CONFIG_HOME
+# that diverges from $HOME/.config without restructuring every package. Fall
+# back to the manual linker (which does honor $CONFIG_HOME) whenever they diverge.
 stow_pkg() {
     local pkg="$1"
-    if [ -n "$STOW" ]; then
+    if [ -n "$STOW" ] && [ "$CONFIG_HOME" = "$HOME/.config" ]; then
         stow --dotfiles -t "$HOME" -d "$DOTFILES" "$pkg"
         ok "stow $pkg"
     else
@@ -46,8 +56,8 @@ link_vim()     {
     link_file "$DOTFILES/vim/dot-vimrc" "$HOME/.vimrc"
     link_file "$DOTFILES/vim/dot-vim"   "$HOME/.vim"
 }
-link_nvim()    { link_file "$DOTFILES/nvim/dot-config/nvim"            "$HOME/.config/nvim"; }
-link_hypr()    { link_file "$DOTFILES/hypr/dot-config/hypr"            "$HOME/.config/hypr"; }
+link_nvim()    { link_file "$DOTFILES/nvim/dot-config/nvim"            "$CONFIG_HOME/nvim"; }
+link_hypr()    { link_file "$DOTFILES/hypr/dot-config/hypr"            "$CONFIG_HOME/hypr"; }
 link_tmux()    { link_file "$DOTFILES/tmux/dot-tmux.conf"              "$HOME/.tmux.conf"; }
 link_git()     { link_file "$DOTFILES/git/dot-gitignore_global"        "$HOME/.gitignore_global"; }
 link_utils() {
@@ -60,13 +70,13 @@ link_utils() {
 }
 link_fonts()   { link_file "$DOTFILES/fonts/dot-local/share/fonts"     "$HOME/.local/share/fonts"; }
 link_inputrc() { link_file "$DOTFILES/inputrc/dot-inputrc"             "$HOME/.inputrc"; }
-link_joshuto() { link_file "$DOTFILES/joshuto/dot-config/joshuto"      "$HOME/.config/joshuto"; }
-link_yazi()    { link_file "$DOTFILES/yazi/dot-config/yazi"            "$HOME/.config/yazi"; }
-link_lazygit() { link_file "$DOTFILES/lazygit/dot-config/lazygit/config.yml" "$HOME/.config/lazygit/config.yml"; }
+link_joshuto() { link_file "$DOTFILES/joshuto/dot-config/joshuto"      "$CONFIG_HOME/joshuto"; }
+link_yazi()    { link_file "$DOTFILES/yazi/dot-config/yazi"            "$CONFIG_HOME/yazi"; }
+link_lazygit() { link_file "$DOTFILES/lazygit/dot-config/lazygit/config.yml" "$CONFIG_HOME/lazygit/config.yml"; }
 link_aerc() {
-    link_file "$DOTFILES/aerc/dot-config/aerc/aerc.conf"   "$HOME/.config/aerc/aerc.conf"
-    link_file "$DOTFILES/aerc/dot-config/aerc/binds.conf"  "$HOME/.config/aerc/binds.conf"
-    link_file "$DOTFILES/aerc/dot-config/aerc/stylesets"   "$HOME/.config/aerc/stylesets"
+    link_file "$DOTFILES/aerc/dot-config/aerc/aerc.conf"   "$CONFIG_HOME/aerc/aerc.conf"
+    link_file "$DOTFILES/aerc/dot-config/aerc/binds.conf"  "$CONFIG_HOME/aerc/binds.conf"
+    link_file "$DOTFILES/aerc/dot-config/aerc/stylesets"   "$CONFIG_HOME/aerc/stylesets"
 }
 
 # ── Component installers ────────────────────────────────────────────────────
@@ -112,14 +122,24 @@ install_hypr() {
 # left untouched.
 install_lazyvim() {
     info "LazyVim"
-    if [ -d "$HOME/.config/lazyvim" ]; then
-        ok "~/.config/lazyvim already present — leaving your install untouched"
-        return 0
+    if [ -d "$CONFIG_HOME/lazyvim" ]; then
+        ok "$CONFIG_HOME/lazyvim already present — leaving your install untouched"
+    else
+        command -v git &>/dev/null || { warn "git not found — cannot clone the LazyVim starter"; return 0; }
+        git clone --depth=1 https://github.com/LazyVim/starter "$CONFIG_HOME/lazyvim" \
+            && rm -rf "$CONFIG_HOME/lazyvim/.git" \
+            && ok "Cloned LazyVim starter → $CONFIG_HOME/lazyvim  (launch with: lvim)"
     fi
-    command -v git &>/dev/null || { warn "git not found — cannot clone the LazyVim starter"; return 0; }
-    git clone --depth=1 https://github.com/LazyVim/starter "$HOME/.config/lazyvim" \
-        && rm -rf "$HOME/.config/lazyvim/.git" \
-        && ok "Cloned LazyVim starter → ~/.config/lazyvim  (launch with: lvim)"
+    # Re-linked every run, independent of the clone above, so overlay changes
+    # (or an install that predates one of these files) reach an already-cloned
+    # starter too. Every *.lua here becomes a lua/plugins/ override — add a
+    # file to nvim/lazyvim-plugins/ and it's picked up with no script change.
+    if [ -d "$CONFIG_HOME/lazyvim/lua/plugins" ]; then
+        for f in "$DOTFILES"/nvim/lazyvim-plugins/*.lua; do
+            [ -f "$f" ] || continue
+            link_file "$f" "$CONFIG_HOME/lazyvim/lua/plugins/$(basename "$f")"
+        done
+    fi
 }
 
 install_tmux() {
@@ -210,7 +230,7 @@ install_inputrc() {
 # Launched by the `jjs` wrapper in bash/dot-bashrc_ext.
 link_joshuto_hsplit() {
     local src="$DOTFILES/joshuto/dot-config/joshuto"
-    local dest="$HOME/.config/joshuto-hsplit"
+    local dest="$CONFIG_HOME/joshuto-hsplit"
     mkdir -p "$dest"
     {
         printf '# GENERATED by scripts/install.sh — edit joshuto/dot-config/joshuto/joshuto.toml.\n'
@@ -253,8 +273,8 @@ install_aerc() {
     # Only the portable files (styling, keybinds, general config) are linked;
     # accounts.conf stays a real, untracked file in ~/.config/aerc.
     link_aerc
-    if [ ! -f "$HOME/.config/aerc/accounts.conf" ]; then
-        warn "No ~/.config/aerc/accounts.conf — aerc won't have any accounts until you add one"
+    if [ ! -f "$CONFIG_HOME/aerc/accounts.conf" ]; then
+        warn "No $CONFIG_HOME/aerc/accounts.conf — aerc won't have any accounts until you add one"
     fi
 }
 
@@ -325,7 +345,7 @@ install_tool() {
 
 # ── Entry point ─────────────────────────────────────────────────────────────
 
-ALL=(bash vim neovim tmux git hypr utils fonts inputrc joshuto yazi lazygit aerc)
+ALL=("${ALL_CONFIGS[@]}")
 
 # --tool <name>[,name] installs vendor binaries + their configs locally
 if [ "${1:-}" = "--tool" ]; then

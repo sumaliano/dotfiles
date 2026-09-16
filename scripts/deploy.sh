@@ -10,6 +10,8 @@
 set -uo pipefail
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=components.sh
+source "$(dirname "${BASH_SOURCE[0]}")/components.sh"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,11 +57,12 @@ declare -A TOOL_CONFIG=(
     [yazi]="yazi/dot-config/yazi|~/.config/yazi"
     [inputrc]="inputrc/dot-inputrc|~/.inputrc"
     [lazygit]="lazygit/dot-config/lazygit/config.yml|~/.config/lazygit/config.yml"
+    [aerc]="aerc/dot-config/aerc/aerc.conf|~/.config/aerc/aerc.conf aerc/dot-config/aerc/binds.conf|~/.config/aerc/binds.conf aerc/dot-config/aerc/stylesets|~/.config/aerc/stylesets"
 )
 
 # Config-only tools have no vendor binary (skip the "missing binary" warning).
 # These are NOT included in 'all' — they must be named explicitly, e.g. --tool bash.
-CONFIG_ONLY="bash git inputrc"
+CONFIG_ONLY="bash git inputrc aerc"
 
 # ── Connect ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +74,13 @@ ok "Connected  (arch: linux-$REMOTE_ARCH)"
 VENDOR_DIR="$DOTFILES/vendor/linux-$REMOTE_ARCH"
 ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
 
+# Resolve the remote's actual XDG config dir instead of assuming ~/.config —
+# some hosts (e.g. this repo's own X2Go session boxes) override it per-session,
+# and pushing configs to the wrong place fails silently (no error, app just
+# doesn't see them). Falls back to ~/.config if the query fails.
+REMOTE_CONFIG_HOME=$(ssh -q "$REMOTE" 'printf %s "${XDG_CONFIG_HOME:-$HOME/.config}"' 2>/dev/null)
+[ -n "$REMOTE_CONFIG_HOME" ] || REMOTE_CONFIG_HOME='~/.config'
+
 # ── Deploy each tool ──────────────────────────────────────────────────────────
 
 # Expand 'all'. What "everything" means depends on the mode:
@@ -78,7 +88,7 @@ ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
 #   bins/both → every binary present in vendor/linux-<arch>/
 if [ "$TOOLS" = "all" ]; then
     if [ "$MODE" = "configs" ]; then
-        TOOLS="bash,git,inputrc,nvim,vim,tmux,joshuto,yazi,lazygit"
+        TOOLS=$(IFS=,; echo "${ALL_CONFIGS_REMOTE[*]}")
     else
         [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
         # grex is vendored for local use but kept out of the bulk remote deploy —
@@ -175,6 +185,9 @@ WIRE
     for pair in $mapping; do
         local_src="$DOTFILES/${pair%%|*}"
         remote_dest="${pair##*|}"
+        case "$remote_dest" in
+            "~/.config/"*) remote_dest="$REMOTE_CONFIG_HOME/${remote_dest#\~/.config/}" ;;
+        esac
         if [ -e "$local_src" ]; then
             if [ -d "$local_src" ]; then
                 ssh -q "$REMOTE" "mkdir -p $remote_dest"

@@ -150,7 +150,7 @@ _jobs_fmt() {
 
 # SSH prefix computed once at startup
 _host_prefix=""
-[ -n "${SSH_CLIENT:-}${SSH_TTY:-}" ] && _host_prefix='\[\e[35m\]⌁\[\e[0m\]'
+[ -n "${SSH_CLIENT:-}${SSH_TTY:-}" ] && _host_prefix='\[\e[35m\]⌁ \[\e[0m\]'
 
 _PS1_SINGLE="\[\e]0;\u@\h: \w\a\]\$(_jobs_fmt)\$(_venv_fmt)${_host_prefix}\u@\h:\[\e[34m\]\W\[\e[0m\]\$(_git_prompt_fmt)λ "
 _PS1_DOUBLE="\[\e]0;\u@\h: \w\a\]\$(_jobs_fmt)\$(_venv_fmt)${_host_prefix}\u@\h:\[\e[34m\]\w\[\e[0m\]\$(_git_prompt_fmt)"$'\n'"λ "
@@ -256,10 +256,11 @@ fi
 export EDITOR="${EDITOR:-vi}"
 command -v vim &>/dev/null && alias vi='vim' && export EDITOR='vim'
 command -v nvim &>/dev/null && alias vim='nvim' && export EDITOR='nvim'
-command -v nvim &>/dev/null && [ -f ~/.config/nvim/init_plugins.lua ] && alias nv='nvim -u ~/.config/nvim/init_plugins.lua'
-# LazyVim lives in its own NVIM_APPNAME sandbox (~/.config/lazyvim), entirely
-# separate from the init.lua/init_plugins.lua config above — see `make dot lazyvim`.
-command -v nvim &>/dev/null && [ -d ~/.config/lazyvim ] && alias lvim='NVIM_APPNAME=lazyvim nvim'
+
+# LazyVim lives in its own NVIM_APPNAME sandbox, entirely separate from the
+# portable ~/.config/nvim above — see `make dot lazyvim`. nvim already reads
+# $XDG_CONFIG_HOME on its own, so no separate "nv" alias is needed for that.
+command -v nvim &>/dev/null && [ -d "${XDG_CONFIG_HOME:-$HOME/.config}/lazyvim" ] && alias lvim='NVIM_APPNAME=lazyvim nvim'
 
 # Colored man pages (pipe through bat)
 if command -v bat &>/dev/null; then
@@ -473,6 +474,12 @@ topcmd() {
 # If the connection dies instead of exiting cleanly, those modes stay armed
 # on the local terminal, and every mouse move floods the prompt with escape
 # junk.
+#
+# Some site-wide /etc or ~/.bashrc templates alias ssh (e.g. to add -Y). In
+# an interactive shell that alias expands at parse time, before this
+# function definition is even read, turning `ssh() {` into `/usr/bin/ssh
+# -Y() {` and throwing a syntax error. Clear it first so the function wins.
+unalias ssh 2>/dev/null
 ssh() {
     local rc started
 

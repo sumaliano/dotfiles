@@ -15,6 +15,20 @@
 
 DOTFILES_DIR := $(shell pwd)
 
+# Some site logins export HOST=<this machine's own hostname> by default (seen
+# on the X2Go session hosts this repo runs on). Without this guard, a bare
+# 'make dot' would silently pick that up and SSH-deploy to itself instead of
+# installing locally -- wrong, and it's how configs ended up scp'd as plain
+# copies instead of symlinked in the first place. Strip a leading user@ and
+# compare against this host's own name; a match means "local", not "remote".
+LOCAL_HOSTNAMES := $(shell hostname 2>/dev/null) $(shell hostname -s 2>/dev/null)
+HOST_BARE := $(lastword $(subst @, ,$(HOST)))
+ifneq ($(HOST),)
+ifneq ($(filter $(HOST_BARE),$(LOCAL_HOSTNAMES)),)
+HOST :=
+endif
+endif
+
 BOLD := \033[1m
 DIM  := \033[2m
 RED  := \033[0;31m

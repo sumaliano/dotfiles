@@ -14,6 +14,11 @@ set -uo pipefail
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STOW=$(command -v stow 2>/dev/null || true)
+# shellcheck source=components.sh
+source "$(dirname "${BASH_SOURCE[0]}")/components.sh"
+# See install.sh: an overridden $XDG_CONFIG_HOME means the app actually reads
+# from there, not ~/.config, so local removal must target the same place.
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 HOST=""
 TOOLS=""
 MODE=""   # configs | bins
@@ -51,11 +56,14 @@ declare -A CONFIG_PATHS=(
     [joshuto]="~/.config/joshuto ~/.config/joshuto-hsplit"
     [yazi]="~/.config/yazi"
     [fonts]="~/.local/share/fonts"
+    [hypr]="~/.config/hypr"
+    [lazygit]="~/.config/lazygit/config.yml"
+    [aerc]="~/.config/aerc/aerc.conf ~/.config/aerc/binds.conf ~/.config/aerc/stylesets"
 )
 
 # What "all" means, per mode and location.
-CONFIG_ALL_LOCAL="bash vim nvim tmux git utils fonts inputrc joshuto yazi"
-CONFIG_ALL_REMOTE="bash git inputrc nvim vim tmux joshuto yazi"
+CONFIG_ALL_LOCAL="${ALL_CONFIGS[*]}"
+CONFIG_ALL_REMOTE="${ALL_CONFIGS_REMOTE[*]}"
 
 vendor_all() {
     local vd="$DOTFILES/vendor/linux-$(uname -m)"
@@ -111,7 +119,10 @@ remove_config_local() {
         utils) remove_utils_local; return ;;
     esac
     for dest in ${CONFIG_PATHS[$comp]:-}; do
-        dest="${dest/#\~/$HOME}"
+        case "$dest" in
+            "~/.config/"*) dest="$CONFIG_HOME/${dest#\~/.config/}" ;;
+            *)             dest="${dest/#\~/$HOME}" ;;
+        esac
         if [ -e "$dest" ] || [ -L "$dest" ]; then
             rm -rf "$dest"; ok "config  ←  $dest"
         fi
@@ -153,16 +164,22 @@ EOF
 
 [ -n "$HOST" ] && command -v ssh &>/dev/null || [ -z "$HOST" ] || die "ssh is required"
 
-# Fast path for local "remove all configs" via stow's own de-link.
+# Fast path for local "remove all configs" via stow's own de-link. Skipped
+# when $CONFIG_HOME diverges from ~/.config — stow -t "$HOME" can't reach an
+# overridden XDG_CONFIG_HOME (see install.sh's stow_pkg for why), so the
+# per-component loop below (which does honor $CONFIG_HOME) handles it instead.
 if [ "$MODE" = "configs" ] && [ -z "$HOST" ] && [ -n "$STOW" ] \
+   && [ "$CONFIG_HOME" = "$HOME/.config" ] \
    && { [ -z "$TOOLS" ] || [ "$TOOLS" = "all" ]; }; then
     info "Removing all dotfile configs"
     stow --dotfiles -D -t "$HOME" -d "$DOTFILES" \
-        bash vim nvim tmux git fonts inputrc joshuto yazi 2>/dev/null || true
+        bash vim nvim tmux git hypr fonts inputrc joshuto yazi 2>/dev/null || true
     remove_utils_local
     remove_config_local bash    # unwire ~/.bashrc
     remove_config_local git     # drop [include]
     remove_config_local joshuto # drop the generated joshuto-hsplit dir
+    remove_config_local lazygit # never stowed — direct file link only
+    remove_config_local aerc    # never stowed — direct file links only
     printf "\n${GREEN}Done!${NC}\n"
     exit 0
 fi

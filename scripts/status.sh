@@ -8,6 +8,7 @@
 set -uo pipefail
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 HOST=""
 
 while [ $# -gt 0 ]; do
@@ -63,13 +64,13 @@ grep -q "# BEGIN DOTFILES" "$HOME/.bashrc" 2>/dev/null \
     && installed "Bash"    || missing "Bash"
 [ -e "$HOME/.vimrc" ] \
     && installed "Vim"     || missing "Vim"
-[ -e "$HOME/.config/nvim/init.lua" ] \
+[ -e "$CONFIG_HOME/nvim/init.lua" ] \
     && installed "Neovim"  || missing "Neovim"
 [ -e "$HOME/.tmux.conf" ] \
     && installed "Tmux"    || missing "Tmux"
-[ -e "$HOME/.config/joshuto/joshuto.toml" ] \
+[ -e "$CONFIG_HOME/joshuto/joshuto.toml" ] \
     && installed "Joshuto" || missing "Joshuto"
-[ -e "$HOME/.config/yazi/theme.toml" ] \
+[ -e "$CONFIG_HOME/yazi/yazi.toml" ] \
     && installed "Yazi"    || missing "Yazi"
 [ -e "$HOME/.gitignore_global" ] \
     && installed "Git"     || missing "Git"
@@ -79,6 +80,12 @@ find "$HOME/.local/bin" -maxdepth 1 -type l -lname "*/dotfiles/utils/dot-bin/*" 
     && installed "Fonts"   || missing "Fonts"
 [ -e "$HOME/.inputrc" ] \
     && installed "Inputrc" || missing "Inputrc"
+[ -e "$CONFIG_HOME/hypr" ] \
+    && installed "Hyprland" || missing "Hyprland"
+[ -e "$CONFIG_HOME/lazygit/config.yml" ] \
+    && installed "Lazygit" || missing "Lazygit"
+[ -e "$CONFIG_HOME/aerc/aerc.conf" ] \
+    && installed "Aerc"    || missing "Aerc"
 
 printf "\n"
 
