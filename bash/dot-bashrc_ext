@@ -174,12 +174,11 @@ if command -v dircolors &>/dev/null; then
     [ -r ~/.dir_colors ] && eval "$(dircolors -b ~/.dir_colors)" || eval "$(dircolors -b)"
 fi
 
+alias l='ls'
 alias ls='ls --color=auto -F'
 alias l1='ls -1'
 alias ll='ls -lh'
 alias la='ls -lAh'
-alias l='ls'
-alias lt='ls -lhtr'               # Sort by time, newest last
 alias lS='ls -lhSr'               # Sort by size
 alias l.='ls -d .*'
 alias grep='grep --color=auto'
@@ -286,7 +285,13 @@ fi
 
 # Modern tools (auto-detect)
 # Note: Only alias tools with compatible syntax to avoid breaking existing commands
-command -v eza &>/dev/null && alias ls='eza -lh --group-directories-first --icons=auto' && alias lsa='ls -a' && alias ll='eza -l --group-directories-first' && alias lt='eza --tree --level=2 --long --icons --git' && alias lta='lt -a'
+command -v eza &>/dev/null && \
+    alias ls='eza --group-directories-first --icons=auto' && \
+    alias lsa='ls -a' && \
+    alias ll='eza -lh --group-directories-first --icons=auto' && \
+    alias lt='eza --tree --level=2 --long --icons --git' && \
+    alias lT='eza -lh --time modified -s newest --icons=auto' && \
+    alias lta='lt -a'
 command -v btop &>/dev/null && alias top='btop'
 command -v duf &>/dev/null && alias df='duf'
 
