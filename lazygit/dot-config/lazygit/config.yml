@@ -15,10 +15,10 @@
 # on PATH, otherwise fall back to less. lazygit runs the pager through a shell,
 # so this degrades gracefully on a machine where the delta binary isn't present.
 git:
-  pagers:
+  diffRenderers:
     # 0 — side-by-side (default)
     - colorArg: always
-      pager: "if command -v delta >/dev/null 2>&1; then delta --paging=never --features sidebyside; else less -FRX; fi"
+      command: "if command -v delta >/dev/null 2>&1; then delta --paging=never --features sidebyside; else less -FRX; fi"
     # 1 — inline / unified  (press `|` in the diff view to toggle)
     - colorArg: always
-      pager: "if command -v delta >/dev/null 2>&1; then delta --paging=never; else less -FRX; fi"
+      command: "if command -v delta >/dev/null 2>&1; then delta --paging=never; else less -FRX; fi"
