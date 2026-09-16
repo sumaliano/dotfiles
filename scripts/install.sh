@@ -63,6 +63,11 @@ link_inputrc() { link_file "$DOTFILES/inputrc/dot-inputrc"             "$HOME/.i
 link_joshuto() { link_file "$DOTFILES/joshuto/dot-config/joshuto"      "$HOME/.config/joshuto"; }
 link_yazi()    { link_file "$DOTFILES/yazi/dot-config/yazi"            "$HOME/.config/yazi"; }
 link_lazygit() { link_file "$DOTFILES/lazygit/dot-config/lazygit/config.yml" "$HOME/.config/lazygit/config.yml"; }
+link_aerc() {
+    link_file "$DOTFILES/aerc/dot-config/aerc/aerc.conf"   "$HOME/.config/aerc/aerc.conf"
+    link_file "$DOTFILES/aerc/dot-config/aerc/binds.conf"  "$HOME/.config/aerc/binds.conf"
+    link_file "$DOTFILES/aerc/dot-config/aerc/stylesets"   "$HOME/.config/aerc/stylesets"
+}
 
 # ── Component installers ────────────────────────────────────────────────────
 
@@ -241,6 +246,18 @@ install_lazygit() {
     link_lazygit
 }
 
+install_aerc() {
+    info "Aerc"
+    # accounts.conf holds live IMAP/SMTP credentials, so - same reasoning as
+    # git's ~/.gitconfig - we deliberately do NOT stow the whole package.
+    # Only the portable files (styling, keybinds, general config) are linked;
+    # accounts.conf stays a real, untracked file in ~/.config/aerc.
+    link_aerc
+    if [ ! -f "$HOME/.config/aerc/accounts.conf" ]; then
+        warn "No ~/.config/aerc/accounts.conf — aerc won't have any accounts until you add one"
+    fi
+}
+
 # ── Vendor tool install ──────────────────────────────────────────────────────
 # Maps tool name → dotfile component (runs install_<component> for config).
 # CONFIG_ONLY tools have no vendor binary — system binary is assumed present.
@@ -308,7 +325,7 @@ install_tool() {
 
 # ── Entry point ─────────────────────────────────────────────────────────────
 
-ALL=(bash vim neovim tmux git hypr utils fonts inputrc joshuto yazi lazygit)
+ALL=(bash vim neovim tmux git hypr utils fonts inputrc joshuto yazi lazygit aerc)
 
 # --tool <name>[,name] installs vendor binaries + their configs locally
 if [ "${1:-}" = "--tool" ]; then
@@ -346,7 +363,7 @@ for t in "${targets[@]}"; do
         "install_$comp"
     else
         printf "${RED}Error:${NC} Unknown component '%s'\n" "$t" >&2
-        printf "Available: bash vim nvim tmux git hypr utils fonts inputrc joshuto yazi lazygit lazyvim\n" >&2
+        printf "Available: bash vim nvim tmux git hypr utils fonts inputrc joshuto yazi lazygit aerc lazyvim\n" >&2
         exit 1
     fi
 done

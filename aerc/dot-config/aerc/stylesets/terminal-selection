@@ -1,0 +1,76 @@
+# This theme (matte-black) maps the ANSI "red/yellow" family almost entirely
+# to dark reds (slots 3, 9, 11, 13 all render close to #b90a0a-#B91C1C) and
+# reserves the only bright warm colors for "green" (amber, 2/10) and "blue"
+# (the theme's own accent, 4/12). Every override below picks slots by their
+# ACTUAL rendered brightness in this theme, not by their ANSI name, so text
+# stays legible; everything still uses slot numbers (not hex) so it moves
+# with `omarchy theme set` instead of going stale on the next theme.
+
+# aerc ships hard-coded style defaults (see DEFAULTS in aerc-stylesets(7))
+# that this file overrides where they produce poor contrast. Several UI
+# elements default to bg=12/fg=15 (an accent-colored bar with white text) or
+# similarly pair a bright color with white - in a warm/dark theme like this
+# one that can render as light-on-light, and different aerc widgets appear
+# to render the pair swapped or as-is inconsistently. Slot 8 ("muted" in
+# Omarchy's colors.toml) is a safe replacement bg for all of them: it's
+# reliably a shade lighter than the real background but darker than the
+# text, so it reads fine whichever way a given widget renders it - unlike
+# slot 0, which equals the actual background and disappears entirely.
+
+# Selected/cursor row (default: bg=12, fg=15, bold=true).
+*.selected.bg=8
+*.selected.fg=15
+
+# Title bar (default: bg=12, fg=15, bold=true).
+title.bg=8
+
+# Focused entry in popup selectors, e.g. the "open/save/pipe" prompt for an
+# attachment aerc has no filter for (default: bold=true, bg=12, fg=15).
+selector_focused.bg=8
+
+# Badge in the completion popover, e.g. address/folder autocomplete
+# (default: bg=12).
+completion_pill.bg=8
+
+# Warning/error text (default: warning.fg=11, error.fg=9 - both resolve to
+# near-invisible dark red on this theme's near-black background). Swapped
+# to slots that are actually bright in this theme: amber for warning
+# (visually reads as a caution color anyway), the lighter/legible red for
+# error.
+*warning.fg=10
+*error.fg=1
+
+# Message states use the terminal's standard ANSI palette so they follow
+# theme changes too. Flagged/forwarded/deleted default to dark-red-family
+# slots (11/13/9) that are hard to read here, so they're moved to the
+# lighter red/magenta slots (1/5) instead.
+msglist_unread.fg=10
+msglist_unread.bold=true
+msglist_unread.selected.fg=10
+msglist_flagged.fg=1
+msglist_flagged.bold=true
+# Marked messages get the same swapped full-row treatment as the selected
+# row above (aerc's built-in default is bg=6/fg=15, also swapped). fg/bg
+# here are set swapped from how they actually render: this shows as a bar
+# in the theme's accent color (Omarchy consistently maps accent onto the
+# "blue" ANSI slot) with near-black text.
+msglist_marked.fg=4
+msglist_marked.bg=0
+msglist_marked.selected.fg=4
+msglist_marked.selected.bg=0
+msglist_answered.fg=14
+msglist_answered.selected.fg=14
+msglist_forwarded.fg=5
+msglist_deleted.fg=1
+msglist_deleted.dim=true
+msglist_result.fg=14
+msglist_result.bold=true
+msglist_result.selected.fg=14
+msglist_thread_folded.fg=8
+
+[viewer]
+# Hyperlinks default to fg=3 (dark red here, easy to miss). Accent (slot 4)
+# reads clearly and is already aerc's default color for header text, so
+# links and headers share a consistent color.
+url.fg=4
+url.underline=true

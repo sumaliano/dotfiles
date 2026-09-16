@@ -91,11 +91,14 @@ The two verbs are deliberately separate so each does exactly one thing:
 - **`make tool …`** moves **binaries** (`~/.local/bin`). With no name it means
   every binary present in `vendor/linux-<arch>/`.
 - **`make dot …`** moves **configs**. Locally that's all dotfile components
-  (`bash`, `git`, `nvim`, `vim`, `tmux`, `hypr`, `joshuto`, `yazi`, `lazygit`, `utils`, `fonts`, `inputrc`);
+  (`bash`, `git`, `nvim`, `vim`, `tmux`, `hypr`, `joshuto`, `yazi`, `lazygit`, `aerc`, `utils`, `fonts`, `inputrc`);
   remotely it's the ones the deployer knows how to wire up over SSH (`bash`,
   `git`, `inputrc`, `nvim`, `vim`, `tmux`, `joshuto`, `yazi`, `lazygit`). `hypr`
   is local-only — a Wayland compositor config has no reason to deploy to a
-  headless server. `lazyvim` is local-only for a different reason: it's a
+  headless server. `aerc` is local-only for the same kind of reason as `git`:
+  its account credentials (`accounts.conf`) are deliberately excluded from
+  this repo, so pushing just the styling/keybinds to a remote wouldn't give
+  you a working mail client there anyway. `lazyvim` is local-only for a different reason: it's a
   live `git clone` that lazy.nvim then self-manages, so it needs network on
   whichever machine runs it — pushing it to an offline remote over SSH
   wouldn't leave a working install there anyway. It's also excluded from the
@@ -137,6 +140,7 @@ config below, the bulk binary deploy too.
 | **git/**    | `dot-gitconfig` (delta-aware), `dot-gitignore_global` |
 | **hypr/**   | `dot-config/hypr` (Hyprland Lua config; `monitors.lua` is machine-local, gitignored) |
 | **lazygit/**| `dot-config/lazygit/config.yml` (delta-aware pagers) |
+| **aerc/**   | `dot-config/aerc/{aerc.conf,binds.conf,stylesets/}` (theme-aware styling; `accounts.conf` holds live credentials and is deliberately left out, same as `~/.gitconfig`) |
 | **lazyvim** | Not stowed — `make dot lazyvim` clones the LazyVim starter into `~/.config/lazyvim`, isolated via `NVIM_APPNAME`. Launch with `lvim`. Opt-in only (needs network + git; not part of the no-name `make dot`) |
 | **joshuto/**| `dot-config/joshuto` (preview script + `$EDITOR` mimetypes) |
 | **yazi/**   | `dot-config/yazi` (icons disabled for non-Nerd-Font terminals) |
