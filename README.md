@@ -19,8 +19,10 @@ package manager, nothing pre-installed on the remote required.
   remote servers) and a full `init_plugins.lua` with LSP via lazy.nvim.
 - **Graceful degradation**: configs detect available tools (delta, eza, bat,
   fzf…) and fall back cleanly when they're absent.
-- **Stow-compatible**: `dot-` naming convention works with GNU Stow
-  (`--dotfiles`) or the provided Makefile fallback (plain `ln`).
+- **One table, no drift**: every component and tool is a row in
+  `scripts/lib.sh`; install, remove, deploy and status are all derived from it.
+  Files use the GNU Stow `--dotfiles` layout (`nvim/dot-config/nvim` →
+  `~/.config/nvim`), linked with plain `ln` — nothing to install first.
 
 ## Quick Start
 
@@ -28,7 +30,7 @@ package manager, nothing pre-installed on the remote required.
 git clone https://github.com/username/dotfiles ~/dotfiles
 cd ~/dotfiles
 
-# Link all dotfile configs locally (uses stow if present, else ln)
+# Link the default set of configs locally (symlinks into this repo)
 make dot
 
 # Or selectively — names are positional
@@ -47,11 +49,16 @@ The interface has **two verbs on one axis**:
 | `make dot [name…] HOST=u@h` | Push those configs to a server over SSH |
 | `make tool [name…]` | Install vendor **binaries** to `~/.local/bin` locally |
 | `make tool [name…] HOST=u@h` | Push those binaries to a server over SSH |
-| `make vendor` | Download static binaries to `vendor/linux-<arch>/` |
+| `make vendor [name…]` | Download static binaries to `vendor/linux-<arch>/` (`FORCE=1` re-downloads) |
 | `make clean` | Remove the downloaded binaries (the `vendor/` cache) |
-| `make remove dot [name…] [HOST=u@h]` | Remove **configs** (no name = all) |
+| `make remove dot [name…] [HOST=u@h]` | Remove **configs** (no name = everything of ours) |
 | `make remove tool [name…] [HOST=u@h]` | Remove **binaries** (no name = all) |
 | `make status [HOST=u@h]` | Show what's installed, locally or on a server |
+
+Unknown names are an error everywhere (`make dot Hyperland` won't silently do
+nothing). Locally, `remove` only ever deletes symlinks that point into this
+repo — a real file at the same path is reported and left alone — and `status`
+only counts those as installed.
 
 ## Vendoring & remote deploy
 
@@ -59,7 +66,8 @@ This is the part most dotfiles repos don't have.
 
 ```bash
 # 1. Download portable static binaries into vendor/linux-<arch>/
-make vendor
+make vendor                            # all of them
+make vendor nvim                       # just one;  FORCE=1 make vendor nvim  re-downloads
 
 # 2. Push a tool to a remote server — binary and config are two steps
 make tool nvim HOST=user@server        # the nvim binary  → ~/.local/bin
@@ -90,10 +98,11 @@ The two verbs are deliberately separate so each does exactly one thing:
 
 - **`make tool …`** moves **binaries** (`~/.local/bin`). With no name it means
   every binary present in `vendor/linux-<arch>/`.
-- **`make dot …`** moves **configs**. Locally that's all dotfile components
-  (`bash`, `git`, `nvim`, `vim`, `tmux`, `hypr`, `joshuto`, `yazi`, `lazygit`, `aerc`, `utils`, `fonts`, `inputrc`);
-  remotely it's the ones the deployer knows how to wire up over SSH (`bash`,
-  `git`, `inputrc`, `nvim`, `vim`, `tmux`, `joshuto`, `yazi`, `lazygit`). `hypr`
+- **`make dot …`** moves **configs**. With no name, locally that's the default
+  set (`bash`, `git`, `nvim`, `tmux`, `inputrc`, `joshuto`, `yazi`, `lazygit`,
+  `utils`, `fonts`); remotely it's what makes sense on a server (`bash`,
+  `git`, `inputrc`, `nvim`, `tmux`, `joshuto`, `yazi`, `lazygit`). `vim`,
+  `hypr`, `aerc` and `lazyvim` are opt-in by name. `hypr`
   is local-only — a Wayland compositor config has no reason to deploy to a
   headless server. `aerc` is local-only for the same kind of reason as `git`:
   its account credentials (`accounts.conf`) are deliberately excluded from
@@ -119,7 +128,9 @@ make tool nvim HOST=user@server && make dot nvim HOST=user@server
 `bash/dot-bashrc_ext` and is fed by joshuto navigation (`zoxide_update = true`).
 
 `nvim` needs glibc 2.32+; the deployer detects old glibc and tells you to deploy
-the static `vim` build instead.
+the static `vim` build instead. `nvim`'s runtime and treesitter parsers travel
+with the binary (`make tool nvim` installs all three, `make remove tool nvim`
+removes all three).
 
 `grex` is **local-only**: vendored and installed locally, but excluded from
 the bulk remote deploy (`make tool HOST=…`) because regex authoring is a
@@ -141,10 +152,10 @@ config below, the bulk binary deploy too.
 | **hypr/**   | `dot-config/hypr` (Hyprland Lua config; `monitors.lua` is machine-local, gitignored) |
 | **lazygit/**| `dot-config/lazygit/config.yml` (delta-aware pagers) |
 | **aerc/**   | `dot-config/aerc/{aerc.conf,binds.conf,stylesets/}` (theme-aware styling; `accounts.conf` holds live credentials and is deliberately left out, same as `~/.gitconfig`) |
-| **lazyvim** | Not stowed — `make dot lazyvim` clones the LazyVim starter into `~/.config/lazyvim`, isolated via `NVIM_APPNAME`. Launch with `lvim`. Opt-in only (needs network + git; not part of the no-name `make dot`) |
+| **lazyvim** | Not linked — `make dot lazyvim` clones the LazyVim starter into `~/.config/lazyvim`, isolated via `NVIM_APPNAME`. Launch with `lvim`. Opt-in only (needs network + git; not part of the no-name `make dot`) |
 | **joshuto/**| `dot-config/joshuto` (preview script + `$EDITOR` mimetypes) |
 | **yazi/**   | `dot-config/yazi` (icons disabled for non-Nerd-Font terminals) |
-| **utils/**  | helper scripts in `dot-bin/` |
+| **utils/**  | helper scripts in `dot-local/bin/` → `~/.local/bin/` |
 | **fonts/**  | bundled monospace fonts |
 | **inputrc/**| readline settings |
 
@@ -153,7 +164,8 @@ config below, the bulk binary deploy too.
 - **Bash 3.2+** (minimal), **4.0+** recommended
 - **Vim 7.x+** (core), **8.0+** (persistent undo)
 - **Neovim 0.10+** (plugin config uses `vim.uv`)
-- Works on any system with `make` or `stow`
+- The scripts need **Bash 4+** and GNU coreutils locally; a remote needs only
+  `sshd` and a POSIX `sh`
 
 ## Git + delta
 
@@ -175,6 +187,11 @@ sudo apt install clangd                  # C/C++
 
 ## Customization
 
+- **Adding a component or a tool**: one row in `scripts/lib.sh` (`LINKS` or
+  `TOOLS`). Install, remove, deploy, status and the `make help` lists all
+  follow from it. Anything a symlink can't express (wiring a file, generating
+  one) is a `setup_<name>` / `teardown_<name>` / `check_<name>` hook in the
+  matching script.
 - **Bash**: edit `bash/dot-bashrc_ext`; machine-local overrides go in `~/.bashrc.local`.
 - **Vim**: edit `vim/dot-vimrc`.
 - **Neovim**: edit `nvim/dot-config/nvim/init.lua`.

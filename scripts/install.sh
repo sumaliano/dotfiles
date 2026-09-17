@@ -1,391 +1,188 @@
 #!/usr/bin/env bash
-# install.sh — Link dotfile components (stow when available, manual fallback otherwise)
-# Usage: ./scripts/install.sh [component ...]   (no args = all)
+# install.sh — link config components, or install vendored binaries, locally.
+#
+#   install.sh --configs [name ...]    no name = ALL_LOCAL
+#   install.sh --bins    [name ...]    no name = every tool in vendor/linux-<arch>/
+#
+# A component is its LINKS entry in lib.sh (symlinked) plus an optional
+# setup_<name> hook for what a symlink can't express. lazyvim is a clone, not
+# a link set, so install_lazyvim replaces the generic path entirely.
 
 set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STOW=$(command -v stow 2>/dev/null || true)
-# shellcheck source=components.sh
-source "$(dirname "${BASH_SOURCE[0]}")/components.sh"
+MODE=""; NAMES=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --configs) MODE=configs ;;
+        --bins)    MODE=bins ;;
+        -*)        die "Unknown option: $1" ;;
+        *)         NAMES+=("$1") ;;
+    esac
+    shift
+done
+[ -n "$MODE" ] || die "usage: install.sh --configs|--bins [name ...]"
 
-# Respect an overridden $XDG_CONFIG_HOME (e.g. per-session sandboxing on some
-# hosts) instead of assuming every XDG-aware app reads ~/.config.
-CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+# ── Configs ──────────────────────────────────────────────────────────────────
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
-info() { printf "\n${BOLD}==> %s${NC}\n" "$*"; }
-ok()   { printf "  ${GREEN}[ok]${NC}   %s\n" "$*"; }
-warn() { printf "  ${YELLOW}[warn]${NC} %s\n" "$*"; }
-
-# Create a symlink, backing up any pre-existing file/dir at the destination
-link_file() {
-    local src="$1" dest="$2"
+# Symlink a repo file to its ~ target, backing up any real file in the way.
+link_source() {
+    local src="$DOTFILES/$1" target dest
+    target=$(target_of "$1"); dest=$(local_path "$target")
+    [ -e "$src" ] || { warn "$1 is not in the repo — check LINKS in scripts/lib.sh"; return 1; }
     if [ -L "$dest" ]; then
         rm "$dest"
     elif [ -e "$dest" ]; then
-        local bak; bak="${dest}.backup.$(date +%Y%m%d_%H%M%S)"
-        warn "Backing up $(basename "$dest") → $bak"
+        local bak; bak="$dest.backup.$(date +%Y%m%d_%H%M%S)"
+        warn "backing up $target → $bak"
         mv "$dest" "$bak"
     fi
     mkdir -p "$(dirname "$dest")"
-    ln -sfn "$src" "$dest"
-    ok "$(basename "$dest")"
+    ln -s "$src" "$dest"
+    ok "$target"
 }
 
-# Use stow if available; otherwise call the link_<pkg> fallback for that package.
-# stow --dotfiles always resolves relative to $HOME (translating a package's
-# dot-config/X -> $HOME/.config/X), so it can't be retargeted at a $CONFIG_HOME
-# that diverges from $HOME/.config without restructuring every package. Fall
-# back to the manual linker (which does honor $CONFIG_HOME) whenever they diverge.
-stow_pkg() {
-    local pkg="$1"
-    if [ -n "$STOW" ] && [ "$CONFIG_HOME" = "$HOME/.config" ]; then
-        stow --dotfiles -t "$HOME" -d "$DOTFILES" "$pkg"
-        ok "stow $pkg"
-    else
-        "link_$pkg"
-    fi
+install_component() {
+    local comp=$1 src
+    info "$comp"
+    if declare -f "install_$comp" >/dev/null; then "install_$comp"; return; fi
+    while read -r src; do [ -n "$src" ] && link_source "$src"; done < <(sources_of "$comp")
+    if declare -f "setup_$comp" >/dev/null; then "setup_$comp"; fi
 }
 
-# ── Manual link fallbacks (used only when stow is absent) ──────────────────
-# Each function replicates what stow --dotfiles would do for that package.
-
-link_bash()    { link_file "$DOTFILES/bash/dot-dir_colors"             "$HOME/.dir_colors"; }
-link_vim()     {
-    link_file "$DOTFILES/vim/dot-vimrc" "$HOME/.vimrc"
-    link_file "$DOTFILES/vim/dot-vim"   "$HOME/.vim"
-}
-link_nvim()    { link_file "$DOTFILES/nvim/dot-config/nvim"            "$CONFIG_HOME/nvim"; }
-link_hypr()    { link_file "$DOTFILES/hypr/dot-config/hypr"            "$CONFIG_HOME/hypr"; }
-link_tmux()    { link_file "$DOTFILES/tmux/dot-tmux.conf"              "$HOME/.tmux.conf"; }
-link_git()     { link_file "$DOTFILES/git/dot-gitignore_global"        "$HOME/.gitignore_global"; }
-link_utils() {
-    local dest_dir="$HOME/.local/bin"
-    mkdir -p "$dest_dir"
-    for src in "$DOTFILES/utils/dot-bin"/*; do
-        [ -f "$src" ] || continue
-        link_file "$src" "$dest_dir/$(basename "$src")"
-    done
-}
-link_fonts()   { link_file "$DOTFILES/fonts/dot-local/share/fonts"     "$HOME/.local/share/fonts"; }
-link_inputrc() { link_file "$DOTFILES/inputrc/dot-inputrc"             "$HOME/.inputrc"; }
-link_joshuto() { link_file "$DOTFILES/joshuto/dot-config/joshuto"      "$CONFIG_HOME/joshuto"; }
-link_yazi()    { link_file "$DOTFILES/yazi/dot-config/yazi"            "$CONFIG_HOME/yazi"; }
-link_lazygit() { link_file "$DOTFILES/lazygit/dot-config/lazygit/config.yml" "$CONFIG_HOME/lazygit/config.yml"; }
-link_aerc() {
-    link_file "$DOTFILES/aerc/dot-config/aerc/aerc.conf"   "$CONFIG_HOME/aerc/aerc.conf"
-    link_file "$DOTFILES/aerc/dot-config/aerc/binds.conf"  "$CONFIG_HOME/aerc/binds.conf"
-    link_file "$DOTFILES/aerc/dot-config/aerc/stylesets"   "$CONFIG_HOME/aerc/stylesets"
-}
-
-# ── Component installers ────────────────────────────────────────────────────
-
-install_bash() {
-    info "Bash"
-    stow_pkg bash
-    if ! grep -q "# BEGIN DOTFILES" "$HOME/.bashrc" 2>/dev/null; then
-        printf '\n# BEGIN DOTFILES\n[ -f "%s/bash/dot-bashrc_ext" ] && source "%s/bash/dot-bashrc_ext"\n# END DOTFILES\n' \
-            "$DOTFILES" "$DOTFILES" >> "$HOME/.bashrc"
-        ok "Wired into ~/.bashrc"
-    else
-        ok "~/.bashrc already configured"
-    fi
+setup_bash() {
+    run_on_target "$BASH_WIRE" && ok "wired into ~/.bashrc"
     if [ ! -f "$HOME/.bashrc.local" ]; then
         printf '# Local machine-specific overrides\n# This file is ignored by git\n' > "$HOME/.bashrc.local"
-        ok "Created ~/.bashrc.local"
+        ok "created ~/.bashrc.local"
     fi
 }
 
-install_vim() {
-    info "Vim"
-    mkdir -p "$DOTFILES/vim/dot-vim/undo" "$DOTFILES/vim/dot-vim/backup" "$DOTFILES/vim/dot-vim/swap"
-    stow_pkg vim
+setup_git() {
+    # If an older install symlinked ~/.gitconfig into the repo, de-link it so
+    # 'git config --global' below can't write through into the repo file.
+    if ours "$HOME/.gitconfig"; then rm "$HOME/.gitconfig"; fi
+    run_on_target "p=\"$DOTFILES/git/dot-gitconfig\"" "$GIT_WIRE" && ok "included from ~/.gitconfig"
 }
 
-install_neovim() {
-    info "Neovim"
-    stow_pkg nvim
+setup_vim() { mkdir -p "$DOTFILES"/vim/dot-vim/{undo,backup,swap}; }
+
+setup_utils() { chmod +x "$DOTFILES"/utils/dot-local/bin/*; }
+
+setup_aerc() {
+    [ -f "$CONFIG_HOME/aerc/accounts.conf" ] \
+        || warn "no $CONFIG_HOME/aerc/accounts.conf — aerc has no accounts until you add one"
 }
 
-install_hypr() {
-    info "Hyprland"
-    stow_pkg hypr
-}
-
-# LazyVim is not a stowed dotfile — it's an upstream starter template that
-# lazy.nvim then self-manages (its own lockfile, its own plugin updates).
-# NVIM_APPNAME isolates it in ~/.config/lazyvim, entirely separate from the
-# nvim/ component above, so the two configs can't collide. Opt-in only (not
-# in ALL): it needs network + git on first run, and re-running this must NOT
-# clobber your subsequent in-editor plugin changes, so an existing install is
-# left untouched.
-install_lazyvim() {
-    info "LazyVim"
-    if [ -d "$CONFIG_HOME/lazyvim" ]; then
-        ok "$CONFIG_HOME/lazyvim already present — leaving your install untouched"
-    else
-        command -v git &>/dev/null || { warn "git not found — cannot clone the LazyVim starter"; return 0; }
-        git clone --depth=1 https://github.com/LazyVim/starter "$CONFIG_HOME/lazyvim" \
-            && rm -rf "$CONFIG_HOME/lazyvim/.git" \
-            && ok "Cloned LazyVim starter → $CONFIG_HOME/lazyvim  (launch with: lvim)"
-    fi
-    # Re-linked every run, independent of the clone above, so overlay changes
-    # (or an install that predates one of these files) reach an already-cloned
-    # starter too. Every *.lua here becomes a lua/plugins/ override — add a
-    # file to nvim/lazyvim-plugins/ and it's picked up with no script change.
-    if [ -d "$CONFIG_HOME/lazyvim/lua/plugins" ]; then
-        for f in "$DOTFILES"/nvim/lazyvim-plugins/*.lua; do
-            [ -f "$f" ] || continue
-            link_file "$f" "$CONFIG_HOME/lazyvim/lua/plugins/$(basename "$f")"
-        done
-    fi
-}
-
-install_tmux() {
-    info "Tmux"
-    stow_pkg tmux
-}
-
-install_git() {
-    info "Git"
-    # Link only the global ignore file. We deliberately do NOT stow the whole
-    # git package — that would symlink ~/.gitconfig into the repo. Instead we
-    # layer our shared config in via [include], preserving the user's own
-    # ~/.gitconfig (identity, credentials, machine-specific settings).
-    link_git
-
-    # Safety: if a previous install symlinked ~/.gitconfig into this repo,
-    # de-link it so `git config` below doesn't write through into the repo file.
-    if [ -L "$HOME/.gitconfig" ] && readlink "$HOME/.gitconfig" | grep -q "$DOTFILES"; then
-        rm "$HOME/.gitconfig"
-    fi
-
-    local target="$DOTFILES/git/dot-gitconfig"
-    if git config --global --get-all include.path 2>/dev/null | grep -qxF "$target"; then
-        ok "~/.gitconfig already includes dotfiles config"
-    else
-        git config --global --add include.path "$target"
-        ok "Wired dotfiles config into ~/.gitconfig (via [include])"
-    fi
-}
-
-install_utils() {
-    info "Utils"
-    chmod +x "$DOTFILES/utils/dot-bin/"* 2>/dev/null || true
-    link_utils
-}
-
-# Under WSL the terminal drawing your text is a WINDOWS application, and it can
-# only use fonts installed on the WINDOWS side — it cannot see the Linux
-# ~/.local/share/fonts this package just linked. That is why glyphs render as
-# tofu even with the font "installed". Registering a font from WSL means writing
-# to the Windows registry, so we stage the files where Explorer can reach them
-# and print the two steps that must happen over there. No-op outside WSL.
-stage_fonts_windows() {
-    grep -qi microsoft /proc/version 2>/dev/null || return 0
-
-    local win_user dest
-    win_user=$(cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r\n')
-    if [ -z "$win_user" ] || [ ! -d "/mnt/c/Users/$win_user" ]; then
-        warn "WSL detected, but could not resolve the Windows user — install the"
-        warn "Nerd Font manually from fonts/dot-local/share/fonts/UbuntuMono/"
-        return 0
-    fi
-
-    dest="/mnt/c/Users/$win_user/Downloads/nerd-fonts"
-    if ! mkdir -p "$dest" 2>/dev/null; then
-        warn "Cannot write to $dest — skipping the Windows-side staging"
-        return 0
-    fi
-
-    cp "$DOTFILES"/fonts/dot-local/share/fonts/UbuntuMono/UbuntuMonoNerdFontMono-*.ttf "$dest"/ 2>/dev/null
-    ok "Staged Nerd Font → $dest"
-    printf "  ${BOLD}Two steps left, on the Windows side (once per machine):${NC}\n"
-    printf "    1. Open that folder, select the .ttf files, right-click → Install\n"
-    printf "    2. Terminal → Settings → your profile → Appearance → Font face:\n"
-    printf "       ${BOLD}UbuntuMono Nerd Font Mono${NC}\n"
-}
-
-install_fonts() {
-    info "Fonts"
-    stow_pkg fonts
-    if command -v fc-cache &>/dev/null; then
-        fc-cache -f
-        ok "Font cache refreshed"
-    fi
-    stage_fonts_windows
-}
-
-install_inputrc() {
-    info "Inputrc"
-    stow_pkg inputrc
-}
-
-# joshuto reads [display] mode once at startup and has no runtime toggle, so the
-# dual-pane layout needs a config dir of its own. Only joshuto.toml differs, and
-# it is GENERATED from the real one with the mode line swapped — so the two can
-# never drift — while the other three files are symlinked back to the originals
-# (joshuto replaces each config file wholesale, it never merges with defaults).
+# joshuto reads [display] mode once at startup and has no runtime toggle, so
+# the dual-pane layout needs a config dir of its own. Only joshuto.toml
+# differs, and it is GENERATED from the real one with the mode line swapped —
+# so the two can never drift — while the other files link back to the
+# originals (joshuto replaces each config file wholesale, never merges).
 # Launched by the `jjs` wrapper in bash/dot-bashrc_ext.
-link_joshuto_hsplit() {
-    local src="$DOTFILES/joshuto/dot-config/joshuto"
-    local dest="$CONFIG_HOME/joshuto-hsplit"
+setup_joshuto() {
+    local src="$DOTFILES/joshuto/dot-config/joshuto" dest="$CONFIG_HOME/joshuto-hsplit" f
     mkdir -p "$dest"
     {
         printf '# GENERATED by scripts/install.sh — edit joshuto/dot-config/joshuto/joshuto.toml.\n'
         sed 's/^mode = "default"$/mode = "hsplit"/' "$src/joshuto.toml"
     } > "$dest/joshuto.toml"
-    if grep -q '^mode = "hsplit"$' "$dest/joshuto.toml"; then
-        ok "joshuto-hsplit/joshuto.toml"
-    else
-        warn "no 'mode = \"default\"' line in joshuto.toml — jjs will not be dual-pane"
-    fi
-    local f
+    grep -q '^mode = "hsplit"$' "$dest/joshuto.toml" \
+        && ok "~/.config/joshuto-hsplit/joshuto.toml" \
+        || warn "no 'mode = \"default\"' line in joshuto.toml — jjs will not be dual-pane"
     for f in keymap.toml mimetype.toml preview_file.sh; do
-        link_file "$src/$f" "$dest/$f"
+        ln -sfn "$src/$f" "$dest/$f"
     done
 }
 
-install_joshuto() {
-    info "Joshuto"
-    stow_pkg joshuto
-    link_joshuto_hsplit
-}
-
-install_yazi() {
-    info "Yazi"
-    stow_pkg yazi
-}
-
-install_lazygit() {
-    info "Lazygit"
-    # lazygit auto-creates an empty ~/.config/lazygit/config.yml on first run, so
-    # we back-up-and-link the single file rather than stow the package (stow would
-    # conflict with that auto-created file). Same direct-link pattern as git.
-    link_lazygit
-}
-
-install_aerc() {
-    info "Aerc"
-    # accounts.conf holds live IMAP/SMTP credentials, so - same reasoning as
-    # git's ~/.gitconfig - we deliberately do NOT stow the whole package.
-    # Only the portable files (styling, keybinds, general config) are linked;
-    # accounts.conf stays a real, untracked file in ~/.config/aerc.
-    link_aerc
-    if [ ! -f "$CONFIG_HOME/aerc/accounts.conf" ]; then
-        warn "No $CONFIG_HOME/aerc/accounts.conf — aerc won't have any accounts until you add one"
+# Under WSL the terminal drawing your text is a WINDOWS application and can
+# only use fonts installed on the Windows side — it cannot see the Linux
+# ~/.local/share/fonts just linked, so glyphs render as tofu. Registering a
+# font from WSL means writing the Windows registry, so stage the files where
+# Explorer can reach them and print the two steps left. No-op outside WSL.
+setup_fonts() {
+    command -v fc-cache >/dev/null && fc-cache -f && ok "font cache refreshed"
+    grep -qi microsoft /proc/version 2>/dev/null || return 0
+    local win_user dest
+    win_user=$(cmd.exe /c 'echo %USERNAME%' 2>/dev/null | tr -d '\r\n')
+    if [ -z "$win_user" ] || [ ! -d "/mnt/c/Users/$win_user" ]; then
+        warn "WSL, but the Windows user can't be resolved — install the Nerd Font by hand"
+        warn "from fonts/dot-local/share/fonts/UbuntuMono/"
+        return 0
     fi
+    dest="/mnt/c/Users/$win_user/Downloads/nerd-fonts"
+    mkdir -p "$dest" 2>/dev/null || { warn "cannot write $dest — skipping Windows staging"; return 0; }
+    cp "$DOTFILES"/fonts/dot-local/share/fonts/UbuntuMono/UbuntuMonoNerdFontMono-*.ttf "$dest"/ 2>/dev/null
+    ok "staged Nerd Font → $dest"
+    printf "  ${BOLD}Two steps left, on the Windows side (once per machine):${NC}\n"
+    printf "    1. Open that folder, select the .ttf files, right-click → Install\n"
+    printf "    2. Terminal → Settings → profile → Appearance → Font face: ${BOLD}UbuntuMono Nerd Font Mono${NC}\n"
 }
 
-# ── Vendor tool install ──────────────────────────────────────────────────────
-# Maps tool name → dotfile component (runs install_<component> for config).
-# CONFIG_ONLY tools have no vendor binary — system binary is assumed present.
-
-declare -A TOOL_COMPONENT=(
-    [nvim]="neovim"
-    [vim]="vim"
-    [tmux]="tmux"
-    [joshuto]="joshuto"
-    [yazi]="yazi"
-    [lazygit]="lazygit"
-)
-
-install_tool() {
-    local tool="$1"
-    local arch; arch=$(uname -m)
-    local src="$DOTFILES/vendor/linux-$arch/$tool"
-
-    info "Tool: $tool"
-
-    # Binary
-    if [ -f "$src" ]; then
-        mkdir -p "$HOME/.local/bin"
-        cp "$src" "$HOME/.local/bin/$tool"
-        chmod +x "$HOME/.local/bin/$tool"
-        ok "$tool  →  ~/.local/bin/$tool"
-        warn "Run 'hash -r' (or open a new terminal) to refresh the shell's command cache"
+# LazyVim is not a stowed dotfile — it's an upstream starter template that
+# lazy.nvim then self-manages (its own lockfile, its own plugin updates).
+# NVIM_APPNAME isolates it in ~/.config/lazyvim, entirely separate from the
+# nvim component, so the two can't collide. Opt-in only (not in ALL_LOCAL): it
+# needs network + git on first run, and re-running this must NOT clobber your
+# in-editor plugin changes, so an existing clone is left untouched.
+install_lazyvim() {
+    local dest="$CONFIG_HOME/lazyvim" f
+    if [ -d "$dest" ]; then
+        ok "$dest already present — left untouched"
     else
-        warn "Binary not found in vendor/linux-$arch/ — run 'make vendor' first"
+        command -v git >/dev/null || { warn "git not found — cannot clone the LazyVim starter"; return 0; }
+        git clone --depth=1 https://github.com/LazyVim/starter "$dest" \
+            && rm -rf "$dest/.git" && ok "cloned LazyVim starter → $dest  (launch with: lvim)"
     fi
-
-    # nvim needs three pieces from the tarball, all resolved relative to the
-    # binary prefix (~/.local/ when binary is in ~/.local/bin/):
-    #   share/nvim/runtime/   → VIMRUNTIME  (Lua/VimScript stdlib)
-    #   lib/nvim/parser/*.so  → treesitter grammars (must match bundled queries)
-    # Copied (not symlinked) so that 'make clean' can wipe vendor/ without
-    # breaking the installed nvim — same principle as the binary itself.
-    if [ "$tool" = "nvim" ]; then
-        local rt_src="$DOTFILES/vendor/linux-$arch/nvim-runtime"
-        local pr_src="$DOTFILES/vendor/linux-$arch/nvim-parsers"
-        if [ -d "$rt_src" ]; then
-            mkdir -p "$HOME/.local/share/nvim"
-            rm -rf "$HOME/.local/share/nvim/runtime"
-            cp -r "$rt_src" "$HOME/.local/share/nvim/runtime"
-            ok "nvim runtime  →  ~/.local/share/nvim/runtime"
-        else
-            warn "nvim runtime not in vendor/ — run 'make vendor' first, then re-run 'make tool nvim'"
-        fi
-        if [ -d "$pr_src" ]; then
-            mkdir -p "$HOME/.local/lib/nvim"
-            rm -rf "$HOME/.local/lib/nvim/parser"
-            cp -r "$pr_src" "$HOME/.local/lib/nvim/parser"
-            ok "nvim parsers  →  ~/.local/lib/nvim/parser"
-        else
-            warn "nvim parsers not in vendor/ — run 'make vendor' first, then re-run 'make tool nvim'"
-        fi
-    fi
-
-    # Config — reuse the existing component installer when one exists
-    local component="${TOOL_COMPONENT[$tool]:-}"
-    if [ -n "$component" ] && declare -f "install_$component" &>/dev/null; then
-        "install_$component"
-    fi
+    # Re-linked every run so overlay changes reach an existing clone. Every
+    # *.lua in nvim/lazyvim-plugins/ becomes a lua/plugins/ override — add a
+    # file there and it's picked up with no script change.
+    [ -d "$dest/lua/plugins" ] || return 0
+    for f in "$DOTFILES"/nvim/lazyvim-plugins/*.lua; do
+        [ -f "$f" ] || continue
+        ln -sfn "$f" "$dest/lua/plugins/$(basename "$f")"
+        ok "lazyvim/lua/plugins/$(basename "$f")"
+    done
 }
 
-# ── Entry point ─────────────────────────────────────────────────────────────
+# ── Binaries ─────────────────────────────────────────────────────────────────
+# Copied, not linked, so 'make clean' can wipe vendor/ without breaking them.
 
-ALL=("${ALL_CONFIGS[@]}")
+install_bin() {
+    local tool=$1; local src="$VENDOR_DIR/$tool"
+    info "$tool"
+    vendored "$tool" || { warn "not in vendor/linux-$ARCH/ — run 'make vendor $tool'"; return; }
+    mkdir -p "$HOME/.local/bin"
+    cp "$src" "$HOME/.local/bin/$tool" && chmod +x "$HOME/.local/bin/$tool"
+    ok "~/.local/bin/$tool"
+    [ "$tool" = nvim ] || return 0
+    # Resolved relative to the binary's prefix (~/.local/): share/nvim/runtime
+    # is VIMRUNTIME, lib/nvim/parser holds the treesitter grammars that must
+    # match the bundled queries.
+    rm -rf "$HOME/.local/share/nvim/runtime" "$HOME/.local/lib/nvim/parser"
+    mkdir -p "$HOME/.local/share/nvim" "$HOME/.local/lib/nvim"
+    cp -r "$VENDOR_DIR/nvim-runtime" "$HOME/.local/share/nvim/runtime" && ok "~/.local/share/nvim/runtime"
+    cp -r "$VENDOR_DIR/nvim-parsers" "$HOME/.local/lib/nvim/parser"    && ok "~/.local/lib/nvim/parser"
+}
 
-# --tool <name>[,name] installs vendor binaries + their configs locally
-if [ "${1:-}" = "--tool" ]; then
-    shift
-    [ $# -gt 0 ] || { printf "${RED}Error:${NC} --tool requires a name (e.g. --tool nvim)\n" >&2; exit 1; }
-    arg="$1"
+# ── Drive it ─────────────────────────────────────────────────────────────────
 
-    # Expand 'all' to every binary present in the local vendor directory
-    if [ "$arg" = "all" ]; then
-        vendor_dir="$DOTFILES/vendor/linux-$(uname -m)"
-        [ -d "$vendor_dir" ] || { printf "${RED}Error:${NC} vendor/linux-$(uname -m)/ not found — run 'make vendor'\n" >&2; exit 1; }
-        arg=$(ls "$vendor_dir" | tr '\n' ',' | sed 's/,$//')
-        [ -n "$arg" ] || { printf "${RED}Error:${NC} vendor/linux-$(uname -m)/ is empty — run 'make vendor'\n" >&2; exit 1; }
-    fi
-
-    IFS=',' read -ra tools <<< "$arg"
-    for t in "${tools[@]}"; do
-        install_tool "${t// /}"
+if [ "$MODE" = configs ]; then
+    [ ${#NAMES[@]} -gt 0 ] || NAMES=("${ALL_LOCAL[@]}")
+    for n in "${NAMES[@]}"; do
+        is_component "$n" || die "Unknown component '$n'. Available: $COMPONENTS"
     done
-    printf "\n${GREEN}Done!${NC}\n"
-    exit 0
-fi
-
-# No args — or the explicit keyword 'all' — means every config component.
-if [ $# -eq 0 ] || { [ $# -eq 1 ] && [ "$1" = "all" ]; }; then
-    targets=("${ALL[@]}")
+    for n in "${NAMES[@]}"; do install_component "$n"; done
 else
-    targets=("$@")
-fi
-
-for t in "${targets[@]}"; do
-    # User-facing name → internal component function (e.g. nvim → neovim)
-    comp="$t"; [ "$t" = "nvim" ] && comp="neovim"
-    if declare -f "install_$comp" &>/dev/null; then
-        "install_$comp"
-    else
-        printf "${RED}Error:${NC} Unknown component '%s'\n" "$t" >&2
-        printf "Available: bash vim nvim tmux git hypr utils fonts inputrc joshuto yazi lazygit aerc lazyvim\n" >&2
-        exit 1
+    if [ ${#NAMES[@]} -eq 0 ]; then
+        for t in "${TOOL_NAMES[@]}"; do vendored "$t" && NAMES+=("$t"); done
+        [ ${#NAMES[@]} -gt 0 ] || die "nothing in vendor/linux-$ARCH/ — run 'make vendor' first"
     fi
-done
+    for n in "${NAMES[@]}"; do
+        is_tool "$n" || die "Unknown tool '$n'. Available: ${TOOL_NAMES[*]}"
+    done
+    for n in "${NAMES[@]}"; do install_bin "$n"; done
+    warn "run 'hash -r' (or open a new terminal) so the shell picks up the new binaries"
+fi
 
 printf "\n${GREEN}Done!${NC}\n"

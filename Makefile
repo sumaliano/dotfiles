@@ -1,33 +1,29 @@
-# Dotfiles Makefile — thin wrapper; all logic lives in scripts/
+# Dotfiles Makefile — a thin front end. The work is in scripts/, and what the
+# repo contains (components, tools, where they go) is one table: scripts/lib.sh.
 #
 # Two verbs, one axis. 'dot' = configs, 'tool' = portable binaries.
-# Add HOST= to do the same thing on a remote box over SSH; omit it for local.
+# Add HOST=user@host to do the same thing on a remote box over SSH.
 #
-#   make dot                  link ALL configs locally
-#   make dot nvim tmux        link just those configs locally
+#   make dot                  link the default configs locally
+#   make dot nvim tmux        link just those
 #   make dot nvim HOST=u@s    push the nvim config to a server
-#   make tool                 install ALL vendored binaries locally
-#   make tool fzf bat         install just those binaries locally
+#   make tool                 install every vendored binary locally
+#   make tool fzf bat         install just those
 #   make tool nvim HOST=u@s   push the nvim binary to a server
 #
-# So a full remote nvim is:  make dot nvim HOST=u@s && make tool nvim HOST=u@s
-# No name = everything.
+# A full remote nvim is:  make tool nvim HOST=u@s && make dot nvim HOST=u@s
 
-DOTFILES_DIR := $(shell pwd)
+SCRIPTS := $(CURDIR)/scripts
 
 # Some site logins export HOST=<this machine's own hostname> by default (seen
-# on the X2Go session hosts this repo runs on). Without this guard, a bare
-# 'make dot' would silently pick that up and SSH-deploy to itself instead of
-# installing locally -- wrong, and it's how configs ended up scp'd as plain
-# copies instead of symlinked in the first place. Strip a leading user@ and
-# compare against this host's own name; a match means "local", not "remote".
+# on the X2Go session hosts this repo runs on). Without this guard a bare
+# 'make dot' would SSH-deploy to itself instead of installing locally. A HOST
+# naming this machine means "local".
 LOCAL_HOSTNAMES := $(shell hostname 2>/dev/null) $(shell hostname -s 2>/dev/null)
-HOST_BARE := $(lastword $(subst @, ,$(HOST)))
-ifneq ($(HOST),)
-ifneq ($(filter $(HOST_BARE),$(LOCAL_HOSTNAMES)),)
-HOST :=
+ifneq ($(filter $(lastword $(subst @, ,$(HOST))),$(LOCAL_HOSTNAMES)),)
+override HOST :=
 endif
-endif
+AT_HOST := $(if $(HOST),--host $(HOST))
 
 BOLD := \033[1m
 DIM  := \033[2m
@@ -35,34 +31,23 @@ RED  := \033[0;31m
 NC   := \033[0m
 
 # Verbs are the real targets. Any other word on the command line is a NAME
-# (a config component or a tool) passed through to the underlying script.
+# (a component or a tool) handed to the script.
 VERBS := help dot tool remove vendor clean status
 NAMES := $(filter-out $(VERBS),$(MAKECMDGOALS))
-
+CMD   := $(firstword $(MAKECMDGOALS))
 # 'remove' takes a sub-verb: 'make remove dot nvim' / 'make remove tool nvim'.
-# CMD = the leading word; KIND = the dot/tool that follows 'remove'.
-CMD  := $(firstword $(MAKECMDGOALS))
-KIND := $(firstword $(filter dot tool,$(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))))
-
-# Join "a b c" → "a,b,c" for the scripts that take a comma list.
-comma := ,
-empty :=
-space := $(empty) $(empty)
-csv    = $(subst $(space),$(comma),$(strip $(1)))
+KIND  := $(firstword $(filter dot tool,$(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))))
 
 .PHONY: $(VERBS)
 .DEFAULT_GOAL := help
 
-# Names typed without a verb ('make nvim') are ambiguous — config or binary?
-# Guide the user instead of silently doing nothing. When a verb IS present the
-# names are its arguments, so we only intercept the verb-less case.
 ifneq ($(NAMES),)
-# Names collide with real files/dirs (e.g. nvim/), so force them phony — else
-# Make sees the directory, says "up to date", and skips the recipe.
+# Names collide with real dirs (nvim/), so force them phony — else Make sees
+# the directory, says "up to date", and skips the recipe.
 .PHONY: $(NAMES)
 ifeq ($(filter $(VERBS),$(MAKECMDGOALS)),)
-# No verb on the line — the names are orphaned. Explain and stop (Make aborts
-# here, so the remaining names are never reached and need no rule).
+# 'make nvim' — config or binary? Say so and stop (Make aborts on the first
+# name, so the rest need no rule).
 $(firstword $(NAMES)):
 	@printf "$(RED)Pick a verb:$(NC) 'make dot $(NAMES)' (configs) or 'make tool $(NAMES)' (binaries)\n" >&2; exit 2
 else
@@ -72,77 +57,52 @@ $(NAMES):
 endif
 endif
 
-# ── Help ─────────────────────────────────────────────────────────────────────
-
 help:
 	@printf "$(BOLD)Usage: make <dot|tool> [name...] [HOST=user@host]$(NC)\n\n"
-	@printf "  $(BOLD)dot$(NC)   [name...]   Link dotfile CONFIGS   (no name = all)\n"
-	@printf "  $(BOLD)tool$(NC)  [name...]   Install vendor BINARIES (no name = all)\n"
-	@printf "\n  Add $(BOLD)HOST=user@host$(NC) to either one to do it on a remote box over SSH.\n"
-	@printf "  Omit HOST to do it locally. A full remote nvim is two steps:\n"
-	@printf "    $(DIM)make dot nvim HOST=u@s && make tool nvim HOST=u@s$(NC)\n"
+	@printf "  $(BOLD)dot$(NC)   [name...]   Link dotfile CONFIGS    (no name = the default set)\n"
+	@printf "  $(BOLD)tool$(NC)  [name...]   Install vendor BINARIES (no name = every vendored one)\n"
+	@printf "\n  Add $(BOLD)HOST=user@host$(NC) to do it on a remote box over SSH. A full remote nvim:\n"
+	@printf "    $(DIM)make tool nvim HOST=u@s && make dot nvim HOST=u@s$(NC)\n"
 	@printf "\n$(BOLD)Portable binaries:$(NC)\n"
-	@printf "  vendor                Download static binaries to vendor/linux-<arch>/\n"
-	@printf "  clean                 Remove downloaded binaries (the vendor/ cache)\n"
+	@printf "  vendor [name...]      Download static binaries to vendor/linux-<arch>/  (FORCE=1 refreshes)\n"
+	@printf "  clean                 Remove the vendor/ cache\n"
 	@printf "\n$(BOLD)Remove (mirror of dot/tool):$(NC)\n"
-	@printf "  remove dot  [name...] [HOST=u@h]   Remove configs  (no name = all)\n"
+	@printf "  remove dot  [name...] [HOST=u@h]   Remove configs  (no name = all of ours)\n"
 	@printf "  remove tool [name...] [HOST=u@h]   Remove binaries (no name = all)\n"
 	@printf "\n$(BOLD)Management:$(NC)\n"
-	@printf "  status   [HOST=u@h]   Show what's installed, locally or on a server\n"
-	@printf "\n$(DIM)Configs: bash vim nvim tmux git hypr utils fonts inputrc joshuto yazi lazygit aerc$(NC)\n"
-	@printf "$(DIM)         (+ lazyvim — opt-in only, not in the no-name 'all': make dot lazyvim)$(NC)\n"
-	@printf "$(DIM)Tools:   fzf fd bat rg grex eza zoxide delta lazygit btop yazi ya joshuto 7z nvim vim tmux$(NC)\n"
-	@printf "$(DIM)         (grex is local-only — not pushed by 'make tool HOST=...')$(NC)\n"
+	@printf "  status   [HOST=u@h]   Show what's installed, locally or on a server\n\n"
+	@printf "$(DIM)"; bash $(SCRIPTS)/lib.sh; printf "(hypr, vim, aerc, lazyvim are opt-in by name; grex stays local)$(NC)\n"
 
-# ── Configs (dot) ────────────────────────────────────────────────────────────
-# When 'dot' follows 'remove' it's a sub-verb, not a command — stay inert and
-# let the 'remove' recipe do the work.
-
+# When 'dot'/'tool' follows 'remove' it's a sub-verb, not a command: stay inert.
 dot:
 ifeq ($(CMD),remove)
 	@:
-else ifeq ($(HOST),)
-	@bash $(DOTFILES_DIR)/scripts/install.sh $(NAMES)
 else
-	@bash $(DOTFILES_DIR)/scripts/deploy.sh "$(HOST)" --configs --tool "$(if $(NAMES),$(call csv,$(NAMES)),all)"
+	@bash $(SCRIPTS)/$(if $(HOST),deploy,install).sh $(AT_HOST) --configs $(NAMES)
 endif
-
-# ── Binaries (tool) ──────────────────────────────────────────────────────────
 
 tool:
 ifeq ($(CMD),remove)
 	@:
-else ifeq ($(HOST),)
-	@bash $(DOTFILES_DIR)/scripts/install.sh --tool "$(if $(NAMES),$(call csv,$(NAMES)),all)"
 else
-	@bash $(DOTFILES_DIR)/scripts/deploy.sh "$(HOST)" --bins --tool "$(if $(NAMES),$(call csv,$(NAMES)),all)"
+	@bash $(SCRIPTS)/$(if $(HOST),deploy,install).sh $(AT_HOST) --bins $(NAMES)
 endif
-
-# ── Remove (remove dot … / remove tool …) ────────────────────────────────────
 
 remove:
 ifeq ($(KIND),dot)
-	@bash $(DOTFILES_DIR)/scripts/uninstall.sh --configs $(if $(HOST),--host $(HOST)) --tool "$(if $(NAMES),$(call csv,$(NAMES)),all)"
+	@bash $(SCRIPTS)/uninstall.sh $(AT_HOST) --configs $(NAMES)
 else ifeq ($(KIND),tool)
-	@bash $(DOTFILES_DIR)/scripts/uninstall.sh --bins $(if $(HOST),--host $(HOST)) --tool "$(if $(NAMES),$(call csv,$(NAMES)),all)"
+	@bash $(SCRIPTS)/uninstall.sh $(AT_HOST) --bins $(NAMES)
 else
 	@printf "$(RED)Usage:$(NC) make remove dot|tool [name...] [HOST=u@h]\n" >&2; exit 2
 endif
 
-# ── Vendor cache ─────────────────────────────────────────────────────────────
-
 vendor:
-	@bash $(DOTFILES_DIR)/scripts/bootstrap.sh
+	@bash $(SCRIPTS)/bootstrap.sh $(NAMES)
 
 clean:
-	@if [ -d "$(DOTFILES_DIR)/vendor" ]; then \
-		rm -rf "$(DOTFILES_DIR)/vendor"; \
-		printf "Removed vendor/ — run 'make vendor' to re-download.\n"; \
-	else \
-		printf "Nothing to clean (vendor/ does not exist).\n"; \
-	fi
-
-# ── Management ───────────────────────────────────────────────────────────────
+	@if [ -d "$(CURDIR)/vendor" ]; then rm -rf "$(CURDIR)/vendor" && printf "Removed vendor/ — 'make vendor' re-downloads.\n"; \
+	else printf "Nothing to clean (no vendor/).\n"; fi
 
 status:
-	@bash $(DOTFILES_DIR)/scripts/status.sh $(if $(HOST),--host $(HOST))
+	@bash $(SCRIPTS)/status.sh $(AT_HOST)

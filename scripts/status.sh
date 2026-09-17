@@ -1,99 +1,105 @@
 #!/usr/bin/env bash
-# status.sh — Show installation status locally or on a remote server
+# status.sh — what's installed, locally or on a remote.
 #
-# Usage:
-#   ./scripts/status.sh
-#   ./scripts/status.sh --host user@server
+#   status.sh [--host u@h]
+#
+# Locally a component counts as installed only when every one of its targets
+# is a symlink of ours (plus its check_ hook, if any) — a foreign file at the
+# same path shows as partial, not installed. Remote configs are copies, so
+# there existence is all that can be checked.
 
 set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 HOST=""
-
 while [ $# -gt 0 ]; do
     case "$1" in
         --host)   shift; HOST="${1:-}" ;;
         --host=*) HOST="${1#--host=}" ;;
-        *) printf "Unknown option: %s\n" "$1" >&2; exit 1 ;;
+        *)        die "Unknown option: $1" ;;
     esac
     shift
 done
 
-GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 installed() { printf "  ${GREEN}[installed]${NC} %s\n" "$*"; }
-missing()   { printf "  ${RED}[missing]  ${NC} %s\n" "$*"; }
+partial()   { printf "  ${YELLOW}[partial]${NC}   %s\n" "$*"; }
+missing()   { printf "  ${RED}[missing]${NC}   %s\n" "$*"; }
 
-# ── Remote ────────────────────────────────────────────────────────────────────
+# ── Remote ───────────────────────────────────────────────────────────────────
+# One ssh round trip: the lists are handed to a remote sh as two arguments.
+# ssh joins its arguments into one command line that the far shell re-splits,
+# so they're single-quoted into the string (neither list can contain a quote).
 
 if [ -n "$HOST" ]; then
-    printf "${BOLD}Status: $HOST${NC}\n\n"
-    # Self-contained: no remote scripts needed
-    ssh "$HOST" bash <<'REMOTE'
-GREEN='\033[0;32m'; RED='\033[0;31m'; BOLD='\033[1m'; NC='\033[0m'
-ok()      { printf "  ${GREEN}[installed]${NC} %s\n" "$*"; }
-missing() { printf "  ${RED}[missing]  ${NC} %s\n" "$*"; }
-
-printf "${BOLD}Vendor tools (~/.local/bin/):${NC}\n"
-for tool in nvim vim tmux fzf fd bat rg eza zoxide delta btop yazi ya joshuto 7z; do
-    [ -f "$HOME/.local/bin/$tool" ] && ok "$tool" || missing "$tool"
+    spec=""   # "comp=~/path ~/path;comp=…" — every deployable component and its targets
+    for comp in $COMPONENTS; do
+        in_list "$comp" "${LOCAL_ONLY[@]}" && continue
+        paths=""
+        while read -r src; do [ -n "$src" ] && paths+=" $(target_of "$src")"; done < <(sources_of "$comp")
+        [ "$comp" = git ]  && paths+=' ~/.gitconfig.dotfiles'
+        [ "$comp" = bash ] && paths+=' ~/.bashrc'   # checked for the wiring block, not existence
+        spec+="$comp=$paths;"
+    done
+    printf "${BOLD}Status: $HOST${NC}\n"
+    ssh -q "$HOST" "sh -s -- '${TOOL_NAMES[*]}' '$spec'" <<'REMOTE'
+GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
+C="${XDG_CONFIG_HOME:-$HOME/.config}"
+printf "\n${BOLD}Configs:${NC}\n"
+printf '%s\n' "$2" | tr ';' '\n' | while IFS='=' read -r comp paths; do
+    [ -n "$comp" ] || continue
+    have=0; n=0
+    for p in $paths; do
+        n=$((n + 1))
+        case "$p" in "~/.config/"*) p="$C/${p#\~/.config/}" ;; *) p="$HOME/${p#\~/}" ;; esac   # \~ : no tilde expansion in the pattern
+        case "$p" in
+            */.bashrc) grep -q "# BEGIN DOTFILES" "$p" 2>/dev/null && have=$((have + 1)) ;;
+            *)         [ -e "$p" ] && have=$((have + 1)) ;;
+        esac
+    done
+    if   [ "$have" -eq "$n" ]; then printf "  ${GREEN}[installed]${NC} %s\n" "$comp"
+    elif [ "$have" -eq 0 ];    then printf "  ${RED}[missing]${NC}   %s\n" "$comp"
+    else printf "  ${YELLOW}[partial]${NC}   %s  (%s of %s)\n" "$comp" "$have" "$n"; fi
 done
-
-printf "\n${BOLD}Dotfiles:${NC}\n"
-[ -d "$HOME/dotfiles" ] \
-    && ok      "repo  (~/dotfiles/)" \
-    || missing "repo  (~/dotfiles/)"
-grep -q "# BEGIN DOTFILES" "$HOME/.bashrc" 2>/dev/null \
-    && ok      "bashrc wired" \
-    || missing "bashrc wired"
+printf "\n${BOLD}Tools (~/.local/bin):${NC}\n"
+for t in $1; do
+    if [ -x "$HOME/.local/bin/$t" ]; then printf "  ${GREEN}[installed]${NC} %s\n" "$t"
+    else printf "  ${RED}[missing]${NC}   %s\n" "$t"; fi
+done
 REMOTE
     exit 0
 fi
 
-# ── Local ─────────────────────────────────────────────────────────────────────
+# ── Local ────────────────────────────────────────────────────────────────────
 
-KNOWN_TOOLS=(nvim vim tmux fzf fd bat rg grex eza zoxide delta lazygit btop yazi ya joshuto 7z)
+check_bash()    { run_on_target "$BASH_CHECK"; }
+check_git()     { run_on_target "p=\"$DOTFILES/git/dot-gitconfig\"" "$GIT_CHECK"; }
+check_joshuto() { [ -f "$CONFIG_HOME/joshuto-hsplit/joshuto.toml" ]; }
+check_lazyvim() { [ -d "$CONFIG_HOME/lazyvim" ]; }
 
-printf "${BOLD}Vendor tools (~/.local/bin/):${NC}\n"
-for tool in "${KNOWN_TOOLS[@]}"; do
-    [ -f "$HOME/.local/bin/$tool" ] && installed "$tool" || missing "$tool"
+printf "${BOLD}Configs:${NC}\n"
+for comp in $COMPONENTS; do
+    have=0; n=0
+    while read -r src; do
+        [ -n "$src" ] || continue
+        dest=$(local_path "$(target_of "$src")"); n=$((n + 1))
+        ours "$dest" && [ -e "$dest" ] && have=$((have + 1))   # ours, and not dangling
+    done < <(sources_of "$comp")
+    if declare -f "check_$comp" >/dev/null; then n=$((n + 1)); "check_$comp" && have=$((have + 1)); fi
+    note=""; in_list "$comp" "${ALL_LOCAL[@]}" || note="  (opt-in)"
+    if [ "$have" -eq "$n" ]; then installed "$comp$note"
+    elif [ "$have" -eq 0 ];   then missing "$comp$note"
+    else partial "$comp  ($have of $n linked)$note"; fi
 done
 
-printf "\n${BOLD}Dotfiles:${NC}\n"
-grep -q "# BEGIN DOTFILES" "$HOME/.bashrc" 2>/dev/null \
-    && installed "Bash"    || missing "Bash"
-[ -e "$HOME/.vimrc" ] \
-    && installed "Vim"     || missing "Vim"
-[ -e "$CONFIG_HOME/nvim/init.lua" ] \
-    && installed "Neovim"  || missing "Neovim"
-[ -e "$HOME/.tmux.conf" ] \
-    && installed "Tmux"    || missing "Tmux"
-[ -e "$CONFIG_HOME/joshuto/joshuto.toml" ] \
-    && installed "Joshuto" || missing "Joshuto"
-[ -e "$CONFIG_HOME/yazi/yazi.toml" ] \
-    && installed "Yazi"    || missing "Yazi"
-[ -e "$HOME/.gitignore_global" ] \
-    && installed "Git"     || missing "Git"
-find "$HOME/.local/bin" -maxdepth 1 -type l -lname "*/dotfiles/utils/dot-bin/*" 2>/dev/null | grep -q . \
-    && installed "Utils"   || missing "Utils"
-[ -e "$HOME/.local/share/fonts/Terminus" ] \
-    && installed "Fonts"   || missing "Fonts"
-[ -e "$HOME/.inputrc" ] \
-    && installed "Inputrc" || missing "Inputrc"
-[ -e "$CONFIG_HOME/hypr" ] \
-    && installed "Hyprland" || missing "Hyprland"
-[ -e "$CONFIG_HOME/lazygit/config.yml" ] \
-    && installed "Lazygit" || missing "Lazygit"
-[ -e "$CONFIG_HOME/aerc/aerc.conf" ] \
-    && installed "Aerc"    || missing "Aerc"
+printf "\n${BOLD}Tools (~/.local/bin):${NC}\n"
+for t in "${TOOL_NAMES[@]}"; do
+    [ -x "$HOME/.local/bin/$t" ] && installed "$t" || missing "$t"
+done
 
 printf "\n"
-
-VENDOR_DIR="$DOTFILES/vendor/linux-$(uname -m)"
 if [ -d "$VENDOR_DIR" ]; then
-    count=$(ls "$VENDOR_DIR" 2>/dev/null | wc -l)
-    printf "${BOLD}Vendor cache:${NC} %d of %d binaries in vendor/linux-$(uname -m)/\n" \
-        "$count" "${#KNOWN_TOOLS[@]}"
+    count=0; for t in "${TOOL_NAMES[@]}"; do vendored "$t" && count=$((count + 1)); done
+    printf "${BOLD}Vendor cache:${NC} %d of %d tools in vendor/linux-$ARCH/\n" "$count" "${#TOOL_NAMES[@]}"
 else
-    printf "  ${YELLOW}[empty]${NC}   vendor/linux-$(uname -m)/ — run 'make vendor'\n"
+    printf "${BOLD}Vendor cache:${NC} empty — run 'make vendor'\n"
 fi

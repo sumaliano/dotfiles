@@ -1,276 +1,87 @@
 #!/usr/bin/env bash
-# bootstrap.sh — Download static/portable binaries to vendor/linux-<arch>/
+# bootstrap.sh — download the portable binaries into vendor/linux-<arch>/.
 #
-# Run once on any internet-connected machine.
-# Then use: make tool <name> HOST=user@server
+#   bootstrap.sh [name ...]      no name = every tool in lib.sh's TOOLS table
+#   FORCE=1 bootstrap.sh nvim    re-download one that's already there
 #
-# Override GITHUB_TOKEN env var to avoid API rate limits.
-# Use FORCE=true to re-download already-present binaries.
+# Run once on any internet-connected machine, then 'make tool …' installs
+# from the cache, locally or over SSH. GITHUB_TOKEN raises the API rate limit.
 
 set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ARCH=$(uname -m)   # x86_64 | aarch64
-VENDOR_DIR="$REPO_DIR/vendor/linux-$ARCH"
-FORCE="${FORCE:-false}"
+command -v curl >/dev/null || die "curl is required"
+command -v tar  >/dev/null || die "tar is required"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BOLD='\033[1m'; NC='\033[0m'
-
-info() { printf "${BOLD}==> %s${NC}\n" "$*"; }
-ok()   { printf "  ${GREEN}[ok]${NC}   %s\n" "$*"; }
-skip() { printf "  ${YELLOW}[skip]${NC} %s\n" "$*"; }
-fail() { printf "  ${RED}[fail]${NC} %s\n" "$*"; }
+NAMES=("$@")
+[ ${#NAMES[@]} -gt 0 ] || NAMES=("${TOOL_NAMES[@]}")
+for n in "${NAMES[@]}"; do is_tool "$n" || die "Unknown tool '$n'. Available: ${TOOL_NAMES[*]}"; done
 
 mkdir -p "$VENDOR_DIR"
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
-# Fetch the download URL for the latest GitHub release matching a filename pattern.
+# Download URL of the newest release asset whose name contains $pattern.
+# /releases/latest first; then the last few releases, which catches projects
+# that only publish pre-releases.
 gh_latest() {
-    local repo="$1" pattern="$2"
-    local auth_flag=()
-    [ -n "${GITHUB_TOKEN:-}" ] && auth_flag=(-H "Authorization: token $GITHUB_TOKEN")
-
-    # Try /releases/latest first; fall back to /releases (catches pre-releases)
-    local url
-    url=$(curl -fsSL "${auth_flag[@]}" \
-            "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null \
-        | grep '"browser_download_url"' \
-        | grep -o 'https://[^"]*' \
-        | grep -F "$pattern" \
-        | head -1)
-
-    if [ -z "$url" ]; then
-        url=$(curl -fsSL "${auth_flag[@]}" \
-                "https://api.github.com/repos/$repo/releases?per_page=10" 2>/dev/null \
-            | grep '"browser_download_url"' \
-            | grep -o 'https://[^"]*' \
-            | grep -F "$pattern" \
-            | head -1)
-    fi
-
-    printf '%s\n' "$url"
+    local repo=$1 pattern=$2 auth=() url page
+    [ -z "${GITHUB_TOKEN:-}" ] || auth=(-H "Authorization: token $GITHUB_TOKEN")
+    for page in "releases/latest" "releases?per_page=10"; do
+        url=$(curl -fsSL "${auth[@]}" "https://api.github.com/repos/$repo/$page" 2>/dev/null \
+              | grep -o '"browser_download_url": *"[^"]*' | grep -o 'https://.*' | grep -F "$pattern" | head -1)
+        [ -z "$url" ] || { printf '%s' "$url"; return 0; }
+    done
+    return 1
 }
 
-# Download a .tar.gz, find a named binary inside it, install to VENDOR_DIR.
-# Usage: install_tar <dest-name> <repo> <pattern> [<binary-name-in-archive>]
-install_tar() {
-    local dest="$1" repo="$2" pattern="$3" bin="${4:-$1}"
-
-    if [ -f "$VENDOR_DIR/$dest" ] && [ "$FORCE" != "true" ]; then
-        skip "$dest (exists — FORCE=true to refresh)"
-        return
-    fi
-    local url; url=$(gh_latest "$repo" "$pattern")
-    if [ -z "$url" ]; then
-        fail "$dest: no release URL found (pattern mismatch or GitHub rate limit)"
-        return
-    fi
-
-    printf "  Fetching %-10s ...\r" "$dest"
-    local tmp; tmp=$(mktemp -d)
-
-    if curl -fsSL -o "$tmp/archive" "$url" && tar -xf "$tmp/archive" -C "$tmp" 2>/dev/null; then
-        local found; found=$(find "$tmp" -type f -name "$bin" | head -1)
-        if [ -n "$found" ]; then
-            cp "$found" "$VENDOR_DIR/$dest"
-            chmod +x "$VENDOR_DIR/$dest"
-            printf "\r\033[K"; ok "$dest"
-        else
-            printf "\r\033[K"; fail "$dest: binary '$bin' not found in archive"
-        fi
-    else
-        printf "\r\033[K"; fail "$dest: download or extract failed — check URL: $url"
-    fi
-
-    rm -rf "$tmp"
+# Download and unpack an asset once per run (yazi and ya share one zip); the
+# unpacked directory lands in $UNPACKED. A bare binary is saved under $2.
+declare -A CACHE
+unpack() {
+    local url=$1 bin=$2 dir
+    UNPACKED="${CACHE[$url]:-}"
+    [ -z "$UNPACKED" ] || return 0
+    dir=$(mktemp -d -p "$TMP"); mkdir "$dir/x"
+    printf "  fetching %s ...\r" "${url##*/}"
+    case "$url" in
+        *.zip)         command -v unzip >/dev/null || { printf "\r\033[K"; fail "unzip is required for $url"; return 1; }
+                       curl -fsSL -o "$dir/a" "$url" && unzip -q "$dir/a" -d "$dir/x" ;;
+        *.tar*|*.tgz)  curl -fsSL -o "$dir/a" "$url" && tar -xf "$dir/a" -C "$dir/x" ;;
+        *)             curl -fsSL -o "$dir/x/$bin" "$url" ;;
+    esac || { printf "\r\033[K"; return 1; }
+    printf "\r\033[K"
+    UNPACKED="$dir/x"; CACHE[$url]="$UNPACKED"
 }
 
-# Download a .zip, find a named binary inside it, install to VENDOR_DIR.
-# Usage: install_zip <dest-name> <repo> <pattern> [<binary-name-in-archive>]
-install_zip() {
-    local dest="$1" repo="$2" pattern="$3" bin="${4:-$1}"
-
-    if [ -f "$VENDOR_DIR/$dest" ] && [ "$FORCE" != "true" ]; then
-        skip "$dest (exists — FORCE=true to refresh)"
-        return
+fetch() {
+    local name=$1 repo=$2 pattern=$3 bin=${4:-$1} url found
+    if vendored "$name" && [ "${FORCE:-}" != 1 ] && [ "${FORCE:-}" != true ]; then
+        skip "$name (present — FORCE=1 to refresh)"; return
     fi
-    local url; url=$(gh_latest "$repo" "$pattern")
-    if [ -z "$url" ]; then
-        fail "$dest: no release URL found (pattern mismatch or GitHub rate limit)"
-        return
+    url=$(gh_latest "$repo" "$pattern") || { fail "$name: no release asset matching '$pattern' (pattern changed, or GitHub rate limit — set GITHUB_TOKEN)"; return; }
+    unpack "$url" "$bin" || { fail "$name: download or unpack failed — $url"; return; }
+    found=$(find "$UNPACKED" -type f -name "$bin" | head -1)
+    [ -n "$found" ] || { fail "$name: no '$bin' inside $url"; return; }
+    cp "$found" "$VENDOR_DIR/$name" && chmod +x "$VENDOR_DIR/$name" || { fail "$name: copy failed"; return; }
+    if [ "$name" = nvim ]; then
+        # The binary alone is useless: share/nvim/runtime is VIMRUNTIME and
+        # lib/nvim/parser holds the treesitter grammars matching the bundled
+        # queries (without them: "Invalid field name" errors on open).
+        local rt pr
+        rt=$(find "$UNPACKED" -type d -path '*/share/nvim/runtime' | head -1)
+        pr=$(find "$UNPACKED" -type d -path '*/lib/nvim/parser'    | head -1)
+        [ -n "$rt" ] && [ -n "$pr" ] || { fail "nvim: runtime/ or parser/ missing from the tarball"; return; }
+        rm -rf "$VENDOR_DIR/nvim-runtime" "$VENDOR_DIR/nvim-parsers"
+        cp -r "$rt" "$VENDOR_DIR/nvim-runtime" && cp -r "$pr" "$VENDOR_DIR/nvim-parsers"
     fi
-
-    printf "  Fetching %-10s ...\r" "$dest"
-    local tmp; tmp=$(mktemp -d)
-
-    if curl -fsSL "$url" -o "$tmp/archive.zip" && unzip -q "$tmp/archive.zip" -d "$tmp/out" 2>/dev/null; then
-        local found; found=$(find "$tmp/out" -type f -name "$bin" | head -1)
-        if [ -n "$found" ]; then
-            cp "$found" "$VENDOR_DIR/$dest"
-            chmod +x "$VENDOR_DIR/$dest"
-            printf "\r\033[K"; ok "$dest"
-        else
-            printf "\r\033[K"; fail "$dest: binary '$bin' not found in archive"
-        fi
-    else
-        printf "\r\033[K"; fail "$dest: download or extract failed — check URL: $url"
-    fi
-
-    rm -rf "$tmp"
+    ok "$name  ←  ${url##*/}"
 }
-
-# Download a single-file binary (e.g. AppImage) directly.
-# Usage: install_file <dest-name> <repo> <pattern>
-install_file() {
-    local dest="$1" repo="$2" pattern="$3"
-
-    if [ -f "$VENDOR_DIR/$dest" ] && [ "$FORCE" != "true" ]; then
-        skip "$dest (exists — FORCE=true to refresh)"
-        return
-    fi
-    local url; url=$(gh_latest "$repo" "$pattern")
-    if [ -z "$url" ]; then
-        fail "$dest: no release URL found"
-        return
-    fi
-
-    printf "  Fetching %-10s ...\r" "$dest"
-    if curl -fsSL -o "$VENDOR_DIR/$dest" "$url"; then
-        chmod +x "$VENDOR_DIR/$dest"
-        printf "\r\033[K"; ok "$dest"
-    else
-        printf "\r\033[K"; fail "$dest: download failed"
-        rm -f "$VENDOR_DIR/$dest"
-    fi
-}
-
-# ---------------------------------------------------------------------------
 
 info "Fetching portable binaries → vendor/linux-$ARCH/"
-printf "\n"
+for row in "${TOOLS[@]}"; do
+    in_list "${row%% *}" "${NAMES[@]}" || continue
+    # shellcheck disable=SC2086  # the row is whitespace-separated columns
+    fetch $row
+done
 
-# Naming conventions differ across projects:
-#   fzf uses "amd64" / "arm64"
-#   musl Rust builds use "x86_64" / "aarch64"
-#   nvim/vim/tmux/yazi use "x86_64" / "arm64"
-FZF_ARCH="amd64";     [ "$ARCH" = "aarch64" ] && FZF_ARCH="arm64"
-NVIM_ARCH="$ARCH";    [ "$ARCH" = "aarch64" ] && NVIM_ARCH="arm64"
-VIM_ARCH="$ARCH";     [ "$ARCH" = "aarch64" ] && VIM_ARCH="arm64"
-TMUX_ARCH="$ARCH";    [ "$ARCH" = "aarch64" ] && TMUX_ARCH="arm64"
-SEVENZ_ARCH="x64";    [ "$ARCH" = "aarch64" ] && SEVENZ_ARCH="arm64"
-LG_ARCH="x86_64";     [ "$ARCH" = "aarch64" ] && LG_ARCH="arm64"
-MUSL="${ARCH}-unknown-linux-musl"
-
-# fzf — Go static binary (junegunn/fzf)
-install_tar fzf   junegunn/fzf              "linux_${FZF_ARCH}.tar.gz"
-
-# fd — fast find replacement, Rust musl (sharkdp/fd)
-install_tar fd    sharkdp/fd               "${MUSL}.tar.gz"
-
-# bat — cat with syntax highlighting, Rust musl (sharkdp/bat)
-install_tar bat   sharkdp/bat              "${MUSL}.tar.gz"
-
-# rg (ripgrep) — fast grep, Rust musl (BurntSushi/ripgrep)
-# Note: archive binary is named 'rg', not 'ripgrep'
-install_tar rg    BurntSushi/ripgrep       "${MUSL}.tar.gz"    rg
-
-# grex — generate a regex from example strings, Rust musl (pemistahl/grex)
-# Local-only: a regex-authoring aid, excluded from the remote "all" deploy.
-install_tar grex  pemistahl/grex           "${MUSL}.tar.gz"
-
-# eza — modern ls replacement, Rust musl (eza-community/eza)
-install_tar eza   eza-community/eza        "eza_${MUSL}.tar.gz"
-
-# zoxide — frecency-based 'cd' (z / zi), Rust musl (ajeetdsouza/zoxide)
-# Needs a shell-init line to hook cd — see bash/dot-bashrc_ext.
-install_tar zoxide ajeetdsouza/zoxide      "${MUSL}.tar.gz"
-
-# delta — git diff pager, Rust musl (dandavison/delta)
-install_tar delta dandavison/delta         "${MUSL}.tar.gz"
-
-# lazygit — git TUI, static Go binary (jesseduffield/lazygit)
-# Local-only: vendored and installed locally, but excluded from the remote
-# "all" deploy (see deploy.sh). Keep your git fundamentals sharp for bare boxes.
-install_tar lazygit jesseduffield/lazygit  "linux_${LG_ARCH}.tar.gz"
-
-# btop — interactive system monitor, C++ musl static (aristocratos/btop)
-install_tar btop  aristocratos/btop        "btop-${MUSL}.tar.gz"  btop
-
-# yazi — terminal file manager, musl static (sxyazi/yazi)
-# ya is the companion CLI (shell integration, flavours, package manager)
-install_zip yazi  sxyazi/yazi              "${MUSL}.zip"
-install_zip ya    sxyazi/yazi              "${MUSL}.zip"
-
-# joshuto — ranger-like file manager with tabs, Rust musl (kamiyaa/joshuto)
-install_tar joshuto kamiyaa/joshuto        "${MUSL}.tar.gz"
-
-# 7z — official static build (ip7z/7zip); archive contains 7zzs (static) and 7zz (dynamic)
-install_tar 7z      ip7z/7zip             "linux-${SEVENZ_ARCH}.tar.xz"  7zzs
-
-# nvim — official tarball (requires glibc 2.32+ — won't run on RHEL 7/old systems).
-# For old systems, deploy vim instead: make tool vim HOST=server
-#
-# nvim is special: install_tar only copies the binary, but a standalone nvim
-# needs three things from the tarball (all placed relative to the binary prefix):
-#   bin/nvim                → ~/.local/bin/nvim          (the binary)
-#   share/nvim/runtime/     → ~/.local/share/nvim/runtime (Lua/VimScript runtime, VIMRUNTIME)
-#   lib/nvim/parser/*.so    → ~/.local/lib/nvim/parser/   (compiled treesitter grammars)
-# Without the parsers, neovim loads queries for the bundled grammar version but
-# runs them against old/missing .so files → "Invalid field name" errors on open.
-install_nvim() {
-    local pattern="nvim-linux-${NVIM_ARCH}.tar.gz"
-    # Skip only when binary, runtime, AND parsers are all present.
-    if [ -f "$VENDOR_DIR/nvim" ] && [ -d "$VENDOR_DIR/nvim-runtime" ] \
-       && [ -d "$VENDOR_DIR/nvim-parsers" ] && [ "$FORCE" != "true" ]; then
-        skip "nvim (exists — FORCE=true to refresh)"
-        return
-    fi
-    local url; url=$(gh_latest "neovim/neovim" "$pattern")
-    if [ -z "$url" ]; then
-        fail "nvim: no release URL found (pattern mismatch or GitHub rate limit)"
-        return
-    fi
-    printf "  Fetching %-10s ...\r" "nvim"
-    local tmp; tmp=$(mktemp -d)
-    if curl -fsSL -o "$tmp/archive" "$url" && tar -xf "$tmp/archive" -C "$tmp" 2>/dev/null; then
-        local found_bin; found_bin=$(find "$tmp" -type f -name "nvim" | head -1)
-        local found_rt;  found_rt=$(find  "$tmp" -type d -name "runtime" -path "*/nvim/*" | head -1)
-        local found_pr;  found_pr=$(find  "$tmp" -type d -name "parser"  -path "*/nvim/*" | head -1)
-        if [ -n "$found_bin" ]; then
-            cp "$found_bin" "$VENDOR_DIR/nvim" && chmod +x "$VENDOR_DIR/nvim"
-        else
-            printf "\r\033[K"; fail "nvim: binary not found in archive"; rm -rf "$tmp"; return
-        fi
-        if [ -n "$found_rt" ]; then
-            rm -rf "$VENDOR_DIR/nvim-runtime"
-            cp -r "$found_rt" "$VENDOR_DIR/nvim-runtime"
-        else
-            printf "\r\033[K"; fail "nvim: runtime dir not found — nvim will error on startup"
-        fi
-        if [ -n "$found_pr" ]; then
-            rm -rf "$VENDOR_DIR/nvim-parsers"
-            cp -r "$found_pr" "$VENDOR_DIR/nvim-parsers"
-        else
-            printf "\r\033[K"; fail "nvim: parser dir not found — treesitter will not work"
-        fi
-        printf "\r\033[K"; ok "nvim"
-    else
-        printf "\r\033[K"; fail "nvim: download or extract failed — check URL: $url"
-    fi
-    rm -rf "$tmp"
-}
-install_nvim
-
-# vim — static-pie single binary, no runtime needed, x86_64 + arm64 (heywoodlh/vim-builds)
-# Zero glibc dependency. Use when nvim fails on old glibc servers.
-install_file vim  heywoodlh/vim-builds     "vim-${VIM_ARCH}"
-
-# tmux — official static builds (tmux/tmux-builds)
-install_tar tmux  tmux/tmux-builds         "linux-${TMUX_ARCH}.tar.gz"
-
-# ---------------------------------------------------------------------------
-
-printf "\n"
-info "Vendor directory contents:"
-ls -lh "$VENDOR_DIR" 2>/dev/null || printf "  (empty)\n"
-printf "\n${GREEN}Done.${NC} Run ${BOLD}make tool <name> HOST=user@server${NC} to push to a remote machine.\n"
+printf "\n${GREEN}Done.${NC} 'make tool' installs from the cache; add HOST=user@host to push to a remote.\n"

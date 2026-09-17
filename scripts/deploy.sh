@@ -1,208 +1,121 @@
 #!/usr/bin/env bash
-# deploy.sh — Push configs and/or vendor binaries to a remote server
+# deploy.sh — push config components or vendored binaries to a remote over SSH.
 #
-# Usage:
-#   ./scripts/deploy.sh user@host --configs --tool nvim     # configs only
-#   ./scripts/deploy.sh user@host --bins    --tool nvim     # binaries only
-#   ./scripts/deploy.sh user@host           --tool nvim     # both
-#   ./scripts/deploy.sh user@host --bins    --tool nvim,fzf,bat
+#   deploy.sh --host u@h --configs [name ...]   no name = ALL_REMOTE
+#   deploy.sh --host u@h --bins    [name ...]   no name = every vendored tool (minus LOCAL_ONLY_TOOLS)
+#
+# The remote mirror of install.sh: same LINKS table, same targets, but files
+# are copied (scp / tar over ssh) since there's no repo on the far side to
+# symlink into. Needs nothing on the remote beyond sshd and a POSIX sh.
 
 set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=components.sh
-source "$(dirname "${BASH_SOURCE[0]}")/components.sh"
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
-info() { printf "\n${BOLD}==> %s${NC}\n" "$*"; }
-ok()   { printf "  ${GREEN}[ok]${NC}   %s\n" "$*"; }
-warn() { printf "  ${YELLOW}[warn]${NC} %s\n" "$*"; }
-die()  { printf "${RED}Error:${NC} %s\n" "$*" >&2; exit 1; }
-
-# ── Argument parsing ──────────────────────────────────────────────────────────
-
-REMOTE="${1:-}"
-shift || true
-
-TOOLS=""
-MODE="both"   # both | configs | bins
-
+MODE=""; HOST=""; NAMES=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --configs) MODE="configs" ;;
-        --bins)    MODE="bins" ;;
-        --tool)
-            shift; [ $# -gt 0 ] || die "--tool requires a value (e.g. --tool nvim)"
-            TOOLS="$1" ;;
-        --tool=*) TOOLS="${1#*=}" ;;
-        *) printf "Unknown option: %s\n" "$1" >&2; exit 1 ;;
+        --configs) MODE=configs ;;
+        --bins)    MODE=bins ;;
+        --host)    shift; HOST="${1:-}" ;;
+        --host=*)  HOST="${1#--host=}" ;;
+        -*)        die "Unknown option: $1" ;;
+        *)         NAMES+=("$1") ;;
     esac
     shift
 done
+[ -n "$MODE" ] || die "usage: deploy.sh --host u@h --configs|--bins [name ...]"
+[ -n "$HOST" ] || die "deploy.sh needs --host user@host"
+command -v ssh >/dev/null && command -v scp >/dev/null || die "ssh and scp are required"
 
-[ -z "$REMOTE" ] && die "Usage: $(basename "$0") [user@]host --tool name[,name]"
-[ -z "$TOOLS"  ] && die "Specify at least one tool: --tool nvim  or  --tool nvim,fzf,bat"
-command -v ssh &>/dev/null || die "ssh is required"
-command -v scp &>/dev/null || die "scp is required"
+# ── Connect ──────────────────────────────────────────────────────────────────
 
-# ── Config map: tool → "source|remote_dest" pairs ────────────────────────────
-
-declare -A TOOL_CONFIG=(
-    [nvim]="nvim/dot-config/nvim|~/.config/nvim"
-    [vim]="vim/dot-vimrc|~/.vimrc vim/dot-vim|~/.vim"
-    [tmux]="tmux/dot-tmux.conf|~/.tmux.conf"
-    [joshuto]="joshuto/dot-config/joshuto|~/.config/joshuto"
-    [yazi]="yazi/dot-config/yazi|~/.config/yazi"
-    [inputrc]="inputrc/dot-inputrc|~/.inputrc"
-    [lazygit]="lazygit/dot-config/lazygit/config.yml|~/.config/lazygit/config.yml"
-    [aerc]="aerc/dot-config/aerc/aerc.conf|~/.config/aerc/aerc.conf aerc/dot-config/aerc/binds.conf|~/.config/aerc/binds.conf aerc/dot-config/aerc/stylesets|~/.config/aerc/stylesets"
-)
-
-# Config-only tools have no vendor binary (skip the "missing binary" warning).
-# These are NOT included in 'all' — they must be named explicitly, e.g. --tool bash.
-CONFIG_ONLY="bash git inputrc aerc"
-
-# ── Connect ───────────────────────────────────────────────────────────────────
-
-info "Connecting to $REMOTE..."
-REMOTE_ARCH=$(ssh -q "$REMOTE" uname -m 2>/dev/null) || die "Cannot connect to $REMOTE"
-[ -z "$REMOTE_ARCH" ] && die "Could not detect remote architecture"
-ok "Connected  (arch: linux-$REMOTE_ARCH)"
-
-VENDOR_DIR="$DOTFILES/vendor/linux-$REMOTE_ARCH"
-ssh -q "$REMOTE" 'mkdir -p ~/.local/bin'
-
-# Resolve the remote's actual XDG config dir instead of assuming ~/.config —
-# some hosts (e.g. this repo's own X2Go session boxes) override it per-session,
-# and pushing configs to the wrong place fails silently (no error, app just
-# doesn't see them). Falls back to ~/.config if the query fails.
-REMOTE_CONFIG_HOME=$(ssh -q "$REMOTE" 'printf %s "${XDG_CONFIG_HOME:-$HOME/.config}"' 2>/dev/null)
+info "Connecting to $HOST"
+REMOTE_ARCH=$(ssh -q "$HOST" uname -m 2>/dev/null) || die "Cannot connect to $HOST"
+[ -n "$REMOTE_ARCH" ] || die "Could not detect the remote architecture"
+# The remote's real XDG config dir — some hosts override it per session, and
+# pushing to ~/.config there fails silently (no error, app just doesn't see it).
+REMOTE_CONFIG_HOME=$(ssh -q "$HOST" 'printf %s "${XDG_CONFIG_HOME:-~/.config}"' 2>/dev/null)
 [ -n "$REMOTE_CONFIG_HOME" ] || REMOTE_CONFIG_HOME='~/.config'
+ok "connected  (linux-$REMOTE_ARCH, config in $REMOTE_CONFIG_HOME)"
+VENDOR_DIR="$DOTFILES/vendor/linux-$REMOTE_ARCH"   # override lib.sh's local-arch default
 
-# ── Deploy each tool ──────────────────────────────────────────────────────────
+# ── Copy helpers ─────────────────────────────────────────────────────────────
 
-# Expand 'all'. What "everything" means depends on the mode:
-#   configs → every config component the deployer knows how to push remotely
-#   bins/both → every binary present in vendor/linux-<arch>/
-if [ "$TOOLS" = "all" ]; then
-    if [ "$MODE" = "configs" ]; then
-        TOOLS=$(IFS=,; echo "${ALL_CONFIGS_REMOTE[*]}")
+# Copy a local file or directory to a remote path, creating parents.
+push() {
+    local src=$1 dest=$2
+    if [ -d "$src" ]; then
+        ssh -q "$HOST" "mkdir -p $dest" \
+            && tar czf - -C "$src" "${TAR_EXCLUDES[@]}" . | ssh -q "$HOST" "tar xzf - -C $dest"
     else
-        [ -d "$VENDOR_DIR" ] || die "vendor/linux-$REMOTE_ARCH/ not found — run 'make vendor' first"
-        # grex is vendored for local use but kept out of the bulk remote deploy —
-        # regex authoring is a local task. It remains deployable by explicit name
-        # (make tool grex HOST=…). nvim-runtime / nvim-parsers are not standalone
-        # tools — they ride along with the nvim binary below, so exclude them too.
-        TOOLS=$(ls "$VENDOR_DIR" | grep -vxE 'grex|nvim-runtime|nvim-parsers' | tr '\n' ',' | sed 's/,$//')
-        [ -n "$TOOLS" ] || die "vendor/linux-$REMOTE_ARCH/ is empty — run 'make vendor' first"
+        ssh -q "$HOST" "mkdir -p $(dirname "$dest")" && scp -q "$src" "$HOST:$dest"
     fi
-fi
+}
 
-IFS=',' read -ra tool_list <<< "$TOOLS"
-for tool in "${tool_list[@]}"; do
-    tool="${tool// /}"
-    info "Deploying: $tool"
+# ── Configs ──────────────────────────────────────────────────────────────────
 
-    # ── Binary (skipped in --configs mode) ────────────────────────────────────
-    if [ "$MODE" != "configs" ]; then
-    # scp needs no remote binary, it's handled by sshd
-    src="$VENDOR_DIR/$tool"
-    if [ -f "$src" ]; then
-        # nvim requires glibc 2.32+; warn early on old systems rather than fail at runtime
-        if [ "$tool" = "nvim" ]; then
-            remote_glibc=$(ssh -q "$REMOTE" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)
-            if [ -n "$remote_glibc" ] && awk "BEGIN{exit !($remote_glibc < 2.32)}"; then
-                warn "nvim requires glibc 2.32+ but remote has $remote_glibc — try: make tool vim HOST=..."
-                continue
-            fi
+deploy_component() {
+    local comp=$1 src target
+    info "$comp"
+    while read -r src; do
+        [ -n "$src" ] || continue
+        target=$(target_of "$src")
+        target=${target/#\~\/.config\//$REMOTE_CONFIG_HOME/}
+        push "$DOTFILES/$src" "$target" && ok "$target"
+    done < <(sources_of "$comp")
+    if declare -f "setup_$comp" >/dev/null; then "setup_$comp"; fi
+}
+
+setup_bash() { run_on_target "$BASH_WIRE" && ok "wired into ~/.bashrc"; }
+
+# The repo isn't on the remote, so the shared config goes to a fixed path and
+# is [include]d from there.
+setup_git() {
+    push "$DOTFILES/git/dot-gitconfig" '~/.gitconfig.dotfiles' && ok "~/.gitconfig.dotfiles"
+    run_on_target 'p="$HOME/.gitconfig.dotfiles"' "$GIT_WIRE" && ok "included from ~/.gitconfig"
+}
+
+# ── Binaries ─────────────────────────────────────────────────────────────────
+
+deploy_bin() {
+    local tool=$1
+    info "$tool"
+    vendored "$tool" || { warn "not in vendor/linux-$REMOTE_ARCH/ — run 'make vendor $tool' on a linux-$REMOTE_ARCH box"; return; }
+    if [ "$tool" = nvim ]; then
+        # nvim needs glibc 2.32+; say so now rather than fail at runtime.
+        local glibc; glibc=$(ssh -q "$HOST" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)
+        if [ -n "$glibc" ] && awk "BEGIN{exit !($glibc < 2.32)}"; then
+            warn "nvim needs glibc 2.32+ but $HOST has $glibc — use: make tool vim HOST=$HOST"
+            return
         fi
-        scp -q "$src" "$REMOTE:~/.local/bin/$tool"
-        ssh -q "$REMOTE" "chmod +x ~/.local/bin/$tool"
-        ok "$tool  →  ~/.local/bin/$tool"
-        # nvim needs its runtime + treesitter parsers alongside the binary,
-        # resolved relative to the binary prefix (~/.local/).
-        if [ "$tool" = "nvim" ]; then
-            if [ -d "$VENDOR_DIR/nvim-runtime" ]; then
-                ssh -q "$REMOTE" "mkdir -p ~/.local/share/nvim && rm -rf ~/.local/share/nvim/runtime"
-                tar czf - -C "$VENDOR_DIR/nvim-runtime" . \
-                    | ssh -q "$REMOTE" "mkdir -p ~/.local/share/nvim/runtime && tar xzf - -C ~/.local/share/nvim/runtime"
-                ok "nvim runtime  →  ~/.local/share/nvim/runtime"
-            fi
-            if [ -d "$VENDOR_DIR/nvim-parsers" ]; then
-                ssh -q "$REMOTE" "mkdir -p ~/.local/lib/nvim && rm -rf ~/.local/lib/nvim/parser"
-                tar czf - -C "$VENDOR_DIR/nvim-parsers" . \
-                    | ssh -q "$REMOTE" "mkdir -p ~/.local/lib/nvim/parser && tar xzf - -C ~/.local/lib/nvim/parser"
-                ok "nvim parsers  →  ~/.local/lib/nvim/parser"
-            fi
-        fi
-    elif [ "$tool" = "vim" ]; then
-        ok "vim  →  using system binary (no vendor build for $REMOTE_ARCH)"
-    elif [[ " $CONFIG_ONLY " == *" $tool "* ]]; then
-        : # config-only tool — no binary expected
-    else
-        warn "Binary not in vendor/linux-$REMOTE_ARCH/ — run 'make vendor' first"
     fi
-    fi
+    push "$VENDOR_DIR/$tool" "~/.local/bin/$tool" && ssh -q "$HOST" "chmod +x ~/.local/bin/$tool" && ok "~/.local/bin/$tool"
+    [ "$tool" = nvim ] || return 0
+    ssh -q "$HOST" "rm -rf ~/.local/share/nvim/runtime ~/.local/lib/nvim/parser"
+    push "$VENDOR_DIR/nvim-runtime" "~/.local/share/nvim/runtime" && ok "~/.local/share/nvim/runtime"
+    push "$VENDOR_DIR/nvim-parsers" "~/.local/lib/nvim/parser"    && ok "~/.local/lib/nvim/parser"
+}
 
-    # ── Configs (skipped in --bins mode) ──────────────────────────────────────
-    if [ "$MODE" = "bins" ]; then
-        continue
-    fi
+# ── Drive it ─────────────────────────────────────────────────────────────────
 
-    # Bash is special: copy the extension + dir_colors, then wire it into the
-    # remote ~/.bashrc the same way the local installer does.
-    if [ "$tool" = "bash" ]; then
-        scp -q "$DOTFILES/bash/dot-bashrc_ext" "$REMOTE:.bashrc_ext"
-        scp -q "$DOTFILES/bash/dot-dir_colors" "$REMOTE:.dir_colors"
-        ssh -q "$REMOTE" bash <<'WIRE'
-if ! grep -q "# BEGIN DOTFILES" ~/.bashrc 2>/dev/null; then
-    printf '\n# BEGIN DOTFILES\n[ -f ~/.bashrc_ext ] && source ~/.bashrc_ext\n# END DOTFILES\n' >> ~/.bashrc
-fi
-WIRE
-        ok "config  →  ~/.bashrc_ext (wired into ~/.bashrc)"
-        continue
-    fi
-
-    # Git is special: the repo path doesn't exist on the remote, so copy the
-    # shared config to ~/.gitconfig.dotfiles and layer it in via [include],
-    # leaving the remote user's own ~/.gitconfig (identity/credentials) intact.
-    if [ "$tool" = "git" ]; then
-        scp -q "$DOTFILES/git/dot-gitconfig"        "$REMOTE:.gitconfig.dotfiles"
-        scp -q "$DOTFILES/git/dot-gitignore_global" "$REMOTE:.gitignore_global"
-        ssh -q "$REMOTE" bash <<'WIRE'
-inc="$HOME/.gitconfig.dotfiles"
-git config --global --get-all include.path 2>/dev/null | grep -qxF "$inc" \
-    || git config --global --add include.path "$inc"
-WIRE
-        ok "config  →  ~/.gitconfig.dotfiles (included from ~/.gitconfig)"
-        continue
-    fi
-
-    # Config — files via scp, directories via tar-over-ssh
-    mapping="${TOOL_CONFIG[$tool]:-}"
-    for pair in $mapping; do
-        local_src="$DOTFILES/${pair%%|*}"
-        remote_dest="${pair##*|}"
-        case "$remote_dest" in
-            "~/.config/"*) remote_dest="$REMOTE_CONFIG_HOME/${remote_dest#\~/.config/}" ;;
-        esac
-        if [ -e "$local_src" ]; then
-            if [ -d "$local_src" ]; then
-                ssh -q "$REMOTE" "mkdir -p $remote_dest"
-                # Exclude local-only junk that tar (unlike git) would otherwise ship
-                tar czf - -C "$local_src" \
-                    --exclude='.claude' --exclude='.git' --exclude='.netrwhist' \
-                    --exclude='lazy-lock.json' --exclude='*.sw[op]' \
-                    . | ssh -q "$REMOTE" "tar xzf - -C $remote_dest"
-            else
-                ssh -q "$REMOTE" "mkdir -p $(dirname "$remote_dest")"
-                scp -q "$local_src" "$REMOTE:$remote_dest"
-            fi
-            ok "config  →  $remote_dest"
-        fi
+if [ "$MODE" = configs ]; then
+    [ ${#NAMES[@]} -gt 0 ] || NAMES=("${ALL_REMOTE[@]}")
+    for n in "${NAMES[@]}"; do
+        is_component "$n" || die "Unknown component '$n'. Available: $COMPONENTS"
+        ! in_list "$n" "${LOCAL_ONLY[@]}" || die "'$n' is local-only (see LOCAL_ONLY in scripts/lib.sh)"
     done
-done
+    for n in "${NAMES[@]}"; do deploy_component "$n"; done
+else
+    if [ ${#NAMES[@]} -eq 0 ]; then
+        for t in "${TOOL_NAMES[@]}"; do
+            in_list "$t" "${LOCAL_ONLY_TOOLS[@]}" || ! vendored "$t" || NAMES+=("$t")
+        done
+        [ ${#NAMES[@]} -gt 0 ] || die "nothing in vendor/linux-$REMOTE_ARCH/ — run 'make vendor' on a linux-$REMOTE_ARCH box"
+    fi
+    for n in "${NAMES[@]}"; do
+        is_tool "$n" || die "Unknown tool '$n'. Available: ${TOOL_NAMES[*]}"
+    done
+    for n in "${NAMES[@]}"; do deploy_bin "$n"; done
+fi
 
-printf "\n${GREEN}${BOLD}Done!${NC}\n\n"
+printf "\n${GREEN}Done!${NC}\n"
