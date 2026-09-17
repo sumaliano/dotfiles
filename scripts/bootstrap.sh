@@ -35,7 +35,7 @@ gh_latest() {
 }
 
 # Download and unpack an asset once per run (yazi and ya share one zip); the
-# unpacked directory lands in $UNPACKED. A bare binary is saved under $2.
+# unpacked directory lands in $UNPACKED. A bare or gzipped binary is saved as $2.
 declare -A CACHE
 unpack() {
     local url=$1 bin=$2 dir
@@ -47,6 +47,7 @@ unpack() {
         *.zip)         command -v unzip >/dev/null || { printf "\r\033[K"; fail "unzip is required for $url"; return 1; }
                        curl -fsSL -o "$dir/a" "$url" && unzip -q "$dir/a" -d "$dir/x" ;;
         *.tar*|*.tgz)  curl -fsSL -o "$dir/a" "$url" && tar -xf "$dir/a" -C "$dir/x" ;;
+        *.gz)          curl -fsSL "$url" | gunzip > "$dir/x/$bin" ;;
         *)             curl -fsSL -o "$dir/x/$bin" "$url" ;;
     esac || { printf "\r\033[K"; return 1; }
     printf "\r\033[K"

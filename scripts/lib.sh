@@ -116,8 +116,8 @@ TAR_EXCLUDES=(--anchored --exclude='*.sw[op]' --exclude='*/.git' --exclude='*/.n
 
 # ── Tools ────────────────────────────────────────────────────────────────────
 # name  github-repo  release-asset pattern  [binary name inside the archive]
-# The pattern's suffix picks the unpacker (.zip, .tar*, anything else is a bare
-# binary). Projects disagree on how to spell the architecture:
+# The pattern's suffix picks the unpacker (.zip, .tar*, a gzipped binary, or
+# a bare one). Projects disagree on how to spell the architecture:
 case "$ARCH" in
     aarch64) GO_ARCH=arm64; X_ARCH=arm64;  Z_ARCH=arm64 ;;
     *)       GO_ARCH=amd64; X_ARCH=x86_64; Z_ARCH=x64 ;;
@@ -142,11 +142,13 @@ TOOLS=(
     "vim      heywoodlh/vim-builds   vim-${X_ARCH}"                   # static, zero glibc: for old boxes
     "tmux     tmux/tmux-builds       linux-${X_ARCH}.tar.gz"
     "cliamp   bjarneo/cliamp         cliamp-linux-${GO_ARCH}"         # music player; needs libasound2 + a sound server
+    "ffmpeg   eugeneware/ffmpeg-static  ffmpeg-linux-${Z_ARCH}.gz"    # fully static johnvansickle build; cliamp's AAC/ALAC/Opus/WMA
 )
 TOOL_NAMES=(); for t in "${TOOLS[@]}"; do TOOL_NAMES+=("${t%% *}"); done
 # Vendored and installed locally, but left out of a bare 'make tool HOST=…':
-# regex authoring is a local task, and a headless server has no speakers.
-LOCAL_ONLY_TOOLS=(grex cliamp)
+# regex authoring is a local task, a headless server has no speakers, and
+# ffmpeg is 80 MB that's only here for cliamp. All three push by name.
+LOCAL_ONLY_TOOLS=(grex cliamp ffmpeg)
 # Not every build is static. deploy.sh warns instead of pushing a binary the
 # remote's glibc can't load (the fix for nvim is the static vim build).
 declare -A GLIBC_MIN=([nvim]=2.32 [cliamp]=2.34)
