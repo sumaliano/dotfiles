@@ -152,9 +152,12 @@ install_bin() {
     local tool=$1; local src="$VENDOR_DIR/$tool"
     info "$tool"
     vendored "$tool" || { warn "not in vendor/linux-$ARCH/ — run 'make vendor $tool'"; return; }
+    # Copy under a temp name and rename over the old one: a running binary
+    # (tmux from inside tmux) can't be overwritten in place, but can be replaced.
+    local dest="$HOME/.local/bin/$tool"
     mkdir -p "$HOME/.local/bin"
-    cp "$src" "$HOME/.local/bin/$tool" && chmod +x "$HOME/.local/bin/$tool"
-    ok "~/.local/bin/$tool"
+    cp "$src" "$dest.new" && chmod +x "$dest.new" && mv -f "$dest.new" "$dest" && ok "~/.local/bin/$tool" \
+        || { rm -f "$dest.new"; fail "~/.local/bin/$tool"; return; }
     [ "$tool" = nvim ] || return 0
     # Resolved relative to the binary's prefix (~/.local/): share/nvim/runtime
     # is VIMRUNTIME, lib/nvim/parser holds the treesitter grammars that must

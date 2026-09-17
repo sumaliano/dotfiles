@@ -285,12 +285,14 @@ fi
 
 # Modern tools (auto-detect)
 # Note: Only alias tools with compatible syntax to avoid breaking existing commands
+# eza -l shows the owner only; -g adds the group column like ls -l has.
 command -v eza &>/dev/null && \
     alias ls='eza -h --group-directories-first --icons=auto' && \
     alias lsa='ls -a' && \
-    alias ll='eza -lh --group-directories-first --icons=auto' && \
-    alias lt='eza --tree --level=2 --long --icons --git' && \
-    alias lT='eza -lh --time modified -s newest --icons=auto' && \
+    alias ll='eza -lgh --group-directories-first --icons=auto' && \
+    alias la='ll -A' && \
+    alias lt='eza --tree --level=2 --long -g --icons --git' && \
+    alias lT='eza -lgh --time modified -s newest --icons=auto' && \
     alias lta='lt -a'
 command -v btop &>/dev/null && alias top='btop'
 command -v duf &>/dev/null && alias df='duf'

@@ -141,11 +141,15 @@ TOOLS=(
     "nvim     neovim/neovim          nvim-linux-${X_ARCH}.tar.gz"     # needs glibc 2.32+; + runtime & parsers
     "vim      heywoodlh/vim-builds   vim-${X_ARCH}"                   # static, zero glibc: for old boxes
     "tmux     tmux/tmux-builds       linux-${X_ARCH}.tar.gz"
+    "cliamp   bjarneo/cliamp         cliamp-linux-${GO_ARCH}"         # music player; needs libasound2 + a sound server
 )
 TOOL_NAMES=(); for t in "${TOOLS[@]}"; do TOOL_NAMES+=("${t%% *}"); done
 # Vendored and installed locally, but left out of a bare 'make tool HOST=…':
-# regex authoring is a local task.
-LOCAL_ONLY_TOOLS=(grex)
+# regex authoring is a local task, and a headless server has no speakers.
+LOCAL_ONLY_TOOLS=(grex cliamp)
+# Not every build is static. deploy.sh warns instead of pushing a binary the
+# remote's glibc can't load (the fix for nvim is the static vim build).
+declare -A GLIBC_MIN=([nvim]=2.32 [cliamp]=2.34)
 
 is_tool() { in_list "$1" "${TOOL_NAMES[@]}"; }
 

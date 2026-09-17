@@ -81,15 +81,19 @@ deploy_bin() {
     local tool=$1
     info "$tool"
     vendored "$tool" || { warn "not in vendor/linux-$REMOTE_ARCH/ — run 'make vendor $tool' on a linux-$REMOTE_ARCH box"; return; }
-    if [ "$tool" = nvim ]; then
-        # nvim needs glibc 2.32+; say so now rather than fail at runtime.
+    local need="${GLIBC_MIN[$tool]:-}"
+    if [ -n "$need" ]; then
         local glibc; glibc=$(ssh -q "$HOST" "ldd --version 2>&1 | awk 'NR==1{print \$NF}'" 2>/dev/null || true)
-        if [ -n "$glibc" ] && awk "BEGIN{exit !($glibc < 2.32)}"; then
-            warn "nvim needs glibc 2.32+ but $HOST has $glibc — use: make tool vim HOST=$HOST"
+        if [ -n "$glibc" ] && awk "BEGIN{exit !($glibc < $need)}"; then
+            warn "$tool needs glibc $need+ but $HOST has $glibc${tool/#nvim/ — use: make tool vim HOST=$HOST}"
             return
         fi
     fi
-    push "$VENDOR_DIR/$tool" "~/.local/bin/$tool" && ssh -q "$HOST" "chmod +x ~/.local/bin/$tool" && ok "~/.local/bin/$tool"
+    # Land under a temp name and rename over: a binary that's running on the
+    # remote can't be overwritten in place, but can be replaced.
+    push "$VENDOR_DIR/$tool" "~/.local/bin/$tool.new" \
+        && ssh -q "$HOST" "chmod +x ~/.local/bin/$tool.new && mv -f ~/.local/bin/$tool.new ~/.local/bin/$tool" \
+        && ok "~/.local/bin/$tool" || { fail "~/.local/bin/$tool"; return; }
     [ "$tool" = nvim ] || return 0
     ssh -q "$HOST" "rm -rf ~/.local/share/nvim/runtime ~/.local/lib/nvim/parser"
     push "$VENDOR_DIR/nvim-runtime" "~/.local/share/nvim/runtime" && ok "~/.local/share/nvim/runtime"

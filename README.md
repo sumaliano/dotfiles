@@ -122,7 +122,7 @@ make tool nvim HOST=user@server && make dot nvim HOST=user@server
 ### Vendored tools
 
 `fzf`, `fd`, `bat`, `rg` (ripgrep), `grex`, `eza`, `zoxide`, `delta`, `lazygit`,
-`btop`, `yazi` (+ `ya`), `joshuto`, `7z`, `nvim`, `vim`, `tmux`.
+`btop`, `yazi` (+ `ya`), `joshuto`, `7z`, `nvim`, `vim`, `tmux`, `cliamp`.
 
 `zoxide` is a frecency-based `cd` (`z`/`zi`); it needs the shell-init line in
 `bash/dot-bashrc_ext` and is fed by joshuto navigation (`zoxide_update = true`).
@@ -132,9 +132,15 @@ the static `vim` build instead. `nvim`'s runtime and treesitter parsers travel
 with the binary (`make tool nvim` installs all three, `make remove tool nvim`
 removes all three).
 
-`grex` is **local-only**: vendored and installed locally, but excluded from
-the bulk remote deploy (`make tool HOST=…`) because regex authoring is a
-local task. You can still push it explicitly: `make tool grex HOST=…`.
+`grex` and `cliamp` are **local-only**: vendored and installed locally, but
+excluded from the bulk remote deploy (`make tool HOST=…`) — regex authoring is
+a local task, and a headless server has no speakers. Both can still be pushed
+by name: `make tool grex HOST=…`.
+
+`cliamp` (terminal music player) is the one non-static build: it needs
+glibc 2.34+ and `libasound2` on the machine, plus an ALSA bridge to your sound
+server (`pipewire-alsa` / `libasound2-plugins`). The deployer checks the glibc
+floor per tool (`GLIBC_MIN` in `scripts/lib.sh`) before pushing.
 
 `lazygit`'s config (`~/.config/lazygit/config.yml`) is portable and included
 in both the bulk config deploy (`make dot HOST=…`) and, as of the delta-aware
