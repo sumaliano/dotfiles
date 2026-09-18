@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # uninstall.sh — remove config components or binaries, locally or on a remote.
 #
-#   uninstall.sh --configs [--host u@h] [name ...]   no name = everything of ours
-#   uninstall.sh --bins    [--host u@h] [name ...]   (remote: ALL_REMOTE / every tool)
+#   uninstall.sh --configs [--host u@h] name ...   'all' = everything of ours (remote: ALL_REMOTE)
+#   uninstall.sh --bins    [--host u@h] name ...   'all' = every installed tool (remote: every tool)
 #
 # Locally only our own symlinks are touched — a real file or directory at a
 # target path is reported and left alone. Remote configs are copies (deploy.sh
@@ -106,24 +106,16 @@ if [ -n "$HOST" ]; then
         || die "Cannot connect to $HOST"
 fi
 
+scope=local; [ -z "$HOST" ] || scope=remote
 if [ "$MODE" = configs ]; then
-    if [ ${#NAMES[@]} -eq 0 ]; then
-        if [ -n "$HOST" ]; then NAMES=("${ALL_REMOTE[@]}")
-        else for c in $COMPONENTS; do [ "$c" = lazyvim ] || NAMES+=("$c"); done   # a clone: by name only
-        fi
-    fi
+    resolve_names "make remove dot" configs "$scope"
     for n in "${NAMES[@]}"; do
         is_component "$n" || die "Unknown component '$n'. Available: $COMPONENTS"
         [ -z "$HOST" ] || ! in_list "$n" "${LOCAL_ONLY[@]}" || die "'$n' is local-only — it is never on a remote"
     done
     for n in "${NAMES[@]}"; do remove_component "$n"; done
 else
-    if [ ${#NAMES[@]} -eq 0 ]; then
-        if [ -n "$HOST" ]; then NAMES=("${TOOL_NAMES[@]}")
-        else for t in "${TOOL_NAMES[@]}"; do [ -e "$HOME/.local/bin/$t" ] && NAMES+=("$t"); done
-             [ ${#NAMES[@]} -gt 0 ] || die "no vendored tools in ~/.local/bin/"
-        fi
-    fi
+    resolve_names "make remove tool" tools "$scope"
     for n in "${NAMES[@]}"; do
         is_tool "$n" || die "Unknown tool '$n'. Available: ${TOOL_NAMES[*]}"
     done

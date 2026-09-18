@@ -26,6 +26,53 @@ die()  { printf "${RED}Error:${NC} %s\n" "$*" >&2; exit 1; }
 
 in_list() { local x=$1; shift; [[ " $* " == *" $x "* ]]; }
 
+# ── Group keywords: core / extra / all ───────────────────────────────────────
+# Three words stand in for name lists, the same for dot and tool:
+#   core   the everyday default — what a bare verb points you to
+#   extra  the opt-in-by-name items (heavy or niche configs/tools)
+#   all    core + extra (literally everything)
+# Machine-specific items (LOCAL_ONLY configs; grex among tools) are dropped for
+# remote, so 'all HOST=…' still means "everything that belongs on a server".
+# 'core' is the single source of truth (ALL_LOCAL / ALL_REMOTE / EXTRA_TOOLS);
+# 'extra' is just "the rest", so the two can't drift. Prints one name per line;
+# returns 1 when $2 is an ordinary name, not a keyword.
+group() {
+    local kind=$1 kw=$2 scope=${3:-local} x
+    case "$kw" in core|extra|all) ;; *) return 1 ;; esac
+    if [ "$kind" = configs ]; then
+        local -n core_set=$([ "$scope" = remote ] && echo ALL_REMOTE || echo ALL_LOCAL)
+        for x in $COMPONENTS; do
+            [ "$scope" = remote ] && in_list "$x" "${LOCAL_ONLY[@]}" && continue
+            if in_list "$x" "${core_set[@]}"; then [ "$kw" = extra ] && continue; else [ "$kw" = core ] && continue; fi
+            printf '%s\n' "$x"
+        done
+    else
+        for x in "${TOOL_NAMES[@]}"; do
+            [ "$scope" = remote ] && in_list "$x" "${LOCAL_ONLY_TOOLS[@]}" && continue
+            if in_list "$x" "${EXTRA_TOOLS[@]}"; then [ "$kw" = core ] && continue; else [ "$kw" = extra ] && continue; fi
+            printf '%s\n' "$x"
+        done
+    fi
+}
+
+# Resolve the requested NAMES in place: a group keyword expands, an ordinary
+# name stays, duplicates collapse. No names is an error that points at 'core'.
+#   resolve_names "make tool" tools local
+resolve_names() {
+    local cmd=$1 kind=$2 scope=$3 n x g out=()
+    [ ${#NAMES[@]} -gt 0 ] || die "$cmd <name...|core|extra|all>
+  core:  $(group "$kind" core  "$scope" | tr '\n' ' ')
+  extra: $(group "$kind" extra "$scope" | tr '\n' ' ')"
+    for n in "${NAMES[@]}"; do
+        if g=$(group "$kind" "$n" "$scope"); then
+            while read -r x; do in_list "$x" "${out[@]}" || out+=("$x"); done <<< "$g"
+        elif ! in_list "$n" "${out[@]}"; then
+            out+=("$n")
+        fi
+    done
+    NAMES=("${out[@]}")
+}
+
 # ── Configs ──────────────────────────────────────────────────────────────────
 # Component → the repo files it links, relative to the repo root (globs expand).
 # Each lands where GNU stow --dotfiles would put it: drop the package directory,
@@ -51,9 +98,10 @@ declare -A LINKS=(
     [lazyvim]=""                       # nothing linked: it's a git clone, see install.sh
 )
 
-# What a bare 'make dot' means, locally and remotely; the rest is opt-in by
-# name. Remote skips what's machine-specific (hypr, fonts, utils) and lazyvim
-# (a live clone that needs network on the machine running it).
+# The 'core' config set (see group()), locally and remotely; every other
+# component is 'extra', reached by name or 'make dot extra'. Remote also drops
+# LOCAL_ONLY — machine-specific (hypr, fonts, utils) or a live clone that needs
+# network where it runs (lazyvim) — so it's never pushed even under 'all'.
 ALL_LOCAL=(bash git nvim tmux inputrc joshuto yazi lazygit utils fonts)
 ALL_REMOTE=(bash git inputrc nvim tmux joshuto yazi lazygit)
 LOCAL_ONLY=(hypr fonts utils lazyvim)
@@ -145,10 +193,14 @@ TOOLS=(
     "ffmpeg   eugeneware/ffmpeg-static  ffmpeg-linux-${Z_ARCH}.gz"    # fully static johnvansickle build; cliamp's AAC/ALAC/Opus/WMA
 )
 TOOL_NAMES=(); for t in "${TOOLS[@]}"; do TOOL_NAMES+=("${t%% *}"); done
-# Vendored and installed locally, but left out of a bare 'make tool HOST=…':
-# regex authoring is a local task, a headless server has no speakers, and
-# ffmpeg is 80 MB that's only here for cliamp. All three push by name.
-LOCAL_ONLY_TOOLS=(grex cliamp ffmpeg)
+# The tool 'extra' set (see group()): opt-in by name or 'make tool extra',
+# never in 'core'. cliamp is a music player, ffmpeg is 80 MB of codecs riding
+# along only for it — like vim/hypr/aerc/lazyvim on the config side.
+EXTRA_TOOLS=(cliamp ffmpeg)
+# 'core' locally, but dropped from every remote group: regex authoring is a
+# local task, and a bare server should keep git fundamentals sharp. (Still
+# pushable by explicit name: make tool grex HOST=…)
+LOCAL_ONLY_TOOLS=(grex)
 # Not every build is static. deploy.sh warns instead of pushing a binary the
 # remote's glibc can't load (the fix for nvim is the static vim build).
 declare -A GLIBC_MIN=([nvim]=2.32 [cliamp]=2.34)

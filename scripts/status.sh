@@ -85,7 +85,7 @@ for comp in $COMPONENTS; do
         ours "$dest" && [ -e "$dest" ] && have=$((have + 1))   # ours, and not dangling
     done < <(sources_of "$comp")
     if declare -f "check_$comp" >/dev/null; then n=$((n + 1)); "check_$comp" && have=$((have + 1)); fi
-    note=""; in_list "$comp" "${ALL_LOCAL[@]}" || note="  (opt-in)"
+    note=""; in_list "$comp" "${ALL_LOCAL[@]}" || note="  (extra)"
     if [ "$have" -eq "$n" ]; then installed "$comp$note"
     elif [ "$have" -eq 0 ];   then missing "$comp$note"
     else partial "$comp  ($have of $n linked)$note"; fi
@@ -93,7 +93,8 @@ done
 
 printf "\n${BOLD}Tools (~/.local/bin):${NC}\n"
 for t in "${TOOL_NAMES[@]}"; do
-    [ -x "$HOME/.local/bin/$t" ] && installed "$t" || missing "$t"
+    note=""; in_list "$t" "${EXTRA_TOOLS[@]}" && note="  (extra)"
+    [ -x "$HOME/.local/bin/$t" ] && installed "$t$note" || missing "$t$note"
 done
 
 printf "\n"

@@ -4,12 +4,15 @@
 # Two verbs, one axis. 'dot' = configs, 'tool' = portable binaries.
 # Add HOST=user@host to do the same thing on a remote box over SSH.
 #
-#   make dot                  link the default configs locally
-#   make dot nvim tmux        link just those
+#   make dot nvim tmux        link those configs locally
+#   make dot core             link the everyday set (extra = the opt-in rest; all = both)
 #   make dot nvim HOST=u@s    push the nvim config to a server
-#   make tool                 install every vendored binary locally
-#   make tool fzf bat         install just those
+#   make tool fzf bat         install those vendored binaries locally
+#   make tool core            install the everyday tools (extra = cliamp/ffmpeg; all = both)
 #   make tool nvim HOST=u@s   push the nvim binary to a server
+#
+# core / extra / all are group keywords (both verbs); a bare verb lists them
+# and does nothing.
 #
 # A full remote nvim is:  make tool nvim HOST=u@s && make dot nvim HOST=u@s
 
@@ -58,20 +61,21 @@ endif
 endif
 
 help:
-	@printf "$(BOLD)Usage: make <dot|tool> [name...] [HOST=user@host]$(NC)\n\n"
-	@printf "  $(BOLD)dot$(NC)   [name...]   Link dotfile CONFIGS    (no name = the default set)\n"
-	@printf "  $(BOLD)tool$(NC)  [name...]   Install vendor BINARIES (no name = every vendored one)\n"
-	@printf "\n  Add $(BOLD)HOST=user@host$(NC) to do it on a remote box over SSH. A full remote nvim:\n"
+	@printf "$(BOLD)Usage: make <dot|tool> <name...|core|extra|all> [HOST=user@host]$(NC)\n\n"
+	@printf "  $(BOLD)dot$(NC)   name...|GROUP   Link dotfile CONFIGS\n"
+	@printf "  $(BOLD)tool$(NC)  name...|GROUP   Install vendor BINARIES\n"
+	@printf "\n  $(BOLD)GROUP$(NC) is $(BOLD)core$(NC) (the everyday set), $(BOLD)extra$(NC) (opt-in-by-name), or $(BOLD)all$(NC) (both).\n"
+	@printf "  Add $(BOLD)HOST=user@host$(NC) to do it on a remote box over SSH. A full remote nvim:\n"
 	@printf "    $(DIM)make tool nvim HOST=u@s && make dot nvim HOST=u@s$(NC)\n"
 	@printf "\n$(BOLD)Portable binaries:$(NC)\n"
-	@printf "  vendor [name...]      Download static binaries to vendor/linux-<arch>/  (FORCE=1 refreshes)\n"
-	@printf "  clean                 Remove the vendor/ cache\n"
+	@printf "  vendor [name...|GROUP]   Download static binaries to vendor/linux-<arch>/  (FORCE=1 refreshes)\n"
+	@printf "  clean                    Remove the vendor/ cache\n"
 	@printf "\n$(BOLD)Remove (mirror of dot/tool):$(NC)\n"
-	@printf "  remove dot  [name...] [HOST=u@h]   Remove configs  (no name = all of ours)\n"
-	@printf "  remove tool [name...] [HOST=u@h]   Remove binaries (no name = all)\n"
+	@printf "  remove dot  name...|GROUP [HOST=u@h]   Remove configs\n"
+	@printf "  remove tool name...|GROUP [HOST=u@h]   Remove binaries\n"
 	@printf "\n$(BOLD)Management:$(NC)\n"
 	@printf "  status   [HOST=u@h]   Show what's installed, locally or on a server\n\n"
-	@printf "$(DIM)"; bash $(SCRIPTS)/lib.sh; printf "(hypr, vim, aerc, lazyvim are opt-in by name; grex stays local)$(NC)\n"
+	@printf "$(DIM)"; bash $(SCRIPTS)/lib.sh; printf "(extra = configs vim/hypr/aerc/lazyvim, tools cliamp/ffmpeg; grex is local-only)$(NC)\n"
 
 # When 'dot'/'tool' follows 'remove' it's a sub-verb, not a command: stay inert.
 dot:

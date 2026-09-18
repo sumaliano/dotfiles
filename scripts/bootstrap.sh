@@ -13,8 +13,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 command -v curl >/dev/null || die "curl is required"
 command -v tar  >/dev/null || die "tar is required"
 
+# Unlike dot/tool, a bare 'make vendor' filling the cache is harmless (it
+# installs nothing), so no name defaults to 'all'. core/extra/all also work.
 NAMES=("$@")
-[ ${#NAMES[@]} -gt 0 ] || NAMES=("${TOOL_NAMES[@]}")
+[ ${#NAMES[@]} -gt 0 ] || NAMES=(all)
+resolve_names "make vendor" tools local
 for n in "${NAMES[@]}"; do is_tool "$n" || die "Unknown tool '$n'. Available: ${TOOL_NAMES[*]}"; done
 
 mkdir -p "$VENDOR_DIR"

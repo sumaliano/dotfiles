@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # deploy.sh — push config components or vendored binaries to a remote over SSH.
 #
-#   deploy.sh --host u@h --configs [name ...]   no name = ALL_REMOTE
-#   deploy.sh --host u@h --bins    [name ...]   no name = every vendored tool (minus LOCAL_ONLY_TOOLS)
+#   deploy.sh --host u@h --configs name ...   'all' = ALL_REMOTE
+#   deploy.sh --host u@h --bins    name ...   'all' = every vendored tool minus LOCAL_ONLY_TOOLS
 #
 # The remote mirror of install.sh: same LINKS table, same targets, but files
 # are copied (scp / tar over ssh) since there's no repo on the far side to
@@ -103,19 +103,14 @@ deploy_bin() {
 # ── Drive it ─────────────────────────────────────────────────────────────────
 
 if [ "$MODE" = configs ]; then
-    [ ${#NAMES[@]} -gt 0 ] || NAMES=("${ALL_REMOTE[@]}")
+    resolve_names "make dot" configs remote
     for n in "${NAMES[@]}"; do
         is_component "$n" || die "Unknown component '$n'. Available: $COMPONENTS"
         ! in_list "$n" "${LOCAL_ONLY[@]}" || die "'$n' is local-only (see LOCAL_ONLY in scripts/lib.sh)"
     done
     for n in "${NAMES[@]}"; do deploy_component "$n"; done
 else
-    if [ ${#NAMES[@]} -eq 0 ]; then
-        for t in "${TOOL_NAMES[@]}"; do
-            in_list "$t" "${LOCAL_ONLY_TOOLS[@]}" || ! vendored "$t" || NAMES+=("$t")
-        done
-        [ ${#NAMES[@]} -gt 0 ] || die "nothing in vendor/linux-$REMOTE_ARCH/ — run 'make vendor' on a linux-$REMOTE_ARCH box"
-    fi
+    resolve_names "make tool" tools remote
     for n in "${NAMES[@]}"; do
         is_tool "$n" || die "Unknown tool '$n'. Available: ${TOOL_NAMES[*]}"
     done

@@ -30,8 +30,8 @@ package manager, nothing pre-installed on the remote required.
 git clone https://github.com/username/dotfiles ~/dotfiles
 cd ~/dotfiles
 
-# Link the default set of configs locally (symlinks into this repo)
-make dot
+# Link the everyday set of configs locally (symlinks into this repo)
+make dot core
 
 # Or selectively — names are positional
 make dot bash vim tmux
@@ -41,24 +41,31 @@ The interface has **two verbs on one axis**:
 
 - **`dot`** acts on **configs**, **`tool`** acts on **portable binaries**.
 - Add **`HOST=user@host`** to do it on a remote box over SSH; omit it for local.
-- No name means **everything**.
+- Give **names**, or one of three **group keywords**:
+  - **`core`** — the everyday set (what a bare verb points you to)
+  - **`extra`** — the opt-in-by-name items (configs `vim`/`hypr`/`aerc`/`lazyvim`, tools `cliamp`/`ffmpeg`)
+  - **`all`** — `core` + `extra`
+- A **bare verb does nothing** but print `core` and `extra`, so nothing bulk happens by accident.
 
 | Command | What it does |
 |---------|--------------|
-| `make dot [name…]` | Link dotfile **configs** locally (no name = all) |
-| `make dot [name…] HOST=u@h` | Push those configs to a server over SSH |
-| `make tool [name…]` | Install vendor **binaries** to `~/.local/bin` locally |
-| `make tool [name…] HOST=u@h` | Push those binaries to a server over SSH |
-| `make vendor [name…]` | Download static binaries to `vendor/linux-<arch>/` (`FORCE=1` re-downloads) |
+| `make dot <names…\|core\|extra\|all>` | Link dotfile **configs** locally |
+| `make dot … HOST=u@h` | Push those configs to a server over SSH |
+| `make tool <names…\|core\|extra\|all>` | Install vendor **binaries** to `~/.local/bin` locally |
+| `make tool … HOST=u@h` | Push those binaries to a server over SSH |
+| `make vendor [names…\|core\|extra\|all]` | Download static binaries to `vendor/linux-<arch>/` (no arg = all; `FORCE=1` re-downloads) |
 | `make clean` | Remove the downloaded binaries (the `vendor/` cache) |
-| `make remove dot [name…] [HOST=u@h]` | Remove **configs** (no name = everything of ours) |
-| `make remove tool [name…] [HOST=u@h]` | Remove **binaries** (no name = all) |
+| `make remove dot <names…\|core\|extra\|all> [HOST=u@h]` | Remove **configs** |
+| `make remove tool <names…\|core\|extra\|all> [HOST=u@h]` | Remove **binaries** |
 | `make status [HOST=u@h]` | Show what's installed, locally or on a server |
 
-Unknown names are an error everywhere (`make dot Hyperland` won't silently do
-nothing). Locally, `remove` only ever deletes symlinks that point into this
-repo — a real file at the same path is reported and left alone — and `status`
-only counts those as installed.
+Group keywords and names can be combined (`make tool core cliamp`), and
+duplicates collapse. On a remote, `core`/`all` drop the local-only items
+(machine-specific configs, `grex`) — so `make tool all HOST=…` still means
+"everything that belongs on a server". Unknown names are an error everywhere
+(`make dot Hyperland` won't silently do nothing). Locally, `remove` only ever
+deletes symlinks that point into this repo — a real file at the same path is
+reported and left alone — and `status` only counts those as installed.
 
 ## Vendoring & remote deploy
 
@@ -79,8 +86,8 @@ make tool nvim HOST=u@s && make dot nvim HOST=u@s
 make tool fzf bat rg HOST=user@server
 
 # 4. Everything — all binaries, or all configs
-make tool HOST=user@server             # every vendored binary
-make dot  HOST=user@server             # every config the deployer knows
+make tool all HOST=user@server         # every deployable binary (drops grex)
+make dot  all HOST=user@server         # every deployable config
 
 # 5. Check what's installed, locally or remotely
 make status
@@ -89,20 +96,20 @@ make status HOST=user@server
 # 6. Remove — same dot/tool split, add HOST for remote
 make remove tool nvim                        # binary, locally
 make remove dot  nvim HOST=user@server       # config, remotely
-make remove tool HOST=user@server            # every binary on the server
+make remove tool all  HOST=user@server       # every deployable binary on the server
 ```
 
 ### `dot` vs `tool`, local vs remote
 
 The two verbs are deliberately separate so each does exactly one thing:
 
-- **`make tool …`** moves **binaries** (`~/.local/bin`). With no name it means
-  every binary present in `vendor/linux-<arch>/`.
-- **`make dot …`** moves **configs**. With no name, locally that's the default
-  set (`bash`, `git`, `nvim`, `tmux`, `inputrc`, `joshuto`, `yazi`, `lazygit`,
-  `utils`, `fonts`); remotely it's what makes sense on a server (`bash`,
-  `git`, `inputrc`, `nvim`, `tmux`, `joshuto`, `yazi`, `lazygit`). `vim`,
-  `hypr`, `aerc` and `lazyvim` are opt-in by name. `hypr`
+- **`make tool …`** moves **binaries** (`~/.local/bin`). `core` is the everyday
+  set; `extra` is `cliamp`/`ffmpeg`; `all` is both.
+- **`make dot …`** moves **configs**. `core` locally is (`bash`, `git`, `nvim`,
+  `tmux`, `inputrc`, `joshuto`, `yazi`, `lazygit`, `utils`, `fonts`); remotely
+  it's what makes sense on a server (`bash`, `git`, `inputrc`, `nvim`, `tmux`,
+  `joshuto`, `yazi`, `lazygit`). `extra` is `vim`, `hypr`, `aerc`, `lazyvim`
+  (`make dot extra`, or by name). `hypr`
   is local-only — a Wayland compositor config has no reason to deploy to a
   headless server. `aerc` is local-only for the same kind of reason as `git`:
   its account credentials (`accounts.conf`) are deliberately excluded from
@@ -132,11 +139,14 @@ the static `vim` build instead. `nvim`'s runtime and treesitter parsers travel
 with the binary (`make tool nvim` installs all three, `make remove tool nvim`
 removes all three).
 
-`grex`, `cliamp` and `ffmpeg` are **local-only**: vendored and installed
-locally, but excluded from the bulk remote deploy (`make tool HOST=…`) — regex
-authoring is a local task, a headless server has no speakers, and `ffmpeg` is
-an 80 MB static build that's here for cliamp's AAC/ALAC/Opus/WMA playback. All
-three can still be pushed by name: `make tool ffmpeg HOST=…`.
+`cliamp` and `ffmpeg` are the **`extra`** tools: vendored by `make vendor`, but
+not in `core`, so `make tool core` skips them — cliamp is a music player, and
+`ffmpeg` is an 80 MB static build riding along only for cliamp's AAC/ALAC/Opus/
+WMA playback. Install them with `make tool extra`, `make tool all`, or by name.
+
+`grex` is in `core` locally but **local-only** for remote: `make tool all HOST=…`
+skips it (regex authoring is a local task). It's still pushable by name:
+`make tool grex HOST=…`.
 
 `cliamp` (terminal music player) is the one non-static build: it needs
 glibc 2.34+ and `libasound2` on the machine, plus an ALSA bridge to your sound

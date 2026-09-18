@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # install.sh — link config components, or install vendored binaries, locally.
 #
-#   install.sh --configs [name ...]    no name = ALL_LOCAL
-#   install.sh --bins    [name ...]    no name = every tool in vendor/linux-<arch>/
+#   install.sh --configs name ...    'all' = ALL_LOCAL
+#   install.sh --bins    name ...    'all' = every tool in vendor/linux-<arch>/
 #
 # A component is its LINKS entry in lib.sh (symlinked) plus an optional
 # setup_<name> hook for what a symlink can't express. lazyvim is a clone, not
@@ -171,16 +171,13 @@ install_bin() {
 # ── Drive it ─────────────────────────────────────────────────────────────────
 
 if [ "$MODE" = configs ]; then
-    [ ${#NAMES[@]} -gt 0 ] || NAMES=("${ALL_LOCAL[@]}")
+    resolve_names "make dot" configs local
     for n in "${NAMES[@]}"; do
         is_component "$n" || die "Unknown component '$n'. Available: $COMPONENTS"
     done
     for n in "${NAMES[@]}"; do install_component "$n"; done
 else
-    if [ ${#NAMES[@]} -eq 0 ]; then
-        for t in "${TOOL_NAMES[@]}"; do vendored "$t" && NAMES+=("$t"); done
-        [ ${#NAMES[@]} -gt 0 ] || die "nothing in vendor/linux-$ARCH/ — run 'make vendor' first"
-    fi
+    resolve_names "make tool" tools local
     for n in "${NAMES[@]}"; do
         is_tool "$n" || die "Unknown tool '$n'. Available: ${TOOL_NAMES[*]}"
     done
